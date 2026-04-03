@@ -104,7 +104,6 @@ Deno.serve(async (req) => {
     } while (cursor);
 
     // Get all applications from our DB
-    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
     const { data: applications } = await serviceClient
       .from("applications")
       .select("id, name");
