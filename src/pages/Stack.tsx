@@ -28,6 +28,7 @@ export default function Stack() {
   const addApp = useAddUserApplication();
   const removeApp = useRemoveUserApplication();
   const updateApp = useUpdateUserApplication();
+  const discoverIntegrations = useDiscoverIntegrations();
   const { userRole } = useAuth();
   const isAdmin = userRole === 'admin';
   const navigate = useNavigate();
