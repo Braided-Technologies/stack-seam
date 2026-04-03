@@ -1,6 +1,7 @@
 import { useUserApplications, useIntegrations } from '@/hooks/useStackData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Layers, DollarSign, CalendarClock, Link2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Layers, DollarSign, CalendarClock, Link2, AlertTriangle } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 
 export default function Dashboard() {
@@ -14,6 +15,14 @@ export default function Dashboard() {
   const relevantIntegrations = integrations.filter(
     i => userAppIds.has(i.source_app_id) && userAppIds.has(i.target_app_id)
   );
+
+  const urgentRenewals = userApps
+    .filter(ua => {
+      if (!ua.renewal_date) return false;
+      const days = differenceInDays(new Date(ua.renewal_date), new Date());
+      return days <= 30;
+    })
+    .sort((a, b) => new Date(a.renewal_date!).getTime() - new Date(b.renewal_date!).getTime());
 
   const upcomingRenewals = userApps
     .filter(ua => ua.renewal_date)
@@ -66,6 +75,39 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* Urgent renewal alerts */}
+      {urgentRenewals.length > 0 && (
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Renewal Alerts — {urgentRenewals.length} contract{urgentRenewals.length > 1 ? 's' : ''} expiring within 30 days
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {urgentRenewals.map(ua => {
+                const daysUntil = differenceInDays(new Date(ua.renewal_date!), new Date());
+                return (
+                  <div key={ua.id} className="flex items-center justify-between rounded-lg border border-destructive/20 bg-background p-3">
+                    <div>
+                      <p className="font-medium">{(ua as any).applications?.name || 'Unknown App'}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Renews {format(new Date(ua.renewal_date!), 'MMM d, yyyy')}
+                        {ua.cost_annual ? ` · $${Number(ua.cost_annual).toLocaleString()}/yr` : ''}
+                      </p>
+                    </div>
+                    <Badge variant={daysUntil <= 0 ? 'destructive' : 'outline'} className={daysUntil > 0 ? 'border-destructive/50 text-destructive' : ''}>
+                      {daysUntil <= 0 ? 'Overdue!' : daysUntil === 1 ? '1 day left' : `${daysUntil} days left`}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {upcomingRenewals.length > 0 && (
         <Card>
           <CardHeader>
@@ -88,7 +130,7 @@ export default function Dashboard() {
                     </div>
                     <span className={cn(
                       'text-sm font-medium',
-                      daysUntil <= 30 ? 'text-destructive' : daysUntil <= 90 ? 'text-yellow-600' : 'text-muted-foreground'
+                      daysUntil <= 30 ? 'text-destructive' : daysUntil <= 90 ? 'text-muted-foreground' : 'text-muted-foreground'
                     )}>
                       {daysUntil <= 0 ? 'Overdue' : `${daysUntil} days`}
                     </span>
