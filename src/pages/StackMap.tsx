@@ -23,12 +23,12 @@ export default function StackMap() {
   const { data: allIntegrations = [] } = useIntegrations();
   const [selectedEdge, setSelectedEdge] = useState<any>(null);
 
-  const userAppIds = new Set(userApps.map(ua => ua.application_id));
+  const userAppIdList = useMemo(() => userApps.map(ua => ua.application_id), [userApps]);
 
-  const relevantIntegrations = useMemo(
-    () => allIntegrations.filter(i => userAppIds.has(i.source_app_id) && userAppIds.has(i.target_app_id)),
-    [allIntegrations, userAppIds]
-  );
+  const relevantIntegrations = useMemo(() => {
+    const ids = new Set(userAppIdList);
+    return allIntegrations.filter(i => ids.has(i.source_app_id) && ids.has(i.target_app_id));
+  }, [allIntegrations, userAppIdList]);
 
   const { initialNodes, initialEdges } = useMemo(() => {
     // Group apps by category
