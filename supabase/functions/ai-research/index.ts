@@ -56,7 +56,7 @@ serve(async (req) => {
 
     let aiUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
     let apiKey = Deno.env.get("LOVABLE_API_KEY");
-    let model = "google/gemini-3-flash-preview";
+    let model = (requestedModel && allowedModels.includes(requestedModel)) ? requestedModel : "google/gemini-3-flash-preview";
 
     // Check for BYOK settings
     if (roleData?.organization_id) {
