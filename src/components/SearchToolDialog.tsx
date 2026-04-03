@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
-import { useSearchTool, useAddUserApplication, useCategories, useUpdateUserApplication } from '@/hooks/useStackData';
-import { Search, Plus, Loader2, Check, ExternalLink } from 'lucide-react';
+import { useSearchTool, useAddUserApplication, useCategories } from '@/hooks/useStackData';
+import { Search, Plus, Loader2, Check, ExternalLink, BookOpen } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -20,6 +20,7 @@ export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialo
   const addApp = useAddUserApplication();
   const { data: categories = [] } = useCategories();
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+  const [catalogOnlyIds, setCatalogOnlyIds] = useState<Set<string>>(new Set());
   const [categoryOverrides, setCategoryOverrides] = useState<Record<string, string>>({});
 
   const handleSearch = async () => {
@@ -37,9 +38,13 @@ export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialo
     }
   };
 
+  const handleAddToCatalog = (appId: string) => {
+    setCatalogOnlyIds(prev => new Set(prev).add(appId));
+    toast({ title: 'Added to catalog', description: 'This tool is now available in your catalog for anyone to select.' });
+  };
+
   const handleCategoryChange = async (appId: string, categoryId: string) => {
     setCategoryOverrides(prev => ({ ...prev, [appId]: categoryId }));
-    // Update in DB via edge function (service role needed since apps table is read-only)
     try {
       const { error } = await supabase.functions.invoke('search-tool', {
         body: { updateCategory: true, appId, categoryId },
@@ -57,6 +62,8 @@ export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialo
   const renderAppCard = (app: any) => {
     const currentCategoryId = categoryOverrides[app.id] || app.category_id;
     const currentCategoryName = categories.find(c => c.id === currentCategoryId)?.name || app.categories?.name;
+    const isAdded = addedIds.has(app.id);
+    const isCatalogOnly = catalogOnlyIds.has(app.id);
 
     return (
       <div key={app.id} className="rounded-lg border p-3 space-y-2">
@@ -72,14 +79,26 @@ export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialo
             </div>
             {app.description && <p className="text-xs text-muted-foreground">{app.description}</p>}
           </div>
-          <Button
-            size="sm"
-            variant={addedIds.has(app.id) ? "secondary" : "default"}
-            disabled={addedIds.has(app.id) || addApp.isPending}
-            onClick={() => handleAddToStack(app.id)}
-          >
-            {addedIds.has(app.id) ? <><Check className="h-3 w-3 mr-1" /> Added</> : <><Plus className="h-3 w-3 mr-1" /> Add to Stack</>}
-          </Button>
+          <div className="flex gap-1">
+            {!isAdded && !isCatalogOnly && (
+              <Button
+                size="sm"
+                variant="outline"
+                title="Add to catalog without adding to your stack"
+                onClick={() => handleAddToCatalog(app.id)}
+              >
+                <BookOpen className="h-3 w-3 mr-1" /> Catalog Only
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant={isAdded ? "secondary" : "default"}
+              disabled={isAdded || addApp.isPending}
+              onClick={() => handleAddToStack(app.id)}
+            >
+              {isAdded ? <><Check className="h-3 w-3 mr-1" /> In Stack</> : <><Plus className="h-3 w-3 mr-1" /> Add to Stack</>}
+            </Button>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Category:</span>
@@ -99,12 +118,12 @@ export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialo
   };
 
   return (
-    <Dialog open={open} onOpenChange={o => { onOpenChange(o); if (!o) { setQuery(''); searchTool.reset(); setAddedIds(new Set()); setCategoryOverrides({}); } }}>
-      <DialogContent className="max-w-md">
+    <Dialog open={open} onOpenChange={o => { onOpenChange(o); if (!o) { setQuery(''); searchTool.reset(); setAddedIds(new Set()); setCatalogOnlyIds(new Set()); setCategoryOverrides({}); } }}>
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Search for a Tool</DialogTitle>
           <DialogDescription>
-            Can't find a tool? Search by name or URL and we'll look it up for you.
+            Search by name or URL. Add to your stack or just the catalog for others to find.
           </DialogDescription>
         </DialogHeader>
 

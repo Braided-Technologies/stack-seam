@@ -22,6 +22,8 @@ export type Database = {
           id: string
           logo_url: string | null
           name: string
+          status: string
+          submitted_by_org: string | null
           vendor_url: string | null
         }
         Insert: {
@@ -31,6 +33,8 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name: string
+          status?: string
+          submitted_by_org?: string | null
           vendor_url?: string | null
         }
         Update: {
@@ -40,6 +44,8 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name?: string
+          status?: string
+          submitted_by_org?: string | null
           vendor_url?: string | null
         }
         Relationships: [
@@ -48,6 +54,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_submitted_by_org_fkey"
+            columns: ["submitted_by_org"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -266,6 +279,7 @@ export type Database = {
           is_configured: boolean
           notes: string | null
           organization_id: string
+          status: string
           updated_at: string
         }
         Insert: {
@@ -277,6 +291,7 @@ export type Database = {
           is_configured?: boolean
           notes?: string | null
           organization_id: string
+          status?: string
           updated_at?: string
         }
         Update: {
@@ -288,6 +303,7 @@ export type Database = {
           is_configured?: boolean
           notes?: string | null
           organization_id?: string
+          status?: string
           updated_at?: string
         }
         Relationships: [
