@@ -33,6 +33,8 @@ const AppRoutes = () => (
     <Route path="/stack" element={<ProtectedRoute><Stack /></ProtectedRoute>} />
     <Route path="/map" element={<ProtectedRoute><StackMap /></ProtectedRoute>} />
     <Route path="/team" element={<ProtectedRoute><Team /></ProtectedRoute>} />
+    <Route path="/research" element={<ProtectedRoute><Research /></ProtectedRoute>} />
+    <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );
