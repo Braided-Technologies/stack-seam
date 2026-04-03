@@ -55,9 +55,9 @@ export default function Integrations() {
   });
 
   const configuredMap = useMemo(() => {
-    const map = new Map<string, { id: string; is_configured: boolean; notes: string | null }>();
+    const map: Record<string, { id: string; is_configured: boolean; notes: string | null }> = {};
     orgIntegrations.forEach(oi => {
-      map.set(oi.integration_id, { id: oi.id, is_configured: oi.is_configured, notes: oi.notes });
+      map[oi.integration_id] = { id: oi.id, is_configured: oi.is_configured, notes: oi.notes };
     });
     return map;
   }, [orgIntegrations]);
