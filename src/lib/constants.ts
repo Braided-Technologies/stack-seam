@@ -1,0 +1,33 @@
+export const CATEGORY_COLORS: Record<string, string> = {
+  'PSA / Ticketing': 'hsl(221, 83%, 53%)',
+  'RMM': 'hsl(262, 83%, 58%)',
+  'Documentation': 'hsl(142, 71%, 45%)',
+  'Accounting': 'hsl(38, 92%, 50%)',
+  'Cybersecurity': 'hsl(0, 84%, 60%)',
+  'Backup & DR': 'hsl(199, 89%, 48%)',
+  'Networking': 'hsl(172, 66%, 50%)',
+  'GRC / Compliance': 'hsl(291, 47%, 51%)',
+  'HRS / HR': 'hsl(330, 81%, 60%)',
+  'Email & Collaboration': 'hsl(213, 94%, 68%)',
+  'Identity & Access': 'hsl(43, 96%, 56%)',
+  'Sales & CRM': 'hsl(160, 84%, 39%)',
+  'Communication': 'hsl(258, 90%, 66%)',
+  'Endpoint Management': 'hsl(210, 34%, 63%)',
+};
+
+export const CATEGORY_ICONS: Record<string, string> = {
+  'PSA / Ticketing': 'Ticket',
+  'RMM': 'Monitor',
+  'Documentation': 'FileText',
+  'Accounting': 'Calculator',
+  'Cybersecurity': 'Shield',
+  'Backup & DR': 'HardDrive',
+  'Networking': 'Network',
+  'GRC / Compliance': 'ClipboardCheck',
+  'HRS / HR': 'Users',
+  'Email & Collaboration': 'Mail',
+  'Identity & Access': 'Key',
+  'Sales & CRM': 'TrendingUp',
+  'Communication': 'MessageSquare',
+  'Endpoint Management': 'Laptop',
+};
