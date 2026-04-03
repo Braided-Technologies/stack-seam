@@ -1,64 +1,50 @@
 
 
-# AI-Powered Research with Built-in + BYOK Option
+# Add Tool Search & Discovery to Stack Page
+
+## Problem
+The pre-seeded applications list doesn't cover every tool (e.g., Drata for GRC). Users need a way to find and add tools that aren't already in the catalog.
 
 ## What We're Building
 
-An AI research assistant built into the app that helps MSP teams research tools, compare vendors, get recommendations, and answer IT questions. It works out-of-the-box with built-in AI, with an optional settings page for power users to connect their own API keys.
+A "Search & Add Tool" feature on the Stack page that lets users:
+1. **Search by name** — type a tool name (e.g., "Drata") and get it looked up via AI, which returns the tool's name, description, category, vendor URL, and logo
+2. **Add to catalog** — once found, the tool gets added to the global `applications` table so everyone can use it
+3. **Seed more tools** — run a one-time migration to add ~50+ more popular MSP tools across all categories (including GRC tools like Drata, Vanta, Tugboat Logic, etc.)
 
 ## Plan
 
-### 1. Create AI Research Edge Function
-**File:** `supabase/functions/ai-research/index.ts`
+### 1. Seed More Applications (Migration)
+Add a comprehensive batch of additional MSP tools to the `applications` table across all categories. Focus on filling gaps in GRC/Compliance, Cybersecurity, Endpoint Management, and other underrepresented categories. This is a SQL migration with INSERT statements.
 
-A new edge function that accepts a research query and optional context (user's current stack). It uses Lovable AI by default but checks for a user-provided API key in the `org_settings` table first. If a custom key exists, routes to that provider instead.
+### 2. Create "Search Tool" Edge Function
+**File:** `supabase/functions/search-tool/index.ts`
 
-Supports research queries like:
-- "Compare HaloPSA vs ConnectWise Manage for a 20-person MSP"
-- "What backup solutions integrate with Datto RMM?"
-- "Best practices for MSP cybersecurity stack"
+Accepts a search query (name or URL). Uses AI to identify the tool and return structured data: name, description, category, vendor URL. Then inserts it into the `applications` table using the service role client (since the table is read-only for regular users). Returns the new application record so the frontend can immediately offer to add it to the user's stack.
 
-Uses streaming SSE for real-time token delivery.
+- Checks if the tool already exists in the catalog first (fuzzy match by name)
+- If it exists, returns the existing record
+- If not, uses AI to research the tool, then inserts it
 
-### 2. Create Organization Settings Table
-**Migration:** New `org_settings` table to store per-org configuration including optional AI provider keys.
+### 3. Add Search UI to Stack Page
+**File:** `src/pages/Stack.tsx`
 
-Columns: `id`, `organization_id`, `setting_key` (text), `setting_value` (text, encrypted at app level), `created_at`, `updated_at`
+Add a "Can't find a tool?" button/section that opens a dialog where admins can:
+- Type a tool name or paste a vendor URL
+- See the AI-identified result (name, description, category)
+- Confirm to add it to the catalog
+- Optionally add it to their stack immediately
 
-RLS: Only org admins can read/write their org's settings. Uses `is_org_admin()`.
+### 4. Add Hook for Tool Search
+**File:** `src/hooks/useStackData.ts`
 
-Setting keys: `ai_provider` (lovable/openai/anthropic), `ai_api_key`, `ai_model`.
-
-### 3. Build AI Research Chat Page
-**File:** `src/pages/Research.tsx`
-
-A chat-style interface where users can ask questions about IT tools, get vendor comparisons, and receive stack recommendations. Features:
-- Message input with suggested prompts (e.g., "Compare RMM tools", "Security stack recommendations")
-- Streaming responses rendered token-by-token
-- Context-aware: automatically includes the user's current stack in the system prompt
-- Chat history within the session
-
-### 4. Build Settings Page (BYOK)
-**File:** `src/pages/Settings.tsx`
-
-Organization settings page (admin-only) with an "AI Configuration" section:
-- Toggle between "Built-in AI" (default) and "Custom API Key"
-- Provider dropdown: OpenAI, Anthropic, Google
-- API key input (masked, stored in `org_settings`)
-- Model selection based on provider
-- Test connection button
-
-### 5. Update Navigation
-Add "Research" and "Settings" links to `AppLayout.tsx` sidebar. Settings visible to admins only.
-
-### 6. Update Routing
-Add `/research` and `/settings` routes in `App.tsx`.
+Add a `useSearchTool` mutation that calls the edge function and invalidates the applications query on success.
 
 ## Technical Details
 
-- The edge function checks `org_settings` for a custom key before falling back to `LOVABLE_API_KEY`
-- Custom API keys are stored in the database (not as Supabase secrets) so each org can have their own
-- Streaming uses SSE pattern consistent with the existing Lovable AI gateway docs
-- System prompt includes the user's stack apps for context-aware answers
-- Rate limit (429) and credit (402) errors are surfaced as toast notifications
+- The edge function uses `SUPABASE_SERVICE_ROLE_KEY` to insert into `applications` (bypassing the read-only RLS)
+- AI lookup uses the Lovable AI gateway with structured output to get consistent tool metadata
+- Category matching: the AI response includes a category name, which is matched against existing categories
+- Duplicate prevention: checks `applications` table for case-insensitive name match before inserting
+- Only admins can trigger the search/add flow (checked in the UI)
 
