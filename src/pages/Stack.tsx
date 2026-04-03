@@ -204,7 +204,21 @@ export default function Stack() {
                     onClick={() => handleAppClick(app)}
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-sm truncate">{app.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-medium text-sm truncate">{app.name}</p>
+                        {app.vendor_url && (
+                          <a
+                            href={app.vendor_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-muted-foreground hover:text-primary flex-shrink-0"
+                            onClick={e => e.stopPropagation()}
+                            title="Visit vendor website"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                      </div>
                       {app.description && (
                         <p className="text-xs text-muted-foreground truncate">{app.description}</p>
                       )}
