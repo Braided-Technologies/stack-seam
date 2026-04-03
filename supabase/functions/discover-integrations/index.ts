@@ -6,6 +6,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function isValidDocUrl(url: string | undefined | null): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (trimmed.length < 10) return false;
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) return false;
+  if (trimmed.includes('example.com') || trimmed.includes('placeholder') || trimmed.includes('your-')) return false;
+  return true;
+}
+
 async function discoverBatch(appNames: string[], LOVABLE_API_KEY: string) {
   const appList = appNames.join(", ");
   const prompt = `You are an expert on MSP/IT software integrations. Given these tools: ${appList}
@@ -16,10 +25,11 @@ List ALL known integrations between ANY pair of these tools. Be thorough — inc
 - Integrations through platforms like Zapier, Power Automate, etc.
 - PSA/RMM integrations with documentation, cybersecurity, billing tools
 - Vendor marketplace integrations
+- MCP (Model Context Protocol) server integrations — community-built connectors that allow AI tools like Claude, ChatGPT, etc. to integrate with platforms. Include GitHub repo URLs as documentation for these.
 
 CRITICAL RULES:
 1. Only include integrations where you can provide a REAL, VERIFIABLE documentation URL. Do NOT fabricate or guess URLs.
-2. The documentation_url must be an actual page on the vendor's website, knowledge base, or marketplace that describes the integration.
+2. The documentation_url must be an actual page on the vendor's website, knowledge base, marketplace, or GitHub repo that describes the integration.
 3. If you cannot find a real documentation URL for an integration, do NOT include it.
 4. Do NOT make up URLs that look plausible — only use URLs you are confident exist.`;
 
@@ -32,7 +42,7 @@ CRITICAL RULES:
     body: JSON.stringify({
       model: "google/gemini-2.5-flash",
       messages: [
-        { role: "system", content: "You are an MSP/IT integration expert. Be thorough and accurate. Only include integrations that truly exist AND have verifiable documentation URLs. Never fabricate URLs." },
+        { role: "system", content: "You are an MSP/IT integration expert. Be thorough and accurate. Only include integrations that truly exist AND have verifiable documentation URLs. Never fabricate URLs. For MCP server integrations, use the GitHub repo URL as documentation." },
         { role: "user", content: prompt },
       ],
       tools: [{
@@ -51,7 +61,7 @@ CRITICAL RULES:
                     source: { type: "string" },
                     target: { type: "string" },
                     description: { type: "string" },
-                    integration_type: { type: "string", enum: ["native", "api", "zapier", "webhook", "other"] },
+                    integration_type: { type: "string", enum: ["native", "api", "zapier", "webhook", "mcp", "other"] },
                     data_shared: { type: "string" },
                     documentation_url: { type: "string", description: "REQUIRED. A real, verifiable URL to the integration documentation page." },
                   },
@@ -85,109 +95,66 @@ CRITICAL RULES:
   const parsed = JSON.parse(toolCall.function.arguments);
   const integrations = parsed.integrations || [];
 
-  // Filter out integrations without valid documentation URLs
-  return integrations.filter((i: any) => {
-    if (!i.documentation_url || typeof i.documentation_url !== 'string') return false;
-    const url = i.documentation_url.trim();
-    if (!url || url.length < 10) return false;
-    // Must start with http
-    if (!url.startsWith('http://') && !url.startsWith('https://')) return false;
-    // Reject obvious placeholder/fake patterns
-    if (url.includes('example.com') || url.includes('placeholder')) return false;
-    return true;
-  });
+  return integrations.filter((i: any) => isValidDocUrl(i.documentation_url));
 }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { app_names } = await req.json();
+    const body = await req.json();
+    const { app_names, scheduled } = body;
+
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    // Scheduled mode: iterate all orgs
+    if (scheduled) {
+      const { data: orgs } = await supabaseAdmin.from("organizations").select("id");
+      let totalDiscovered = 0;
+      let totalSaved = 0;
+
+      for (const org of orgs || []) {
+        const { data: orgApps } = await supabaseAdmin
+          .from("user_applications")
+          .select("application_id, applications(name)")
+          .eq("organization_id", org.id);
+
+        const names = (orgApps || []).map((a: any) => a.applications?.name).filter(Boolean);
+        if (names.length < 2) continue;
+
+        try {
+          const result = await processDiscovery(names, LOVABLE_API_KEY, supabaseAdmin);
+          totalDiscovered += result.discovered;
+          totalSaved += result.saved;
+        } catch (e) {
+          console.error(`Discovery failed for org ${org.id}:`, e);
+        }
+
+        // Rate limit buffer between orgs
+        await new Promise(r => setTimeout(r, 2000));
+      }
+
+      return new Response(JSON.stringify({ scheduled: true, totalDiscovered, totalSaved }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Manual mode
     if (!app_names || !Array.isArray(app_names) || app_names.length < 2) {
       return new Response(JSON.stringify({ error: "At least 2 app names required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const result = await processDiscovery(app_names, LOVABLE_API_KEY, supabaseAdmin);
 
-    const BATCH_SIZE = 15;
-    const allIntegrations: any[] = [];
-
-    if (app_names.length <= BATCH_SIZE) {
-      const results = await discoverBatch(app_names, LOVABLE_API_KEY);
-      allIntegrations.push(...results);
-    } else {
-      for (let i = 0; i < app_names.length; i += BATCH_SIZE - 3) {
-        const batch = app_names.slice(i, i + BATCH_SIZE);
-        if (batch.length < 2) break;
-        try {
-          const results = await discoverBatch(batch, LOVABLE_API_KEY);
-          allIntegrations.push(...results);
-        } catch (e: any) {
-          if (e.message === "RATE_LIMITED") {
-            await new Promise(r => setTimeout(r, 3000));
-            try {
-              const results = await discoverBatch(batch, LOVABLE_API_KEY);
-              allIntegrations.push(...results);
-            } catch {
-              console.error("Batch failed after retry, skipping");
-            }
-          } else if (e.message === "CREDITS_EXHAUSTED") {
-            return new Response(JSON.stringify({ error: "AI credits exhausted. Add funds at Settings > Workspace > Usage." }), {
-              status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-          }
-        }
-      }
-    }
-
-    // Deduplicate by source+target
-    const seen = new Set<string>();
-    const unique = allIntegrations.filter(i => {
-      const key = `${i.source?.toLowerCase()}|${i.target?.toLowerCase()}`;
-      const revKey = `${i.target?.toLowerCase()}|${i.source?.toLowerCase()}`;
-      if (seen.has(key) || seen.has(revKey)) return false;
-      seen.add(key);
-      return true;
-    });
-
-    // Store in DB
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-
-    const { data: allApps } = await supabase.from("applications").select("id, name");
-    const appMap = new Map((allApps || []).map(a => [a.name.toLowerCase(), a.id]));
-
-    let newCount = 0;
-    for (const integ of unique) {
-      const sourceId = appMap.get(integ.source?.toLowerCase());
-      const targetId = appMap.get(integ.target?.toLowerCase());
-      if (!sourceId || !targetId || sourceId === targetId) continue;
-
-      const { error } = await supabase
-        .from("integrations")
-        .upsert({
-          source_app_id: sourceId,
-          target_app_id: targetId,
-          description: integ.description,
-          integration_type: integ.integration_type,
-          data_shared: integ.data_shared,
-          documentation_url: integ.documentation_url,
-          last_verified: new Date().toISOString(),
-        }, { onConflict: "source_app_id,target_app_id" });
-
-      if (!error) newCount++;
-    }
-
-    return new Response(JSON.stringify({
-      discovered: unique.length,
-      saved: newCount,
-      integrations: unique,
-    }), {
+    return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
@@ -202,3 +169,71 @@ serve(async (req) => {
     });
   }
 });
+
+async function processDiscovery(appNames: string[], apiKey: string, supabase: any) {
+  const BATCH_SIZE = 15;
+  const allIntegrations: any[] = [];
+
+  if (appNames.length <= BATCH_SIZE) {
+    const results = await discoverBatch(appNames, apiKey);
+    allIntegrations.push(...results);
+  } else {
+    for (let i = 0; i < appNames.length; i += BATCH_SIZE - 3) {
+      const batch = appNames.slice(i, i + BATCH_SIZE);
+      if (batch.length < 2) break;
+      try {
+        const results = await discoverBatch(batch, apiKey);
+        allIntegrations.push(...results);
+      } catch (e: any) {
+        if (e.message === "RATE_LIMITED") {
+          await new Promise(r => setTimeout(r, 3000));
+          try {
+            const results = await discoverBatch(batch, apiKey);
+            allIntegrations.push(...results);
+          } catch {
+            console.error("Batch failed after retry, skipping");
+          }
+        } else if (e.message === "CREDITS_EXHAUSTED") {
+          throw e;
+        }
+      }
+    }
+  }
+
+  // Deduplicate
+  const seen = new Set<string>();
+  const unique = allIntegrations.filter(i => {
+    const key = `${i.source?.toLowerCase()}|${i.target?.toLowerCase()}`;
+    const revKey = `${i.target?.toLowerCase()}|${i.source?.toLowerCase()}`;
+    if (seen.has(key) || seen.has(revKey)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  // Store
+  const { data: allApps } = await supabase.from("applications").select("id, name");
+  const appMap = new Map((allApps || []).map((a: any) => [a.name.toLowerCase(), a.id]));
+
+  let newCount = 0;
+  for (const integ of unique) {
+    const sourceId = appMap.get(integ.source?.toLowerCase());
+    const targetId = appMap.get(integ.target?.toLowerCase());
+    if (!sourceId || !targetId || sourceId === targetId) continue;
+
+    const { error } = await supabase
+      .from("integrations")
+      .upsert({
+        source_app_id: sourceId,
+        target_app_id: targetId,
+        description: integ.description,
+        integration_type: integ.integration_type,
+        data_shared: integ.data_shared,
+        documentation_url: integ.documentation_url,
+        last_verified: new Date().toISOString(),
+      }, { onConflict: "source_app_id,target_app_id" });
+
+    if (!error) newCount++;
+  }
+
+  return { discovered: unique.length, saved: newCount, integrations: unique };
+}
