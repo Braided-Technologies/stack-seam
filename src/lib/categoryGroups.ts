@@ -2,7 +2,7 @@
 export const CATEGORY_GROUPS: { label: string; categories: string[] }[] = [
   {
     label: 'Core Operations',
-    categories: ['PSA / Ticketing', 'RMM', 'Documentation', 'Monitoring', 'Endpoint Management', 'M365 Management'],
+    categories: ['PSA / Ticketing', 'RMM', 'Documentation', 'Monitoring', 'Endpoint Management', 'M365 Management', 'Alerting & Incident Management'],
   },
   {
     label: 'Security',

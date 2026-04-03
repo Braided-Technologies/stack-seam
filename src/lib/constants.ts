@@ -61,4 +61,5 @@ export const CATEGORY_ICONS: Record<string, string> = {
   'M365 Management': 'Settings2',
   'DNS Filtering': 'Filter',
   'Virtualization': 'Server',
+  'Alerting & Incident Management': 'Bell',
 };
