@@ -337,7 +337,7 @@ function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
 export default function Settings() {
   const { orgId, orgName, userRole, refreshOrg } = useAuth();
   const { toast } = useToast();
-  const isAdmin = userRole === 'admin';
+  const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
 
   const [companyName, setCompanyName] = useState('');
   const [savingOrg, setSavingOrg] = useState(false);

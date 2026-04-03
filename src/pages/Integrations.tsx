@@ -24,7 +24,7 @@ export default function Integrations() {
   const [expandedApps, setExpandedApps] = useState<Set<string>>(new Set(initialApp ? [initialApp.toLowerCase()] : []));
 
   const { orgId, userRole, user } = useAuth();
-  const isAdmin = userRole === 'admin';
+  const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
   const { data: allIntegrations = [] } = useIntegrations();
   const { data: userApps = [] } = useUserApplications();
   const queryClient = useQueryClient();
