@@ -407,99 +407,174 @@ export default function Stack() {
             </DialogTitle>
             <DialogDescription>{infoApp?.category}</DialogDescription>
           </DialogHeader>
-          {infoApp && (
-            <Tabs defaultValue="overview">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="integrations">
-                  Integrations ({infoAppIntegrations.length})
-                </TabsTrigger>
-              </TabsList>
+          {infoApp && (() => {
+            const userApp = userAppMap.get(infoApp.id);
+            const isInStack = !!userApp;
+            return (
+              <Tabs defaultValue="overview">
+                <TabsList className={`grid w-full ${isInStack ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                  <TabsTrigger value="overview">Overview</TabsTrigger>
+                  <TabsTrigger value="integrations">
+                    Integrations ({infoAppIntegrations.length})
+                  </TabsTrigger>
+                  {isInStack && <TabsTrigger value="settings">Settings</TabsTrigger>}
+                </TabsList>
 
-              <TabsContent value="overview" className="space-y-4 pt-2">
-                {infoApp.description && (
-                  <p className="text-sm text-muted-foreground">{infoApp.description}</p>
-                )}
-                {!infoApp.description && (
-                  <p className="text-sm text-muted-foreground italic">No description available.</p>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary">{infoApp.category}</Badge>
-                  {userAppIds.has(infoApp.id) && <Badge variant="default">In Your Stack</Badge>}
-                </div>
-                <div className="flex gap-2 pt-2">
-                  {infoApp.vendor_url && (
-                    <a href={infoApp.vendor_url} target="_blank" rel="noopener noreferrer">
-                      <Button variant="outline" size="sm" className="gap-1">
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        Visit Website
-                      </Button>
-                    </a>
+                <TabsContent value="overview" className="space-y-4 pt-2">
+                  {infoApp.description && (
+                    <p className="text-sm text-muted-foreground">{infoApp.description}</p>
                   )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1"
-                    onClick={() => {
-                      setInfoApp(null);
-                      navigate('/stack-map');
-                    }}
-                  >
-                    <MapIcon className="h-3.5 w-3.5" />
-                    View on Stack Map
-                  </Button>
-                  {isAdmin && !userAppIds.has(infoApp.id) && (
-                    <Button size="sm" className="gap-1" onClick={() => { handleAdd(infoApp.id); setInfoApp(null); }}>
-                      <Plus className="h-3.5 w-3.5" />
-                      Add to Stack
+                  {!infoApp.description && (
+                    <p className="text-sm text-muted-foreground italic">No description available.</p>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="secondary">{infoApp.category}</Badge>
+                    {isInStack && <Badge variant="default">In Your Stack</Badge>}
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    {infoApp.vendor_url && (
+                      <a href={infoApp.vendor_url} target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" size="sm" className="gap-1">
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Visit Website
+                        </Button>
+                      </a>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                      onClick={() => {
+                        setInfoApp(null);
+                        navigate('/stack-map');
+                      }}
+                    >
+                      <MapIcon className="h-3.5 w-3.5" />
+                      View on Stack Map
                     </Button>
-                  )}
-                </div>
-              </TabsContent>
+                    {isAdmin && !isInStack && (
+                      <Button size="sm" className="gap-1" onClick={() => { handleAdd(infoApp.id); setInfoApp(null); }}>
+                        <Plus className="h-3.5 w-3.5" />
+                        Add to Stack
+                      </Button>
+                    )}
+                  </div>
+                </TabsContent>
 
-              <TabsContent value="integrations" className="pt-2">
-                {infoAppIntegrations.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-4">
-                    No integrations discovered yet. Run "Discover Integrations" on the Stack Map to find connections.
-                  </p>
-                ) : (
-                  <ScrollArea className="max-h-[50vh]">
-                    <div className="space-y-2 pr-2">
-                      {infoAppIntegrations.map((integ: any) => (
-                        <div key={integ.id} className="rounded-lg border p-3 space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm">{integ.otherApp?.name || 'Unknown'}</span>
-                              {integ.inStack && (
-                                <Badge variant="default" className="text-[10px] px-1.5 py-0">In Stack</Badge>
-                              )}
+                <TabsContent value="integrations" className="pt-2">
+                  {infoAppIntegrations.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-4">
+                      No integrations discovered yet. Run "Discover Integrations" on the Stack Map to find connections.
+                    </p>
+                  ) : (
+                    <ScrollArea className="max-h-[50vh]">
+                      <div className="space-y-2 pr-2">
+                        {infoAppIntegrations.map((integ: any) => (
+                          <div key={integ.id} className="rounded-lg border p-3 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-sm">{integ.otherApp?.name || 'Unknown'}</span>
+                                {integ.inStack && (
+                                  <Badge variant="default" className="text-[10px] px-1.5 py-0">In Stack</Badge>
+                                )}
+                              </div>
+                              <Badge variant="outline" className="text-xs">
+                                {integ.integration_type || 'unknown'}
+                              </Badge>
                             </div>
-                            <Badge variant="outline" className="text-xs">
-                              {integ.integration_type || 'unknown'}
-                            </Badge>
+                            {integ.description && (
+                              <p className="text-xs text-muted-foreground">{integ.description}</p>
+                            )}
+                            {integ.documentation_url && (
+                              <a
+                                href={integ.documentation_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                                Documentation
+                              </a>
+                            )}
                           </div>
-                          {integ.description && (
-                            <p className="text-xs text-muted-foreground">{integ.description}</p>
-                          )}
-                          {integ.documentation_url && (
-                            <a
-                              href={integ.documentation_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                              Documentation
-                            </a>
-                          )}
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </TabsContent>
+
+                {isInStack && (
+                  <TabsContent value="settings" className="pt-2">
+                    <ScrollArea className="max-h-[55vh]">
+                      <div className="space-y-6 pr-2">
+                        {/* Details */}
+                        <div className="space-y-4">
+                          <p className="text-sm font-medium">Details</p>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Monthly Cost ($)</Label>
+                              <Input type="number" value={editingApp?.cost_monthly || userApp!.cost_monthly || ''} onChange={e => setEditingApp({ ...userApp, appName: infoApp.name, cost_monthly: e.target.value })} disabled={!isAdmin} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Annual Cost ($)</Label>
+                              <Input type="number" value={editingApp?.cost_annual || userApp!.cost_annual || ''} onChange={e => setEditingApp({ ...userApp, appName: infoApp.name, cost_annual: e.target.value })} disabled={!isAdmin} />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Renewal Date</Label>
+                              <Input type="date" value={editingApp?.renewal_date || userApp!.renewal_date || ''} onChange={e => setEditingApp({ ...userApp, appName: infoApp.name, renewal_date: e.target.value })} disabled={!isAdmin} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Term (months)</Label>
+                              <Input type="number" value={editingApp?.term_months || userApp!.term_months || ''} onChange={e => setEditingApp({ ...userApp, appName: infoApp.name, term_months: e.target.value })} disabled={!isAdmin} />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>License Count</Label>
+                              <Input type="number" value={editingApp?.license_count || userApp!.license_count || ''} onChange={e => setEditingApp({ ...userApp, appName: infoApp.name, license_count: e.target.value })} disabled={!isAdmin} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Billing Cycle</Label>
+                              <select
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                value={editingApp?.billing_cycle || userApp!.billing_cycle || ''}
+                                onChange={e => setEditingApp({ ...userApp, appName: infoApp.name, billing_cycle: e.target.value })}
+                                disabled={!isAdmin}
+                              >
+                                <option value="">Select...</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="annual">Annual</option>
+                                <option value="multi-year">Multi-Year</option>
+                                <option value="other">Other</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Notes</Label>
+                            <textarea
+                              className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                              value={editingApp?.notes || userApp!.notes || ''}
+                              onChange={e => setEditingApp({ ...userApp, appName: infoApp.name, notes: e.target.value })}
+                              disabled={!isAdmin}
+                            />
+                          </div>
+                          {isAdmin && <Button className="w-full" onClick={handleSaveDetails}>Save Details</Button>}
                         </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
+
+                        {/* Contacts */}
+                        <ContactsSection userApplicationId={userApp!.id} isAdmin={isAdmin} />
+
+                        {/* Contracts */}
+                        <ContractsSection userApplicationId={userApp!.id} isAdmin={isAdmin} />
+                      </div>
+                    </ScrollArea>
+                  </TabsContent>
                 )}
-              </TabsContent>
-            </Tabs>
-          )}
+              </Tabs>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
