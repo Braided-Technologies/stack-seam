@@ -378,6 +378,16 @@ export type Database = {
     }
     Functions: {
       accept_invitation: { Args: { _token: string }; Returns: Json }
+      find_pending_invitation: {
+        Args: { _email: string }
+        Returns: {
+          email: string
+          id: string
+          org_name: string
+          organization_id: string
+          token: string
+        }[]
+      }
       get_user_org_id: { Args: never; Returns: string }
       is_org_admin: { Args: { _org_id: string }; Returns: boolean }
       is_org_member: { Args: { _org_id: string }; Returns: boolean }
