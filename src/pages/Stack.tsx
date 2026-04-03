@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication } from '@/hooks/useStackData';
+import SearchToolDialog from '@/components/SearchToolDialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,7 @@ export default function Stack() {
   const [editingApp, setEditingApp] = useState<any>(null);
   const [search, setSearch] = useState('');
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
+  const [searchToolOpen, setSearchToolOpen] = useState(false);
 
   const userAppMap = new Map(userApps.map(ua => [ua.application_id, ua]));
 
@@ -106,10 +108,18 @@ export default function Stack() {
           <h1 className="text-2xl font-bold">My Stack</h1>
           <p className="text-muted-foreground">Select the tools in your IT stack by category</p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={userApps.length === 0}>
-          <Download className="h-4 w-4 mr-2" />
-          Export CSV
-        </Button>
+        <div className="flex gap-2">
+          {isAdmin && (
+            <Button variant="outline" size="sm" onClick={() => setSearchToolOpen(true)}>
+              <Search className="h-4 w-4 mr-2" />
+              Find a Tool
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={userApps.length === 0}>
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -292,6 +302,8 @@ export default function Stack() {
           )}
         </DialogContent>
       </Dialog>
+
+      <SearchToolDialog open={searchToolOpen} onOpenChange={setSearchToolOpen} />
     </div>
   );
 }
