@@ -33,13 +33,19 @@ serve(async (req) => {
       });
     }
 
-    const { messages, stackContext } = await req.json();
+    const { messages, stackContext, model: requestedModel } = await req.json();
     if (!messages || !Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: "messages array required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const allowedModels = [
+      "google/gemini-3-flash-preview", "google/gemini-2.5-flash", "google/gemini-2.5-pro",
+      "google/gemini-2.5-flash-lite", "google/gemini-3.1-pro-preview",
+      "openai/gpt-5", "openai/gpt-5-mini", "openai/gpt-5-nano", "openai/gpt-5.2",
+    ];
 
     // Get user's org
     const { data: roleData } = await supabase
@@ -50,7 +56,7 @@ serve(async (req) => {
 
     let aiUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
     let apiKey = Deno.env.get("LOVABLE_API_KEY");
-    let model = "google/gemini-3-flash-preview";
+    let model = (requestedModel && allowedModels.includes(requestedModel)) ? requestedModel : "google/gemini-3-flash-preview";
 
     // Check for BYOK settings
     if (roleData?.organization_id) {

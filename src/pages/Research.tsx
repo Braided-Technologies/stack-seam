@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUserApplications } from '@/hooks/useStackData';
 import { Send, Bot, User, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -18,10 +19,19 @@ const SUGGESTED_PROMPTS = [
   "Recommend a PSA tool that works with our current setup",
 ];
 
+const AI_MODELS = [
+  { value: 'google/gemini-3-flash-preview', label: 'Gemini 3 Flash (Fast)', description: 'Fast, balanced speed and capability' },
+  { value: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash', description: 'Good multimodal + reasoning' },
+  { value: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro', description: 'Top-tier reasoning, best for complex tasks' },
+  { value: 'openai/gpt-5-mini', label: 'GPT-5 Mini', description: 'Strong performance, lower cost' },
+  { value: 'openai/gpt-5', label: 'GPT-5', description: 'Most capable, best accuracy' },
+];
+
 export default function Research() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedModel, setSelectedModel] = useState('google/gemini-3-flash-preview');
   const scrollRef = useRef<HTMLDivElement>(null);
   const { data: userApps } = useUserApplications();
   const { toast } = useToast();
@@ -54,7 +64,7 @@ export default function Research() {
           Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify({ messages: allMessages, stackContext }),
+        body: JSON.stringify({ messages: allMessages, stackContext, model: selectedModel }),
       });
 
       if (!resp.ok) {
@@ -114,13 +124,35 @@ export default function Research() {
   return (
     <div className="flex flex-col h-screen">
       <div className="border-b px-6 py-4">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-          <h1 className="text-xl font-semibold">AI Research Assistant</h1>
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <h1 className="text-xl font-semibold">AI Research Assistant</h1>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Ask questions about IT tools, compare vendors, and get stack recommendations
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Model:</span>
+            <Select value={selectedModel} onValueChange={setSelectedModel}>
+              <SelectTrigger className="w-48 h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AI_MODELS.map(m => (
+                  <SelectItem key={m.value} value={m.value} className="text-xs">
+                    <div>
+                      <span className="font-medium">{m.label}</span>
+                      <span className="text-muted-foreground ml-1">— {m.description}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <p className="text-sm text-muted-foreground mt-1">
-          Ask questions about IT tools, compare vendors, and get stack recommendations
-        </p>
       </div>
 
       <ScrollArea className="flex-1 px-6 py-4" ref={scrollRef}>
