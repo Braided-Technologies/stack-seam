@@ -9,10 +9,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import { CATEGORY_COLORS } from '@/lib/constants';
-import { Plus, Check, X, ChevronDown, ChevronUp, Settings } from 'lucide-react';
+import { Plus, Check, X, ChevronDown, ChevronUp, Settings, Search, Filter } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import ContactsSection from '@/components/ContactsSection';
 import ContractsSection from '@/components/ContractsSection';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+type FilterMode = 'all' | 'selected' | 'available';
 
 export default function Stack() {
   const { data: categories = [] } = useCategories();
@@ -26,6 +29,8 @@ export default function Stack() {
 
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [editingApp, setEditingApp] = useState<any>(null);
+  const [search, setSearch] = useState('');
+  const [filterMode, setFilterMode] = useState<FilterMode>('all');
 
   const userAppMap = new Map(userApps.map(ua => [ua.application_id, ua]));
 
