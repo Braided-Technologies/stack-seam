@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom';
 import { useUserApplications, useIntegrations } from '@/hooks/useStackData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Layers, DollarSign, CalendarClock, Link2, AlertTriangle } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 
