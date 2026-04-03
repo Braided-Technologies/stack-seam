@@ -6,7 +6,7 @@ export const CATEGORY_GROUPS: { label: string; categories: string[] }[] = [
   },
   {
     label: 'Security',
-    categories: ['Cybersecurity', 'Email Security', 'Identity & Access', 'Security Testing', 'Security Awareness Training', 'GRC / Compliance'],
+    categories: ['Cybersecurity', 'Email Security', 'Identity & Access', 'Security Testing', 'Security Awareness Training', 'GRC / Compliance', 'DNS Filtering'],
   },
   {
     label: 'Business & Finance',
@@ -14,7 +14,7 @@ export const CATEGORY_GROUPS: { label: string; categories: string[] }[] = [
   },
   {
     label: 'Infrastructure',
-    categories: ['Backup & DR', 'Networking', 'Cloud Platforms'],
+    categories: ['Backup & DR', 'Networking', 'Cloud Platforms', 'Virtualization'],
   },
   {
     label: 'Productivity & Communication',
