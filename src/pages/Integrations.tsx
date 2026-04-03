@@ -66,15 +66,16 @@ export default function Integrations() {
     mutationFn: async (integrationId: string) => {
       const existing = configuredMap.get(integrationId);
       if (existing) {
+        const newConfigured = !existing.is_configured;
         const { error } = await supabase
           .from('org_integrations')
-          .update({ is_configured: !existing.is_configured, configured_at: !existing.is_configured ? new Date().toISOString() : null, configured_by: !existing.is_configured ? user!.id : null })
+          .update({ is_configured: newConfigured, configured_at: newConfigured ? new Date().toISOString() : null, configured_by: newConfigured ? user!.id : null })
           .eq('id', existing.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from('org_integrations')
-          .insert({ organization_id: orgId!, integration_id: integrationId, is_configured: true, configured_at: new Date().toISOString(), configured_by: user!.id });
+          .insert({ organization_id: orgId!, integration_id: integrationId, is_configured: true, configured_at: new Date().toISOString(), configured_by: user!.id } as any);
         if (error) throw error;
       }
     },
