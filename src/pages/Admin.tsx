@@ -57,6 +57,7 @@ export default function Admin() {
   const { userRole, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('moderation');
   const [allApps, setAllApps] = useState<PendingApp[]>([]);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
   const [orgs, setOrgs] = useState<OrgItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
