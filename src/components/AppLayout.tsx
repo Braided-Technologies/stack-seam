@@ -56,6 +56,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <span className="text-xs font-medium truncate">{orgName}</span>
           </div>
           <div className="text-xs text-muted-foreground truncate px-3">{user?.email}</div>
+          <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-muted-foreground" onClick={() => setDark(!dark)}>
+            {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {dark ? 'Light Mode' : 'Dark Mode'}
+          </Button>
           <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-muted-foreground" onClick={signOut}>
             <LogOut className="h-4 w-4" />
             Sign Out
