@@ -351,7 +351,7 @@ export default function Admin() {
                               )}
                               <Button size="sm" variant="ghost" onClick={() => {
                                 setEditingApp(app.id);
-                                setEditAppData({ name: app.name, description: app.description || '' });
+                                setEditAppData({ name: app.name, description: app.description || '', category_id: app.category_id });
                               }}>
                                 <Pencil className="h-3 w-3" />
                               </Button>
