@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import { CATEGORY_COLORS } from '@/lib/constants';
-import { Plus, Check, X, ChevronDown, ChevronUp, Settings, Search, Filter } from 'lucide-react';
+import { Plus, Check, X, ChevronDown, ChevronUp, Settings, Search, Filter, Download } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import ContactsSection from '@/components/ContactsSection';
 import ContractsSection from '@/components/ContractsSection';
