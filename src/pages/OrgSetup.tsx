@@ -73,10 +73,10 @@ export default function OrgSetup() {
     }
 
     // Check for existing org with same domain
-    const { data: existing } = await supabase
+    const { data: existing } = await (supabase
       .from('organizations')
-      .select('id, name')
-      .eq('domain' as any, domain)
+      .select('id, name') as any)
+      .eq('domain', domain)
       .maybeSingle();
 
     if (existing) {
