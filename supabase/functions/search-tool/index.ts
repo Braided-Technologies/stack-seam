@@ -10,7 +10,25 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { query } = await req.json();
+    const body = await req.json();
+
+    // Handle category update
+    if (body.updateCategory && body.appId && body.categoryId) {
+      const supabaseAdmin = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      );
+      const { error } = await supabaseAdmin
+        .from("applications")
+        .update({ category_id: body.categoryId })
+        .eq("id", body.appId);
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { query } = body;
     if (!query || typeof query !== "string" || query.trim().length < 2) {
       return new Response(JSON.stringify({ error: "Query must be at least 2 characters" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
