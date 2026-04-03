@@ -134,7 +134,7 @@ export default function Stack() {
               {isExpanded && (
                 <CardContent className="border-t pt-4">
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {catApps.map(app => {
+                    {filteredApps.map(app => {
                       const userApp = userAppMap.get(app.id);
                       const isSelected = !!userApp;
                       return (
