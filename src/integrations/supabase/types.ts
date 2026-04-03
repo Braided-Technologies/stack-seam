@@ -530,6 +530,10 @@ export type Database = {
     }
     Functions: {
       accept_invitation: { Args: { _token: string }; Returns: Json }
+      create_organization: {
+        Args: { _domain?: string; _name: string }
+        Returns: Json
+      }
       find_pending_invitation: {
         Args: { _email: string }
         Returns: {
