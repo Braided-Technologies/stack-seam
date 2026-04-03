@@ -9,6 +9,7 @@ import OrgSetup from "./pages/OrgSetup";
 import Dashboard from "./pages/Dashboard";
 import Stack from "./pages/Stack";
 import StackMap from "./pages/StackMap";
+import Team from "./pages/Team";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
@@ -29,6 +30,7 @@ const AppRoutes = () => (
     <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
     <Route path="/stack" element={<ProtectedRoute><Stack /></ProtectedRoute>} />
     <Route path="/map" element={<ProtectedRoute><StackMap /></ProtectedRoute>} />
+    <Route path="/team" element={<ProtectedRoute><Team /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );
