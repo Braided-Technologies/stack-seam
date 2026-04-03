@@ -36,12 +36,12 @@ const MODELS: Record<string, { value: string; label: string }[]> = {
   ],
 };
 
-function ScalePadSection() {
+function ConnectorsSection() {
   const { toast } = useToast();
   const [syncing, setSyncing] = useState(false);
   const [lastResult, setLastResult] = useState<any>(null);
 
-  const handleSync = async () => {
+  const handleScalePadSync = async () => {
     setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke('scalepad-sync');
@@ -59,33 +59,85 @@ function ScalePadSection() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Link2 className="h-5 w-5" />
-          ScalePad Lifecycle Manager
-        </CardTitle>
-        <CardDescription>
-          Sync contract and asset data from ScalePad to automatically populate renewal dates, costs, and license counts.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Button onClick={handleSync} disabled={syncing} className="gap-2">
-          {syncing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          {syncing ? 'Syncing...' : 'Sync from ScalePad'}
-        </Button>
-        {lastResult && (
-          <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
-            <p><strong>Total assets found:</strong> {lastResult.total_assets}</p>
-            <p><strong>Matched to apps:</strong> {lastResult.matched}</p>
-            <p><strong>Updated:</strong> {lastResult.updated}</p>
-          </div>
-        )}
-        <p className="text-xs text-muted-foreground">
-          The ScalePad API key must be configured as a secret. Contact your administrator if sync fails with a missing key error.
-        </p>
-      </CardContent>
-    </Card>
+    <div className="space-y-6">
+      {/* vCIO / Contract Management */}
+      <div className="space-y-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          vCIO / Contract Management
+        </h3>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Link2 className="h-5 w-5" />
+              ScalePad Lifecycle Manager
+            </CardTitle>
+            <CardDescription>
+              Sync contract and asset data from ScalePad to automatically populate renewal dates, costs, and license counts.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button onClick={handleScalePadSync} disabled={syncing} className="gap-2">
+              {syncing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {syncing ? 'Syncing...' : 'Sync from ScalePad'}
+            </Button>
+            {lastResult && (
+              <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
+                <p><strong>Total assets found:</strong> {lastResult.total_assets}</p>
+                <p><strong>Matched to apps:</strong> {lastResult.matched}</p>
+                <p><strong>Updated:</strong> {lastResult.updated}</p>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              The ScalePad API key must be configured as a secret. Contact your administrator if sync fails.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* SSO */}
+      <div className="space-y-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Single Sign-On (SSO)
+        </h3>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Shield className="h-5 w-5" />
+              Authentication Providers
+            </CardTitle>
+            <CardDescription>
+              Configure SSO for your organization. Google SSO is available now. Microsoft 365 SSO requires additional setup.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                  <span className="text-sm font-bold">G</span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Google Workspace / Gmail</p>
+                  <p className="text-xs text-muted-foreground">Sign in with Google accounts</p>
+                </div>
+              </div>
+              <Badge variant="secondary">Available</Badge>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3 opacity-60">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                  <span className="text-sm font-bold">M</span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Microsoft 365 / Azure AD</p>
+                  <p className="text-xs text-muted-foreground">Requires custom configuration</p>
+                </div>
+              </div>
+              <Badge variant="outline">Coming Soon</Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }
 
