@@ -12,7 +12,7 @@ type AuthContextType = {
   signUp: (email: string, password: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
-  createOrg: (name: string) => Promise<{ error: any }>;
+  createOrg: (name: string, domain?: string) => Promise<{ error: any }>;
   refreshOrg: () => Promise<void>;
 };
 
@@ -87,12 +87,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
-  const createOrg = async (name: string) => {
+  const createOrg = async (name: string, domain?: string) => {
     const newOrgId = crypto.randomUUID();
+
+    const orgRow: any = { id: newOrgId, name };
+    if (domain) orgRow.domain = domain;
 
     const { error: orgError } = await supabase
       .from('organizations')
-      .insert({ id: newOrgId, name });
+      .insert(orgRow);
     if (orgError) return { error: orgError };
 
     const { error: roleError } = await supabase

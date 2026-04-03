@@ -7,11 +7,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
-import { Building2, Mail } from 'lucide-react';
+import { Building2, Mail, Globe } from 'lucide-react';
+
+function extractDomain(url: string): string {
+  let cleaned = url.trim().toLowerCase();
+  // Remove protocol
+  cleaned = cleaned.replace(/^https?:\/\//, '');
+  // Remove www.
+  cleaned = cleaned.replace(/^www\./, '');
+  // Remove path/query/fragment
+  cleaned = cleaned.split('/')[0].split('?')[0].split('#')[0];
+  return cleaned;
+}
 
 export default function OrgSetup() {
   const { user, loading, orgId, createOrg, refreshOrg } = useAuth();
   const [name, setName] = useState('');
+  const [website, setWebsite] = useState('');
+  const [domainError, setDomainError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [pendingInvite, setPendingInvite] = useState<{ id: string; token: string; email: string; organization_id: string; orgName?: string } | null>(null);
   const [checkingInvite, setCheckingInvite] = useState(true);
@@ -51,12 +64,35 @@ export default function OrgSetup() {
   };
 
   const handleCreate = async () => {
-    if (!name.trim()) return;
+    if (!name.trim() || !website.trim()) return;
+    setDomainError('');
+    const domain = extractDomain(website);
+    if (!domain || !domain.includes('.')) {
+      setDomainError('Please enter a valid website URL (e.g. acme.com)');
+      return;
+    }
+
+    // Check for existing org with same domain
+    const { data: existing } = await (supabase
+      .from('organizations')
+      .select('id, name') as any)
+      .eq('domain', domain)
+      .maybeSingle();
+
+    if (existing) {
+      setDomainError(`An organization with this domain already exists (${(existing as any).name}). Ask your admin for an invite instead.`);
+      return;
+    }
+
     setSubmitting(true);
-    const { error } = await createOrg(name.trim());
+    const { error } = await createOrg(name.trim(), domain);
     setSubmitting(false);
     if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      if (error.message?.includes('idx_organizations_domain')) {
+        setDomainError('An organization with this domain already exists. Ask your admin for an invite.');
+      } else {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      }
     }
   };
 
@@ -99,7 +135,26 @@ export default function OrgSetup() {
               <Label htmlFor="org-name">Organization Name</Label>
               <Input id="org-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Acme MSP" />
             </div>
-            <Button className="w-full" disabled={submitting || !name.trim()} onClick={handleCreate}>
+            <div className="space-y-2">
+              <Label htmlFor="org-website">Company Website</Label>
+              <div className="relative">
+                <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="org-website"
+                  value={website}
+                  onChange={e => { setWebsite(e.target.value); setDomainError(''); }}
+                  placeholder="e.g. acme.com"
+                  className="pl-9"
+                />
+              </div>
+              {domainError && (
+                <p className="text-sm text-destructive">{domainError}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                We use your company domain to prevent duplicate organizations
+              </p>
+            </div>
+            <Button className="w-full" disabled={submitting || !name.trim() || !website.trim()} onClick={handleCreate}>
               {submitting ? 'Creating...' : 'Create Organization'}
             </Button>
           </CardContent>
