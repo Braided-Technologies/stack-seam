@@ -262,11 +262,8 @@ function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
     enabled: !!orgId && isAdmin,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('invitations')
-        .select('*')
-        .eq('organization_id', orgId)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
+        .rpc('get_org_invitations', { _org_id: orgId })
+        .eq('status', 'pending');
       if (error) throw error;
       return data;
     },
