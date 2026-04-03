@@ -337,14 +337,18 @@ export default function Integrations() {
                   {group.apps.map(app => {
                     const filteredIntegrations = app.integrations.filter(filterIntegration);
                     if (filteredIntegrations.length === 0) return null;
+                    const isAppOpen = openApps.has(app.appId);
 
                     return (
-                      <Card key={app.appId} className="overflow-hidden">
-                        <div className="px-4 py-2 border-b bg-muted/30">
-                          <span className="text-sm font-medium">{app.appName}</span>
-                          <span className="text-xs text-muted-foreground ml-2">({filteredIntegrations.length})</span>
-                        </div>
-                        <div className="px-4 pb-3 pt-2 space-y-2">
+                      <Collapsible key={app.appId} open={isAppOpen} onOpenChange={() => toggleApp(app.appId)}>
+                        <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border bg-card px-4 py-2 text-left hover:bg-accent/30 transition-colors">
+                          <div className="flex items-center gap-2">
+                            {isAppOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                            <span className="text-sm font-medium">{app.appName}</span>
+                            <span className="text-xs text-muted-foreground">({filteredIntegrations.length})</span>
+                          </div>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-1 space-y-2 pl-4">
                           {filteredIntegrations.map(i => {
                             const otherApp = (i as any).source?.id === app.appId ? (i as any).target : (i as any).source;
                             const entry = configuredMap[i.id];
@@ -405,6 +409,17 @@ export default function Integrations() {
                                     <Button variant="ghost" size="sm" className="h-7 text-xs"
                                       onClick={() => setIntegrationStatus.mutate({ integrationId: i.id, status: 'pending' })}>
                                       Restore
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    );
+                  })}
+                </CollapsibleContent>
                                     </Button>
                                   )}
                                 </div>
