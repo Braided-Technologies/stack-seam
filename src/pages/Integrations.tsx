@@ -10,34 +10,34 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from '@/hooks/use-toast';
-import { Search, ExternalLink, Filter, Link2, CheckCircle2, Circle, Map as MapIcon, ChevronDown, ChevronUp, EyeOff, SkipForward } from 'lucide-react';
+import { CATEGORY_GROUPS } from '@/lib/categoryGroups';
+import { Search, ExternalLink, Filter, Link2, CheckCircle2, Circle, Map as MapIcon, ChevronDown, ChevronRight, EyeOff, SkipForward } from 'lucide-react';
 
 type StatusFilter = 'all' | 'configured' | 'pending' | 'skipped' | 'hidden';
 
 export default function Integrations() {
   const [searchParams] = useSearchParams();
+  const highlightId = searchParams.get('highlight') || '';
   const initialApp = searchParams.get('app') || '';
   const [search, setSearch] = useState(initialApp);
-  const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [expandedApps, setExpandedApps] = useState<Set<string>>(new Set(initialApp ? [initialApp.toLowerCase()] : []));
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(CATEGORY_GROUPS.map(g => g.label)));
 
   const { orgId, userRole, user } = useAuth();
-  const isAdmin = userRole === 'admin';
+  const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
   const { data: allIntegrations = [] } = useIntegrations();
   const { data: userApps = [] } = useUserApplications();
   const queryClient = useQueryClient();
 
   const userAppIds = useMemo(() => new Set(userApps.map(ua => ua.application_id)), [userApps]);
 
-  // Only integrations relevant to user's stack
   const stackIntegrations = useMemo(
     () => allIntegrations.filter(i => userAppIds.has(i.source_app_id) && userAppIds.has(i.target_app_id)),
     [allIntegrations, userAppIds]
   );
 
-  // Fetch org_integrations
   const { data: orgIntegrations = [] } = useQuery({
     queryKey: ['org_integrations', orgId],
     enabled: !!orgId,
@@ -101,50 +101,66 @@ export default function Integrations() {
     },
   });
 
-  // Group integrations by app
-  const appGroups = useMemo(() => {
-    const groups = new Map<string, { appId: string; appName: string; integrations: typeof stackIntegrations }>();
+  // Build category-grouped structure
+  const categoryGroupedData = useMemo(() => {
+    // Map each category name to its group label
+    const categoryToGroup: Record<string, string> = {};
+    CATEGORY_GROUPS.forEach(g => {
+      g.categories.forEach(c => { categoryToGroup[c] = g.label; });
+    });
+
+    // Group integrations by category group
+    type IntegrationItem = typeof stackIntegrations[0];
+    type AppBucket = { appName: string; appId: string; integrations: IntegrationItem[] };
+    const groups = new Map<string, Map<string, AppBucket>>();
 
     stackIntegrations.forEach(i => {
       const source = (i as any).source;
       const target = (i as any).target;
-      if (source) {
-        const key = source.id;
-        if (!groups.has(key)) groups.set(key, { appId: key, appName: source.name, integrations: [] });
-        groups.get(key)!.integrations.push(i);
-      }
-      if (target && target.id !== source?.id) {
-        const key = target.id;
-        if (!groups.has(key)) groups.set(key, { appId: key, appName: target.name, integrations: [] });
-        // Only add if not already there (avoid dupes)
-        if (!groups.get(key)!.integrations.find(x => x.id === i.id)) {
-          groups.get(key)!.integrations.push(i);
+      const sourceCat = source?.categories?.name || 'Other';
+      const targetCat = target?.categories?.name || 'Other';
+      const sourceGroup = categoryToGroup[sourceCat] || 'Other';
+      const targetGroup = categoryToGroup[targetCat] || 'Other';
+
+      const addToGroup = (groupLabel: string, app: any, integration: IntegrationItem) => {
+        if (!app) return;
+        if (!groups.has(groupLabel)) groups.set(groupLabel, new Map());
+        const appMap = groups.get(groupLabel)!;
+        if (!appMap.has(app.id)) appMap.set(app.id, { appName: app.name, appId: app.id, integrations: [] });
+        const bucket = appMap.get(app.id)!;
+        if (!bucket.integrations.find(x => x.id === integration.id)) {
+          bucket.integrations.push(integration);
         }
+      };
+
+      addToGroup(sourceGroup, source, i);
+      if (targetGroup !== sourceGroup || target?.id !== source?.id) {
+        addToGroup(targetGroup, target, i);
       }
     });
 
-    return Array.from(groups.values())
-      .filter(g => {
-        if (!search) return true;
-        return g.appName.toLowerCase().includes(search.toLowerCase());
-      })
-      .sort((a, b) => a.appName.localeCompare(b.appName));
+    // Convert to array sorted by CATEGORY_GROUPS order
+    const allGroupLabels = [...CATEGORY_GROUPS.map(g => g.label), 'Other'];
+    return allGroupLabels
+      .filter(label => groups.has(label))
+      .map(label => ({
+        label,
+        apps: Array.from(groups.get(label)!.values())
+          .filter(app => {
+            if (!search) return true;
+            return app.appName.toLowerCase().includes(search.toLowerCase());
+          })
+          .sort((a, b) => a.appName.localeCompare(b.appName)),
+      }))
+      .filter(g => g.apps.length > 0);
   }, [stackIntegrations, search]);
 
-  const toggleApp = (appId: string) => {
-    setExpandedApps(prev => {
-      const next = new Set(prev);
-      if (next.has(appId)) next.delete(appId);
-      else next.add(appId);
-      return next;
-    });
+  const filterIntegration = (i: typeof stackIntegrations[0]) => {
+    const entry = configuredMap[i.id];
+    const status = entry?.status || 'pending';
+    if (statusFilter === 'all') return status !== 'hidden';
+    return status === statusFilter;
   };
-
-  // Stats
-  const totalIntegrations = stackIntegrations.length;
-  const configuredCount = stackIntegrations.filter(i => configuredMap[i.id]?.status === 'configured').length;
-  const skippedCount = stackIntegrations.filter(i => configuredMap[i.id]?.status === 'skipped').length;
-  const activeCount = totalIntegrations - skippedCount;
 
   const getStatusBadge = (integrationId: string) => {
     const entry = configuredMap[integrationId];
@@ -161,21 +177,31 @@ export default function Integrations() {
     }
   };
 
-  const getAppProgress = (integrations: typeof stackIntegrations) => {
-    const total = integrations.filter(i => {
-      const s = configuredMap[i.id]?.status;
-      return s !== 'skipped' && s !== 'hidden';
-    }).length;
-    const done = integrations.filter(i => configuredMap[i.id]?.status === 'configured').length;
+  const getGroupProgress = (apps: { integrations: typeof stackIntegrations }[]) => {
+    let total = 0, done = 0;
+    apps.forEach(app => {
+      app.integrations.forEach(i => {
+        const s = configuredMap[i.id]?.status;
+        if (s !== 'skipped' && s !== 'hidden') { total++; }
+        if (s === 'configured') done++;
+      });
+    });
     return { done, total };
   };
 
-  const filterIntegration = (i: typeof stackIntegrations[0]) => {
-    const entry = configuredMap[i.id];
-    const status = entry?.status || 'pending';
-    if (statusFilter === 'all') return status !== 'hidden';
-    return status === statusFilter;
+  const toggleGroup = (label: string) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label); else next.add(label);
+      return next;
+    });
   };
+
+  // Stats
+  const totalIntegrations = stackIntegrations.length;
+  const configuredCount = stackIntegrations.filter(i => configuredMap[i.id]?.status === 'configured').length;
+  const skippedCount = stackIntegrations.filter(i => configuredMap[i.id]?.status === 'skipped').length;
+  const activeCount = totalIntegrations - skippedCount;
 
   return (
     <div className="p-6 space-y-6">
@@ -250,8 +276,8 @@ export default function Integrations() {
         </Select>
       </div>
 
-      {/* App-grouped integrations */}
-      {appGroups.length === 0 ? (
+      {/* Category-grouped integrations */}
+      {categoryGroupedData.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <Link2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -264,104 +290,107 @@ export default function Integrations() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
-          {appGroups.map(group => {
-            const filteredIntegrations = group.integrations.filter(filterIntegration);
-            if (filteredIntegrations.length === 0) return null;
-            const isExpanded = expandedApps.has(group.appId);
-            const progress = getAppProgress(group.integrations);
+        <div className="space-y-4">
+          {categoryGroupedData.map(group => {
+            const isOpen = openGroups.has(group.label);
+            const progress = getGroupProgress(group.apps);
 
             return (
-              <Card key={group.appId} className="overflow-hidden">
-                <button
-                  className="flex w-full items-center justify-between p-4 text-left hover:bg-accent/30 transition-colors"
-                  onClick={() => toggleApp(group.appId)}
-                >
+              <Collapsible key={group.label} open={isOpen} onOpenChange={() => toggleGroup(group.label)}>
+                <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border bg-card p-4 text-left hover:bg-accent/30 transition-colors">
                   <div className="flex items-center gap-3">
-                    <span className="font-semibold text-sm">{group.appName}</span>
+                    {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    <span className="font-semibold">{group.label}</span>
                     <Badge variant={progress.done === progress.total && progress.total > 0 ? 'default' : 'secondary'} className="text-xs">
                       {progress.done}/{progress.total}
                     </Badge>
                   </div>
-                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </button>
+                  <span className="text-xs text-muted-foreground">{group.apps.length} app{group.apps.length !== 1 ? 's' : ''}</span>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="mt-2 space-y-2 pl-4">
+                  {group.apps.map(app => {
+                    const filteredIntegrations = app.integrations.filter(filterIntegration);
+                    if (filteredIntegrations.length === 0) return null;
 
-                {isExpanded && (
-                  <div className="border-t px-4 pb-4 pt-2 space-y-2">
-                    {filteredIntegrations.map(i => {
-                      const otherApp = (i as any).source?.id === group.appId ? (i as any).target : (i as any).source;
-                      const entry = configuredMap[i.id];
-                      const status = entry?.status || 'pending';
-
-                      return (
-                        <div key={i.id} className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${status === 'configured' ? 'bg-primary/5 border-primary/20' : status === 'skipped' ? 'opacity-60' : ''}`}>
-                          {isAdmin && (
-                            <Checkbox
-                              checked={status === 'configured'}
-                              onCheckedChange={(checked) => {
-                                setIntegrationStatus.mutate({
-                                  integrationId: i.id,
-                                  status: checked ? 'configured' : 'pending',
-                                });
-                              }}
-                              disabled={setIntegrationStatus.isPending}
-                            />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium">{otherApp?.name || 'Unknown'}</span>
-                              {getStatusBadge(i.id)}
-                              <Badge variant="outline" className="text-[10px]">{i.integration_type || 'unknown'}</Badge>
-                            </div>
-                            {i.description && (
-                              <p className="text-xs text-muted-foreground mt-0.5 truncate">{i.description}</p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {i.documentation_url && (
-                              <a href={i.documentation_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                                <ExternalLink className="h-3.5 w-3.5" />
-                              </a>
-                            )}
-                            {isAdmin && status !== 'skipped' && status !== 'configured' && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                title="Skip this integration"
-                                onClick={() => setIntegrationStatus.mutate({ integrationId: i.id, status: 'skipped' })}
-                              >
-                                <SkipForward className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                            {isAdmin && status !== 'hidden' && status !== 'configured' && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                title="Hide this integration"
-                                onClick={() => setIntegrationStatus.mutate({ integrationId: i.id, status: 'hidden' })}
-                              >
-                                <EyeOff className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                            {isAdmin && (status === 'skipped' || status === 'hidden') && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 text-xs"
-                                onClick={() => setIntegrationStatus.mutate({ integrationId: i.id, status: 'pending' })}
-                              >
-                                Restore
-                              </Button>
-                            )}
-                          </div>
+                    return (
+                      <Card key={app.appId} className="overflow-hidden">
+                        <div className="px-4 py-2 border-b bg-muted/30">
+                          <span className="text-sm font-medium">{app.appName}</span>
+                          <span className="text-xs text-muted-foreground ml-2">({filteredIntegrations.length})</span>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </Card>
+                        <div className="px-4 pb-3 pt-2 space-y-2">
+                          {filteredIntegrations.map(i => {
+                            const otherApp = (i as any).source?.id === app.appId ? (i as any).target : (i as any).source;
+                            const entry = configuredMap[i.id];
+                            const status = entry?.status || 'pending';
+                            const isHighlighted = i.id === highlightId;
+
+                            return (
+                              <div
+                                key={i.id}
+                                id={`integration-${i.id}`}
+                                className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${
+                                  isHighlighted ? 'ring-2 ring-primary border-primary' :
+                                  status === 'configured' ? 'bg-primary/5 border-primary/20' :
+                                  status === 'skipped' ? 'opacity-60' : ''
+                                }`}
+                              >
+                                {isAdmin && (
+                                  <Checkbox
+                                    checked={status === 'configured'}
+                                    onCheckedChange={(checked) => {
+                                      setIntegrationStatus.mutate({
+                                        integrationId: i.id,
+                                        status: checked ? 'configured' : 'pending',
+                                      });
+                                    }}
+                                    disabled={setIntegrationStatus.isPending}
+                                  />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium">{otherApp?.name || 'Unknown'}</span>
+                                    {getStatusBadge(i.id)}
+                                    <Badge variant="outline" className="text-[10px]">{i.integration_type || 'unknown'}</Badge>
+                                  </div>
+                                  {i.description && (
+                                    <p className="text-xs text-muted-foreground mt-0.5 truncate">{i.description}</p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  {i.documentation_url && (
+                                    <a href={i.documentation_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                                      <ExternalLink className="h-3.5 w-3.5" />
+                                    </a>
+                                  )}
+                                  {isAdmin && status !== 'skipped' && status !== 'configured' && (
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Skip"
+                                      onClick={() => setIntegrationStatus.mutate({ integrationId: i.id, status: 'skipped' })}>
+                                      <SkipForward className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
+                                  {isAdmin && status !== 'hidden' && status !== 'configured' && (
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Hide"
+                                      onClick={() => setIntegrationStatus.mutate({ integrationId: i.id, status: 'hidden' })}>
+                                      <EyeOff className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
+                                  {isAdmin && (status === 'skipped' || status === 'hidden') && (
+                                    <Button variant="ghost" size="sm" className="h-7 text-xs"
+                                      onClick={() => setIntegrationStatus.mutate({ integrationId: i.id, status: 'pending' })}>
+                                      Restore
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </CollapsibleContent>
+              </Collapsible>
             );
           })}
         </div>

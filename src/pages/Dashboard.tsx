@@ -1,11 +1,13 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useUserApplications, useIntegrations } from '@/hooks/useStackData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Layers, DollarSign, CalendarClock, Link2, AlertTriangle } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { data: userApps = [] } = useUserApplications();
   const { data: integrations = [] } = useIntegrations();
 
@@ -134,7 +136,7 @@ export default function Dashboard() {
                     </div>
                     <span className={cn(
                       'text-sm font-medium',
-                      daysUntil <= 30 ? 'text-destructive' : daysUntil <= 90 ? 'text-muted-foreground' : 'text-muted-foreground'
+                      daysUntil <= 30 ? 'text-destructive' : 'text-muted-foreground'
                     )}>
                       {daysUntil <= 0 ? 'Overdue' : `${daysUntil} days`}
                     </span>
@@ -158,21 +160,27 @@ export default function Dashboard() {
             </Link>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {relevantIntegrations.slice(0, 8).map(i => (
-                <div key={i.id} className="flex items-center gap-3 rounded-lg border p-3">
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">
-                      {(i as any).source?.name} ↔ {(i as any).target?.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{i.description}</p>
+            <ScrollArea className="max-h-[400px]">
+              <div className="space-y-2 pr-4">
+                {relevantIntegrations.map(i => (
+                  <div
+                    key={i.id}
+                    className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-accent/50 transition-colors"
+                    onClick={() => navigate(`/integrations?highlight=${i.id}`)}
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">
+                        {(i as any).source?.name} ↔ {(i as any).target?.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{i.description}</p>
+                    </div>
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                      {i.integration_type}
+                    </span>
                   </div>
-                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                    {i.integration_type}
-                  </span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </ScrollArea>
           </CardContent>
         </Card>
       )}
