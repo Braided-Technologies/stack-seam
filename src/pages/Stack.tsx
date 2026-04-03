@@ -1,17 +1,18 @@
 import { useState, useMemo } from 'react';
-import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication } from '@/hooks/useStackData';
+import { useNavigate } from 'react-router-dom';
+import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication, useIntegrations } from '@/hooks/useStackData';
 import SearchToolDialog from '@/components/SearchToolDialog';
-import {} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { CATEGORY_COLORS } from '@/lib/constants';
 import { CATEGORY_GROUPS } from '@/lib/categoryGroups';
-import { Plus, Check, X, ChevronDown, ChevronUp, Settings, Search, Filter, Download, Layers, DollarSign, FolderOpen } from 'lucide-react';
+import { Plus, Check, X, ChevronDown, ChevronUp, Settings, Search, Filter, Download, Layers, DollarSign, FolderOpen, ExternalLink, Map as MapIcon, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import ContactsSection from '@/components/ContactsSection';
 import ContractsSection from '@/components/ContractsSection';
@@ -23,14 +24,17 @@ export default function Stack() {
   const { data: categories = [] } = useCategories();
   const { data: applications = [] } = useApplications();
   const { data: userApps = [] } = useUserApplications();
+  const { data: allIntegrations = [] } = useIntegrations();
   const addApp = useAddUserApplication();
   const removeApp = useRemoveUserApplication();
   const updateApp = useUpdateUserApplication();
   const { userRole } = useAuth();
   const isAdmin = userRole === 'admin';
+  const navigate = useNavigate();
 
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [editingApp, setEditingApp] = useState<any>(null);
+  const [infoApp, setInfoApp] = useState<any>(null);
   const [search, setSearch] = useState('');
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [searchToolOpen, setSearchToolOpen] = useState(false);
@@ -45,7 +49,19 @@ export default function Stack() {
     });
   };
 
+  const allGroupLabels = CATEGORY_GROUPS.map(g => g.label);
+  const allCollapsed = allGroupLabels.length > 0 && allGroupLabels.every(l => collapsedGroups.has(l));
+
+  const toggleCollapseAll = () => {
+    if (allCollapsed) {
+      setCollapsedGroups(new Set());
+    } else {
+      setCollapsedGroups(new Set(allGroupLabels));
+    }
+  };
+
   const userAppMap = new Map(userApps.map(ua => [ua.application_id, ua]));
+  const userAppIds = useMemo(() => new Set(userApps.map(ua => ua.application_id)), [userApps]);
 
   // Summary stats
   const summary = useMemo(() => {
@@ -55,6 +71,18 @@ export default function Stack() {
     const catsUsed = new Set(userApps.map(ua => (ua as any).applications?.categories?.name).filter(Boolean)).size;
     return { totalApps, totalMonthly, totalAnnual, catsUsed };
   }, [userApps]);
+
+  // Get integrations for info app
+  const infoAppIntegrations = useMemo(() => {
+    if (!infoApp) return [];
+    return allIntegrations.filter(
+      (i: any) => i.source_app_id === infoApp.id || i.target_app_id === infoApp.id
+    ).map((i: any) => {
+      const otherApp = i.source_app_id === infoApp.id ? i.target : i.source;
+      const inStack = otherApp ? userAppIds.has(otherApp.id) : false;
+      return { ...i, otherApp, inStack };
+    });
+  }, [infoApp, allIntegrations, userAppIds]);
 
   const handleAdd = async (appId: string) => {
     try {
@@ -123,6 +151,17 @@ export default function Stack() {
 
   const catMap = new Map(categories.map(c => [c.name, c]));
 
+  const handleAppClick = (app: any) => {
+    const cat = categories.find(c => c.id === app.category_id);
+    setInfoApp({
+      id: app.id,
+      name: app.name,
+      description: app.description,
+      vendor_url: app.vendor_url,
+      category: cat?.name || 'Uncategorized',
+    });
+  };
+
   const renderCategory = (cat: typeof categories[0]) => {
     const catApps = applications.filter(a => a.category_id === cat.id);
     const filteredApps = catApps.filter(a => {
@@ -161,7 +200,8 @@ export default function Stack() {
                 return (
                   <div
                     key={app.id}
-                    className={`flex items-center justify-between rounded-md border p-2 transition-colors ${isSelected ? 'border-primary/30 bg-primary/5' : 'bg-background/50'}`}
+                    className={`flex items-center justify-between rounded-md border p-2 transition-colors cursor-pointer hover:bg-accent/20 ${isSelected ? 'border-primary/30 bg-primary/5' : 'bg-background/50'}`}
+                    onClick={() => handleAppClick(app)}
                   >
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-sm truncate">{app.name}</p>
@@ -169,7 +209,7 @@ export default function Stack() {
                         <p className="text-xs text-muted-foreground truncate">{app.description}</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 ml-2">
+                    <div className="flex items-center gap-1 ml-2" onClick={e => e.stopPropagation()}>
                       {isSelected && (
                         <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingApp({ ...userApp, appName: app.name })}>
                           <Settings className="h-3 w-3" />
@@ -285,6 +325,10 @@ export default function Stack() {
             <SelectItem value="available">Not Selected</SelectItem>
           </SelectContent>
         </Select>
+        <Button variant="outline" size="sm" onClick={toggleCollapseAll} className="gap-1 whitespace-nowrap">
+          {allCollapsed ? <ChevronsUpDown className="h-4 w-4" /> : <ChevronsDownUp className="h-4 w-4" />}
+          {allCollapsed ? 'Expand All' : 'Collapse All'}
+        </Button>
       </div>
 
       {/* Grouped category layout */}
@@ -339,7 +383,113 @@ export default function Stack() {
         )}
       </div>
 
-      {/* App detail dialog */}
+      {/* App info dialog */}
+      <Dialog open={!!infoApp} onOpenChange={open => !open && setInfoApp(null)}>
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {infoApp?.name}
+              {infoApp && userAppIds.has(infoApp.id) && <Check className="h-4 w-4 text-primary" />}
+            </DialogTitle>
+            <DialogDescription>{infoApp?.category}</DialogDescription>
+          </DialogHeader>
+          {infoApp && (
+            <Tabs defaultValue="overview">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="integrations">
+                  Integrations ({infoAppIntegrations.length})
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview" className="space-y-4 pt-2">
+                {infoApp.description && (
+                  <p className="text-sm text-muted-foreground">{infoApp.description}</p>
+                )}
+                {!infoApp.description && (
+                  <p className="text-sm text-muted-foreground italic">No description available.</p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary">{infoApp.category}</Badge>
+                  {userAppIds.has(infoApp.id) && <Badge variant="default">In Your Stack</Badge>}
+                </div>
+                <div className="flex gap-2 pt-2">
+                  {infoApp.vendor_url && (
+                    <a href={infoApp.vendor_url} target="_blank" rel="noopener noreferrer">
+                      <Button variant="outline" size="sm" className="gap-1">
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Visit Website
+                      </Button>
+                    </a>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1"
+                    onClick={() => {
+                      setInfoApp(null);
+                      navigate('/stack-map');
+                    }}
+                  >
+                    <MapIcon className="h-3.5 w-3.5" />
+                    View on Stack Map
+                  </Button>
+                  {isAdmin && !userAppIds.has(infoApp.id) && (
+                    <Button size="sm" className="gap-1" onClick={() => { handleAdd(infoApp.id); setInfoApp(null); }}>
+                      <Plus className="h-3.5 w-3.5" />
+                      Add to Stack
+                    </Button>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="integrations" className="pt-2">
+                {infoAppIntegrations.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4">
+                    No integrations discovered yet. Run "Discover Integrations" on the Stack Map to find connections.
+                  </p>
+                ) : (
+                  <ScrollArea className="max-h-[50vh]">
+                    <div className="space-y-2 pr-2">
+                      {infoAppIntegrations.map((integ: any) => (
+                        <div key={integ.id} className="rounded-lg border p-3 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">{integ.otherApp?.name || 'Unknown'}</span>
+                              {integ.inStack && (
+                                <Badge variant="default" className="text-[10px] px-1.5 py-0">In Stack</Badge>
+                              )}
+                            </div>
+                            <Badge variant="outline" className="text-xs">
+                              {integ.integration_type || 'unknown'}
+                            </Badge>
+                          </div>
+                          {integ.description && (
+                            <p className="text-xs text-muted-foreground">{integ.description}</p>
+                          )}
+                          {integ.documentation_url && (
+                            <a
+                              href={integ.documentation_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Documentation
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </TabsContent>
+            </Tabs>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* App detail/edit dialog */}
       <Dialog open={!!editingApp} onOpenChange={open => !open && setEditingApp(null)}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>

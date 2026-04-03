@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings as SettingsIcon, Key, Cpu, Building2, UserPlus, Users, Mail, Shield, User, X } from 'lucide-react';
+import { Settings as SettingsIcon, Key, Cpu, Building2, UserPlus, Users, Mail, Shield, User, X, Link2, RefreshCw } from 'lucide-react';
 
 const PROVIDERS = [
   { value: 'lovable', label: 'Built-in AI (default)' },
@@ -35,6 +35,59 @@ const MODELS: Record<string, { value: string; label: string }[]> = {
     { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
   ],
 };
+
+function ScalePadSection() {
+  const { toast } = useToast();
+  const [syncing, setSyncing] = useState(false);
+  const [lastResult, setLastResult] = useState<any>(null);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('scalepad-sync');
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setLastResult(data);
+      toast({
+        title: 'ScalePad sync complete',
+        description: `Matched ${data.matched} assets, updated ${data.updated} applications.`,
+      });
+    } catch (e: any) {
+      toast({ title: 'Sync failed', description: e.message, variant: 'destructive' });
+    }
+    setSyncing(false);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <Link2 className="h-5 w-5" />
+          ScalePad Lifecycle Manager
+        </CardTitle>
+        <CardDescription>
+          Sync contract and asset data from ScalePad to automatically populate renewal dates, costs, and license counts.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Button onClick={handleSync} disabled={syncing} className="gap-2">
+          {syncing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          {syncing ? 'Syncing...' : 'Sync from ScalePad'}
+        </Button>
+        {lastResult && (
+          <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
+            <p><strong>Total assets found:</strong> {lastResult.total_assets}</p>
+            <p><strong>Matched to apps:</strong> {lastResult.matched}</p>
+            <p><strong>Updated:</strong> {lastResult.updated}</p>
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">
+          The ScalePad API key must be configured as a secret. Contact your administrator if sync fails with a missing key error.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
 
 function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
   const { toast } = useToast();
@@ -319,9 +372,10 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="company" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="company">Company</TabsTrigger>
           <TabsTrigger value="ai">AI Config</TabsTrigger>
+          <TabsTrigger value="connectors">Connectors</TabsTrigger>
           <TabsTrigger value="team">Team</TabsTrigger>
         </TabsList>
 
@@ -390,6 +444,10 @@ export default function Settings() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="connectors" className="mt-4">
+          <ScalePadSection />
         </TabsContent>
 
         <TabsContent value="team" className="mt-4">
