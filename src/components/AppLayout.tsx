@@ -50,6 +50,20 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               {item.label}
             </Link>
           ))}
+          {userRole === 'admin' && (
+            <Link
+              to="/settings"
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                location.pathname === '/settings'
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+              )}
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </Link>
+          )}
         </nav>
 
         <div className="border-t p-3 space-y-2">
