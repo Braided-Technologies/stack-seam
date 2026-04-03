@@ -136,6 +136,7 @@ export default function Admin() {
     const { error } = await supabase.from('applications').update({
       name: editAppData.name,
       description: editAppData.description || null,
+      category_id: editAppData.category_id || null,
     }).eq('id', id);
     if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
     setEditingApp(null);
