@@ -1,6 +1,6 @@
 import { useUserApplications, useIntegrations } from '@/hooks/useStackData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Layers, DollarSign, CalendarClock, Link2, AlertTriangle } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 
