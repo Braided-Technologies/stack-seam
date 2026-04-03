@@ -64,7 +64,7 @@ export default function Integrations() {
 
   const toggleConfigured = useMutation({
     mutationFn: async (integrationId: string) => {
-      const existing = configuredMap.get(integrationId);
+      const existing = configuredMap[integrationId];
       if (existing) {
         const newConfigured = !existing.is_configured;
         const { error } = await supabase
@@ -102,7 +102,7 @@ export default function Integrations() {
       const q = search.toLowerCase();
       const matchesSearch = !q || sourceName.includes(q) || targetName.includes(q) || desc.includes(q);
       const matchesType = typeFilter === 'all' || i.integration_type === typeFilter;
-      const configured = configuredMap.get(i.id);
+      const configured = configuredMap[i.id];
       const isConfigured = configured?.is_configured || false;
       const matchesStatus = statusFilter === 'all' || (statusFilter === 'configured' && isConfigured) || (statusFilter === 'available' && !isConfigured);
       return matchesSearch && matchesType && matchesStatus;
@@ -115,8 +115,8 @@ export default function Integrations() {
         case 'target': aVal = (a as any).target?.name || ''; bVal = (b as any).target?.name || ''; break;
         case 'type': aVal = a.integration_type || ''; bVal = b.integration_type || ''; break;
         case 'status':
-          aVal = configuredMap.get(a.id)?.is_configured ? '1' : '0';
-          bVal = configuredMap.get(b.id)?.is_configured ? '1' : '0';
+          aVal = configuredMap[a.id]?.is_configured ? '1' : '0';
+          bVal = configuredMap[b.id]?.is_configured ? '1' : '0';
           break;
       }
       const cmp = aVal.localeCompare(bVal);
@@ -126,7 +126,7 @@ export default function Integrations() {
     return items;
   }, [stackIntegrations, search, typeFilter, statusFilter, sortField, sortDir, configuredMap]);
 
-  const configuredCount = stackIntegrations.filter(i => configuredMap.get(i.id)?.is_configured).length;
+  const configuredCount = stackIntegrations.filter(i => configuredMap[i.id)?.is_configured].length;
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -258,7 +258,7 @@ export default function Integrations() {
             </TableHeader>
             <TableBody>
               {filtered.map(i => {
-                const configured = configuredMap.get(i.id);
+                const configured = configuredMap[i.id];
                 const isConfigured = configured?.is_configured || false;
                 return (
                   <TableRow key={i.id} className={isConfigured ? 'bg-primary/5' : ''}>
