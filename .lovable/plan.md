@@ -1,69 +1,71 @@
 
 
-# Dashboard, Integrations, Admin Portal & Role Fixes
+# Org Setup, Permissions, Admin Enhancements & Rebrand
 
-## Issues to Address
+## Summary
 
-1. **Dashboard integrations not clickable / not scrollable** — integration items are static divs; only shows first 8 with no scroll
-2. **Integrations tab not grouped by category** — currently grouped by app, but user wants category-based collapsible groups matching Stack page
-3. **Platform admin can't access Settings** — the sidebar only shows Settings for `admin` role, but `platform_admin` should also have org-level access (or: platform admins should be able to access their own org's settings)
-4. **Admin portal lacks CRUD for orgs/users/apps** — currently read-only tables with no edit/delete
-5. **Stat boxes not clickable** — the 5 stat cards at the top of Admin page should navigate to relevant tabs
+Five areas to address: (1) add company URL field to org setup to prevent duplicate orgs, (2) confirm invitation role selection works correctly, (3) fix platform_admin access to Settings, (4) clarify platform admin management is already built into `/admin`, and (5) rename the platform. Plus fix a runtime error with AlertDialog.
+
+## Current State
+
+- **Org setup**: Only asks for org name, no URL/domain field. No duplicate detection.
+- **Invitations**: Admins can already choose `admin` or `member` role when inviting — this works correctly in Settings > Team tab.
+- **Members vs admins**: Members see Dashboard, Stack, Map, Integrations, Research. Admins additionally see Settings. This is correct, but the sidebar condition for Settings already includes `platform_admin`, so that's fine. The real issue is that `is_org_admin()` checks for `role = 'admin'` specifically — `platform_admin` doesn't match, so RLS blocks org settings reads/writes.
+- **Platform admin portal**: Already exists at `/admin` with org/user/app management. No need for a separate backend portal — it just needs the runtime error fixed.
+- **Runtime error**: `AlertDialog` in Admin.tsx is crashing due to React context issue — likely needs to be wrapped properly.
 
 ## Plan
 
-### 1. Dashboard — Clickable + Scrollable Integrations
+### 1. Add Company URL to Organizations
 
-**File: `src/pages/Dashboard.tsx`**
+**Migration**: Add `domain` column (text, nullable) to `organizations` table with a unique constraint.
 
-- Wrap the integrations list in a `ScrollArea` with a max height so all integrations are scrollable (not limited to 8)
-- Make each integration item a clickable link using `useNavigate` to `/integrations?highlight={integrationId}`
-- Add hover styles and cursor pointer
+**OrgSetup.tsx**: Add a "Company Website" input field. On submit, extract domain from URL, check for existing org with same domain. If exists, show a message suggesting they ask their admin for an invite instead.
 
-### 2. Integrations Tab — Category-Based Grouping
+**AuthContext.tsx**: Update `createOrg` to accept and pass the domain.
 
-**File: `src/pages/Integrations.tsx`**
+### 2. Confirm Invitation Role Selection (Already Working)
 
-- Import `CATEGORY_GROUPS` from `categoryGroups.ts`
-- Instead of grouping by individual app, group by category group (Core Operations, Security, etc.) with collapsible sections
-- Within each category group, show apps and their integrations nested underneath
-- Maintain existing expand/collapse, status controls, and progress indicators
+The Settings > Team tab already has a role selector (`admin` / `member`) when sending invitations. No changes needed here — just confirming this works as designed.
 
-### 3. Platform Admin Access to Settings
+### 3. Fix platform_admin Access to Org-Level Features
 
-**File: `src/components/AppLayout.tsx`**
+**Migration**: Add RLS policies so `is_platform_admin()` grants access to `org_settings` (SELECT, INSERT, UPDATE, DELETE). This way platform admins can manage their own org's settings without needing a separate account.
 
-- The Settings link condition already includes `platform_admin` (line 82: `userRole === 'admin' || userRole === 'platform_admin'`), so this should work
-- The issue is likely that `is_org_admin` check in Settings page or RLS is failing because `platform_admin` is not `admin`. Need to check Settings page guard
+The sidebar and Settings page code already handle `platform_admin` — it's the database policies blocking access.
 
-**File: `src/pages/Settings.tsx`** — Update the admin check to include `platform_admin`:
-```
-const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
-```
+### 4. Fix Runtime Error in Admin Page
 
-### 4. Admin Portal — Full CRUD + Clickable Stats
+The `AlertDialog` crash is likely caused by rendering `AlertDialog` components outside proper React context. Will restructure the delete confirmation dialogs in `Admin.tsx` to ensure proper component tree.
 
-**File: `src/pages/Admin.tsx`**
+### 5. Platform Rename
 
-- **Clickable stat cards**: Each stat card sets the active tab and optionally a sub-filter (e.g., clicking "Pending Apps" switches to moderation tab)
-- **Organizations tab**: Add Edit (rename) and Delete buttons per org. Delete requires a confirmation dialog. Needs a new DB migration for platform admin DELETE policy on organizations
-- **Users tab**: Add a new "Users" tab showing all users across orgs with role info. Allow role changes and removal. Query `user_roles` joined with org name
-- **Apps tab**: Expand moderation to show ALL apps (not just pending). Allow editing name/description/category, deleting, and changing status
+Here are name suggestions for an MSP-focused IT stack intelligence portal:
 
-### 5. Database Migration
+| Name | Domain Availability | Notes |
+|------|-------------------|-------|
+| **StackPulse** | stackpulse.io (check) | Suggests real-time stack health monitoring |
+| **StackLens** | stacklens.io (check) | "Lens" into your IT stack — fits the intelligence angle |
+| **StackForge** | stackforge.io (check) | Building/forging your stack |
+| **TechStack Hub** | techstackhub.com (check) | Descriptive, clear purpose |
+| **StackRadar** | stackradar.io (check) | Radar/intelligence theme for MSPs |
 
-New migration needed:
-- Add DELETE policy on `organizations` for platform admins
-- Add UPDATE policy on `user_roles` for platform admins (to manage users across orgs)
-- Add DELETE policy on `user_roles` for platform admins
+Once you pick a name, I'll update it across: Auth page title, sidebar logo text, OrgSetup page, browser tab title (`index.html`), and any other references.
 
-### Files Changed
+## Files to Change
 
 | File | Change |
 |------|--------|
-| `src/pages/Dashboard.tsx` | Scrollable + clickable integration items |
-| `src/pages/Integrations.tsx` | Category-group-based collapsible layout |
-| `src/pages/Admin.tsx` | Clickable stats, org/user/app CRUD, Users tab |
-| `src/pages/Settings.tsx` | Allow `platform_admin` access |
-| Migration SQL | DELETE on orgs, UPDATE/DELETE on user_roles for platform admins |
+| Migration SQL | Add `domain` to `organizations`, add `org_settings` policies for platform_admin |
+| `src/pages/OrgSetup.tsx` | Add company URL input, domain extraction, duplicate check |
+| `src/contexts/AuthContext.tsx` | Pass domain in `createOrg` |
+| `src/pages/Admin.tsx` | Fix AlertDialog runtime crash |
+| Various files | Rename once name is chosen |
+
+## Technical Details
+
+- Domain extraction: strip protocol and path from URL input, store just the domain (e.g., `acme.com`)
+- Unique constraint on `organizations.domain` prevents duplicates at the database level
+- `org_settings` RLS for platform_admin uses `is_platform_admin()` — same pattern as other tables
+- Platform admin management stays in `/admin` — no separate portal needed. You manage everything from within the app.
 
