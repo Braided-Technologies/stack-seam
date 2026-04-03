@@ -11,21 +11,17 @@ async function discoverBatch(appNames: string[], LOVABLE_API_KEY: string) {
   const prompt = `You are an expert on MSP/IT software integrations. Given these tools: ${appList}
 
 List ALL known integrations between ANY pair of these tools. Be thorough — include:
-- Native/built-in integrations (e.g. Hudu has native integrations with HaloPSA, N-central, NinjaOne, etc.)
+- Native/built-in integrations
 - API-based integrations
 - Integrations through platforms like Zapier, Power Automate, etc.
 - PSA/RMM integrations with documentation, cybersecurity, billing tools
 - Vendor marketplace integrations
-- Known KB articles or integration guides
 
-Be EXHAUSTIVE. For example:
-- Hudu integrates natively with: ConnectWise Manage, Datto RMM, N-central, NinjaOne, HaloPSA, IT Glue (migration), Syncro, and many more
-- HaloPSA integrates with: Hudu, Xero, QuickBooks, Datto RMM, NinjaOne, CrowdStrike, SentinelOne, etc.
-- CloudRadial integrates with HaloPSA, ConnectWise, Autotask
-- CIPP integrates with Microsoft 365, Azure AD
-- ScalePad integrates with ConnectWise, Autotask, HaloPSA, Syncro
-
-Think about EVERY combination. Don't miss integrations that exist.`;
+CRITICAL RULES:
+1. Only include integrations where you can provide a REAL, VERIFIABLE documentation URL. Do NOT fabricate or guess URLs.
+2. The documentation_url must be an actual page on the vendor's website, knowledge base, or marketplace that describes the integration.
+3. If you cannot find a real documentation URL for an integration, do NOT include it.
+4. Do NOT make up URLs that look plausible — only use URLs you are confident exist.`;
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -36,14 +32,14 @@ Think about EVERY combination. Don't miss integrations that exist.`;
     body: JSON.stringify({
       model: "google/gemini-2.5-flash",
       messages: [
-        { role: "system", content: "You are an MSP/IT integration expert. Be thorough and accurate. Only include integrations that truly exist. Return as many real integrations as possible." },
+        { role: "system", content: "You are an MSP/IT integration expert. Be thorough and accurate. Only include integrations that truly exist AND have verifiable documentation URLs. Never fabricate URLs." },
         { role: "user", content: prompt },
       ],
       tools: [{
         type: "function",
         function: {
           name: "report_integrations",
-          description: "Report discovered integrations between IT tools",
+          description: "Report discovered integrations between IT tools. Every integration MUST have a real documentation_url.",
           parameters: {
             type: "object",
             properties: {
@@ -57,9 +53,9 @@ Think about EVERY combination. Don't miss integrations that exist.`;
                     description: { type: "string" },
                     integration_type: { type: "string", enum: ["native", "api", "zapier", "webhook", "other"] },
                     data_shared: { type: "string" },
-                    documentation_url: { type: "string" },
+                    documentation_url: { type: "string", description: "REQUIRED. A real, verifiable URL to the integration documentation page." },
                   },
-                  required: ["source", "target", "description", "integration_type", "data_shared"],
+                  required: ["source", "target", "description", "integration_type", "data_shared", "documentation_url"],
                   additionalProperties: false,
                 },
               },
@@ -87,7 +83,19 @@ Think about EVERY combination. Don't miss integrations that exist.`;
   if (!toolCall) return [];
 
   const parsed = JSON.parse(toolCall.function.arguments);
-  return parsed.integrations || [];
+  const integrations = parsed.integrations || [];
+
+  // Filter out integrations without valid documentation URLs
+  return integrations.filter((i: any) => {
+    if (!i.documentation_url || typeof i.documentation_url !== 'string') return false;
+    const url = i.documentation_url.trim();
+    if (!url || url.length < 10) return false;
+    // Must start with http
+    if (!url.startsWith('http://') && !url.startsWith('https://')) return false;
+    // Reject obvious placeholder/fake patterns
+    if (url.includes('example.com') || url.includes('placeholder')) return false;
+    return true;
+  });
 }
 
 serve(async (req) => {
@@ -104,7 +112,6 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    // Process in batches of ~15 apps to get more thorough results
     const BATCH_SIZE = 15;
     const allIntegrations: any[] = [];
 
@@ -112,7 +119,6 @@ serve(async (req) => {
       const results = await discoverBatch(app_names, LOVABLE_API_KEY);
       allIntegrations.push(...results);
     } else {
-      // Create overlapping batches so cross-batch integrations are found
       for (let i = 0; i < app_names.length; i += BATCH_SIZE - 3) {
         const batch = app_names.slice(i, i + BATCH_SIZE);
         if (batch.length < 2) break;
@@ -121,7 +127,6 @@ serve(async (req) => {
           allIntegrations.push(...results);
         } catch (e: any) {
           if (e.message === "RATE_LIMITED") {
-            // Wait and retry once
             await new Promise(r => setTimeout(r, 3000));
             try {
               const results = await discoverBatch(batch, LOVABLE_API_KEY);
@@ -171,7 +176,7 @@ serve(async (req) => {
           description: integ.description,
           integration_type: integ.integration_type,
           data_shared: integ.data_shared,
-          documentation_url: integ.documentation_url || null,
+          documentation_url: integ.documentation_url,
           last_verified: new Date().toISOString(),
         }, { onConflict: "source_app_id,target_app_id" });
 
