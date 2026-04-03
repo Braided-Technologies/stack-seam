@@ -1,6 +1,7 @@
 import { useUserApplications, useIntegrations } from '@/hooks/useStackData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Layers, DollarSign, CalendarClock, Link2 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Layers, DollarSign, CalendarClock, Link2, AlertTriangle } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 
 export default function Dashboard() {
