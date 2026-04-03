@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Layers, Map, LogOut, Building2, Moon, Sun, Sparkles, Settings, Link2, ChevronsLeft, ChevronsRight, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Layers, Map, LogOut, Building2, Moon, Sun, Sparkles, Settings, Link2, ChevronsLeft, ChevronsRight, ShieldCheck, DollarSign } from 'lucide-react';
 import FeedbackDialog from '@/components/FeedbackDialog';
 
 const navItems = [
@@ -12,6 +12,7 @@ const navItems = [
   { to: '/map', icon: Map, label: 'Stack Map' },
   { to: '/integrations', icon: Link2, label: 'Integrations' },
   { to: '/research', icon: Sparkles, label: 'Research' },
+  { to: '/budget', icon: DollarSign, label: 'Budget' },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {
