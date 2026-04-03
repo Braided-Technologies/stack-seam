@@ -361,32 +361,52 @@ export default function StackMap() {
             Categories
             <span className="ml-auto text-xs text-muted-foreground">{hiddenCategories.size > 0 ? `${hiddenCategories.size} hidden` : ''}</span>
           </button>
-          {legendOpen && (
-            <ScrollArea className="max-h-64 px-3 pb-3">
-              <div className="space-y-1.5">
-                {presentCategories.map(cat => {
-                  const color = CATEGORY_COLORS[cat] || 'hsl(221, 83%, 53%)';
-                  const hidden = hiddenCategories.has(cat);
-                  return (
-                    <label
-                      key={cat}
-                      className="flex items-center gap-2 cursor-pointer text-xs py-0.5"
-                    >
-                      <Checkbox
-                        checked={!hidden}
-                        onCheckedChange={() => toggleCategory(cat)}
-                        className="h-3.5 w-3.5"
-                      />
-                      <span
-                        className="h-2.5 w-2.5 rounded-full flex-shrink-0"
-                        style={{ background: color }}
-                      />
-                      <span className={hidden ? 'text-muted-foreground line-through' : ''}>{cat}</span>
-                    </label>
-                  );
-                })}
+        {legendOpen && (
+            <div className="px-3 pb-3">
+              <div className="flex gap-2 mb-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-xs px-2"
+                  onClick={() => setHiddenCategories(new Set())}
+                >
+                  Select All
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-xs px-2"
+                  onClick={() => setHiddenCategories(new Set(presentCategories))}
+                >
+                  Deselect All
+                </Button>
               </div>
-            </ScrollArea>
+              <ScrollArea className="max-h-52">
+                <div className="space-y-1.5">
+                  {presentCategories.map(cat => {
+                    const color = CATEGORY_COLORS[cat] || 'hsl(221, 83%, 53%)';
+                    const hidden = hiddenCategories.has(cat);
+                    return (
+                      <label
+                        key={cat}
+                        className="flex items-center gap-2 cursor-pointer text-xs py-0.5"
+                      >
+                        <Checkbox
+                          checked={!hidden}
+                          onCheckedChange={() => toggleCategory(cat)}
+                          className="h-3.5 w-3.5"
+                        />
+                        <span
+                          className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                          style={{ background: color }}
+                        />
+                        <span className={hidden ? 'text-muted-foreground line-through' : ''}>{cat}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </div>
           )}
         </Panel>
       </ReactFlow>

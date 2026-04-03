@@ -220,6 +220,16 @@ async function processDiscovery(appNames: string[], apiKey: string, supabase: an
     const targetId = appMap.get(integ.target?.toLowerCase());
     if (!sourceId || !targetId || sourceId === targetId) continue;
 
+    // Check for reverse duplicate — only keep one direction
+    const { data: reverseExists } = await supabase
+      .from("integrations")
+      .select("id")
+      .eq("source_app_id", targetId)
+      .eq("target_app_id", sourceId)
+      .maybeSingle();
+
+    if (reverseExists) continue; // Skip — reverse already exists
+
     const { error } = await supabase
       .from("integrations")
       .upsert({

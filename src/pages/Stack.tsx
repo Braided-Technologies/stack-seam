@@ -30,7 +30,7 @@ export default function Stack() {
   const updateApp = useUpdateUserApplication();
   const discoverIntegrations = useDiscoverIntegrations();
   const { userRole } = useAuth();
-  const isAdmin = userRole === 'admin';
+  const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
   const navigate = useNavigate();
 
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
