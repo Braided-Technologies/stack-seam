@@ -393,6 +393,10 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="connectors" className="mt-4">
+          <ScalePadSection />
+        </TabsContent>
+
         <TabsContent value="team" className="mt-4">
           {orgId && <TeamSection orgId={orgId} isAdmin={isAdmin} />}
         </TabsContent>
