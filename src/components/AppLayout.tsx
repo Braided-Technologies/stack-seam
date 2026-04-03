@@ -3,7 +3,8 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Layers, Map, LogOut, Building2, Moon, Sun, Sparkles, Settings, Link2, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { LayoutDashboard, Layers, Map, LogOut, Building2, Moon, Sun, Sparkles, Settings, Link2, ChevronsLeft, ChevronsRight, ShieldCheck } from 'lucide-react';
+import FeedbackDialog from '@/components/FeedbackDialog';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
