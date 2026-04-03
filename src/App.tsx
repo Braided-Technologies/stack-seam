@@ -12,6 +12,7 @@ import StackMap from "./pages/StackMap";
 import Research from "./pages/Research";
 import Settings from "./pages/Settings";
 import Integrations from "./pages/Integrations";
+import Admin from "./pages/Admin";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
