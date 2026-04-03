@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication } from '@/hooks/useStackData';
+import SearchToolDialog from '@/components/SearchToolDialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
