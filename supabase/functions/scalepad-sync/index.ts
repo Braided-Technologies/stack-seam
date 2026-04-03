@@ -53,6 +53,26 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Check org_settings for API key (overrides env secret)
+    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: orgKeySetting } = await serviceClient
+      .from("org_settings")
+      .select("setting_value")
+      .eq("organization_id", orgId)
+      .eq("setting_key", "scalepad_api_key")
+      .maybeSingle();
+
+    if (orgKeySetting?.setting_value) {
+      scalepadApiKey = orgKeySetting.setting_value;
+    }
+
+    if (!scalepadApiKey) {
+      return new Response(
+        JSON.stringify({ error: "ScalePad API key not configured. Add it in Settings > Connectors." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Fetch ALL hardware assets from ScalePad (paginated)
     const allAssets: any[] = [];
     let cursor: string | null = null;
