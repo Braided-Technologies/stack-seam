@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication } from '@/hooks/useStackData';
 import SearchToolDialog from '@/components/SearchToolDialog';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import { CATEGORY_COLORS } from '@/lib/constants';
 import { CATEGORY_GROUPS } from '@/lib/categoryGroups';
-import { Plus, Check, X, ChevronDown, ChevronUp, Settings, Search, Filter, Download } from 'lucide-react';
+import { Plus, Check, X, ChevronDown, ChevronUp, Settings, Search, Filter, Download, Layers, DollarSign, FolderOpen } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import ContactsSection from '@/components/ContactsSection';
 import ContractsSection from '@/components/ContractsSection';
@@ -46,6 +46,15 @@ export default function Stack() {
   };
 
   const userAppMap = new Map(userApps.map(ua => [ua.application_id, ua]));
+
+  // Summary stats
+  const summary = useMemo(() => {
+    const totalApps = userApps.length;
+    const totalMonthly = userApps.reduce((sum, ua) => sum + (Number(ua.cost_monthly) || 0), 0);
+    const totalAnnual = userApps.reduce((sum, ua) => sum + (Number(ua.cost_annual) || 0), 0);
+    const catsUsed = new Set(userApps.map(ua => (ua as any).applications?.categories?.name).filter(Boolean)).size;
+    return { totalApps, totalMonthly, totalAnnual, catsUsed };
+  }, [userApps]);
 
   const handleAdd = async (appId: string) => {
     try {
@@ -112,7 +121,6 @@ export default function Stack() {
     toast({ title: 'Stack exported as CSV' });
   };
 
-  // Build category rendering helpers
   const catMap = new Map(categories.map(c => [c.name, c]));
 
   const renderCategory = (cat: typeof categories[0]) => {
@@ -129,9 +137,9 @@ export default function Stack() {
     const color = CATEGORY_COLORS[cat.name] || 'hsl(221, 83%, 53%)';
 
     return (
-      <Card key={cat.id} className="overflow-hidden">
+      <div key={cat.id} className="rounded-xl border bg-card/50 overflow-hidden" style={{ borderLeftWidth: '3px', borderLeftColor: color }}>
         <button
-          className="flex w-full items-center justify-between p-3 text-left hover:bg-accent/50 transition-colors"
+          className="flex w-full items-center justify-between p-3 text-left hover:bg-accent/30 transition-colors"
           onClick={() => setExpandedCategory(isExpanded ? null : cat.id)}
         >
           <div className="flex items-center gap-2">
@@ -145,7 +153,7 @@ export default function Stack() {
         </button>
 
         {isExpanded && (
-          <CardContent className="border-t pt-3 pb-3">
+          <div className="border-t px-3 pt-3 pb-3">
             <div className="grid gap-1.5">
               {filteredApps.map(app => {
                 const userApp = userAppMap.get(app.id);
@@ -153,7 +161,7 @@ export default function Stack() {
                 return (
                   <div
                     key={app.id}
-                    className={`flex items-center justify-between rounded-md border p-2 transition-colors ${isSelected ? 'border-primary bg-primary/5' : ''}`}
+                    className={`flex items-center justify-between rounded-md border p-2 transition-colors ${isSelected ? 'border-primary/30 bg-primary/5' : 'bg-background/50'}`}
                   >
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-sm truncate">{app.name}</p>
@@ -184,18 +192,17 @@ export default function Stack() {
                 );
               })}
             </div>
-          </CardContent>
+          </div>
         )}
-      </Card>
+      </div>
     );
   };
 
-  // Find categories not in any group (ungrouped)
   const groupedCatNames = new Set(CATEGORY_GROUPS.flatMap(g => g.categories));
   const ungroupedCats = categories.filter(c => !groupedCatNames.has(c.name));
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">My Stack</h1>
@@ -214,6 +221,48 @@ export default function Stack() {
           </Button>
         </div>
       </div>
+
+      {/* Summary bar */}
+      {userApps.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="rounded-xl border bg-card p-4 flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+              <Layers className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{summary.totalApps}</p>
+              <p className="text-xs text-muted-foreground">Total Apps</p>
+            </div>
+          </div>
+          <div className="rounded-xl border bg-card p-4 flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+              <DollarSign className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">${summary.totalMonthly.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">Monthly Spend</p>
+            </div>
+          </div>
+          <div className="rounded-xl border bg-card p-4 flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+              <DollarSign className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">${summary.totalAnnual.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground">Annual Spend</p>
+            </div>
+          </div>
+          <div className="rounded-xl border bg-card p-4 flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+              <FolderOpen className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{summary.catsUsed}</p>
+              <p className="text-xs text-muted-foreground">Categories</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -238,35 +287,39 @@ export default function Stack() {
         </Select>
       </div>
 
-      {/* Grouped category layout — two columns on large screens */}
+      {/* Grouped category layout */}
       <div className="grid gap-6 lg:grid-cols-2">
         {CATEGORY_GROUPS.map(group => {
           const groupCats = group.categories.map(name => catMap.get(name)).filter(Boolean) as typeof categories;
           const renderedCats = groupCats.map(cat => renderCategory(cat)).filter(Boolean);
           if (renderedCats.length === 0) return null;
 
+          const selectedCount = groupCats.reduce((sum, cat) => {
+            const catApps = applications.filter(a => a.category_id === cat.id);
+            return sum + catApps.filter(a => userAppMap.has(a.id)).length;
+          }, 0);
+
           return (
-            <div key={group.label} className="space-y-2">
+            <div key={group.label} className="space-y-3">
               <button
                 className="flex items-center gap-2 w-full text-left px-1 group"
                 onClick={() => toggleGroup(group.label)}
               >
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {group.label}
-                </h2>
-                <Badge variant="outline" className="text-xs font-normal">
-                  {groupCats.reduce((sum, cat) => {
-                    const catApps = applications.filter(a => a.category_id === cat.id);
-                    return sum + catApps.filter(a => userAppMap.has(a.id)).length;
-                  }, 0)} selected
-                </Badge>
+                <div className="flex items-center gap-2 flex-1">
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {group.label}
+                  </h2>
+                  <Badge variant="outline" className="text-xs font-normal">
+                    {selectedCount} selected
+                  </Badge>
+                </div>
                 {collapsedGroups.has(group.label)
-                  ? <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto" />
-                  : <ChevronUp className="h-3 w-3 text-muted-foreground ml-auto" />
+                  ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                  : <ChevronUp className="h-3 w-3 text-muted-foreground" />
                 }
               </button>
               {!collapsedGroups.has(group.label) && (
-                <div className="grid gap-2">
+                <div className="grid gap-3">
                   {renderedCats}
                 </div>
               )}
@@ -274,20 +327,19 @@ export default function Stack() {
           );
         })}
 
-        {/* Ungrouped categories */}
         {ungroupedCats.length > 0 && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
               Other
             </h2>
-            <div className="grid gap-2">
+            <div className="grid gap-3">
               {ungroupedCats.map(cat => renderCategory(cat))}
             </div>
           </div>
         )}
       </div>
 
-      {/* App detail dialog with tabs */}
+      {/* App detail dialog */}
       <Dialog open={!!editingApp} onOpenChange={open => !open && setEditingApp(null)}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
