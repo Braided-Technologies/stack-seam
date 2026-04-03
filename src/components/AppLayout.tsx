@@ -3,7 +3,8 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Layers, Map, LogOut, Building2, Moon, Sun, Sparkles, Settings, Link2, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { LayoutDashboard, Layers, Map, LogOut, Building2, Moon, Sun, Sparkles, Settings, Link2, ChevronsLeft, ChevronsRight, ShieldCheck } from 'lucide-react';
+import FeedbackDialog from '@/components/FeedbackDialog';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -78,7 +79,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               {isExpanded && <span className="whitespace-nowrap">{item.label}</span>}
             </Link>
           ))}
-          {userRole === 'admin' && (
+          {(userRole === 'admin' || userRole === 'platform_admin') && (
             <Link
               to="/settings"
               title={!isExpanded ? 'Settings' : undefined}
@@ -92,6 +93,22 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             >
               <Settings className="h-4 w-4 flex-shrink-0" />
               {isExpanded && <span className="whitespace-nowrap">Settings</span>}
+            </Link>
+          )}
+          {userRole === 'platform_admin' && (
+            <Link
+              to="/admin"
+              title={!isExpanded ? 'Platform Admin' : undefined}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                !isExpanded && 'justify-center px-0',
+                location.pathname === '/admin'
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+              )}
+            >
+              <ShieldCheck className="h-4 w-4 flex-shrink-0" />
+              {isExpanded && <span className="whitespace-nowrap">Platform Admin</span>}
             </Link>
           )}
         </nav>
@@ -110,6 +127,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <Building2 className="h-4 w-4 text-muted-foreground" />
             </div>
           )}
+          <FeedbackDialog />
           <Button
             variant="ghost"
             size="sm"

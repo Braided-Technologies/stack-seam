@@ -12,6 +12,7 @@ import StackMap from "./pages/StackMap";
 import Research from "./pages/Research";
 import Settings from "./pages/Settings";
 import Integrations from "./pages/Integrations";
+import Admin from "./pages/Admin";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
@@ -36,6 +37,7 @@ const AppRoutes = () => (
     <Route path="/team" element={<Navigate to="/settings" replace />} />
     <Route path="/research" element={<ProtectedRoute><Research /></ProtectedRoute>} />
     <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+    <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );

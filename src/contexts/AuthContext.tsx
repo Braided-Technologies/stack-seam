@@ -8,7 +8,7 @@ type AuthContextType = {
   loading: boolean;
   orgId: string | null;
   orgName: string | null;
-  userRole: 'admin' | 'member' | null;
+  userRole: 'admin' | 'member' | 'platform_admin' | null;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -24,7 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [orgId, setOrgId] = useState<string | null>(null);
   const [orgName, setOrgName] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<'admin' | 'member' | null>(null);
+  const [userRole, setUserRole] = useState<'admin' | 'member' | 'platform_admin' | null>(null);
 
   const fetchOrg = async (userId: string) => {
     const { data: roleData } = await supabase
@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (roleData) {
       setOrgId(roleData.organization_id);
-      setUserRole(roleData.role as 'admin' | 'member');
+      setUserRole(roleData.role as 'admin' | 'member' | 'platform_admin');
       const { data: orgData } = await supabase
         .from('organizations')
         .select('name')
