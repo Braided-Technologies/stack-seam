@@ -3,13 +3,12 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Layers, Map, LogOut, Building2, Moon, Sun, Users, Sparkles, Settings } from 'lucide-react';
+import { LayoutDashboard, Layers, Map, LogOut, Building2, Moon, Sun, Sparkles, Settings } from 'lucide-react';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/stack', icon: Layers, label: 'My Stack' },
   { to: '/map', icon: Map, label: 'Stack Map' },
-  { to: '/team', icon: Users, label: 'Team' },
   { to: '/research', icon: Sparkles, label: 'Research' },
 ];
 
@@ -25,7 +24,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
-      {/* Sidebar */}
       <aside className="sticky top-0 h-screen flex w-64 flex-col border-r bg-card overflow-y-auto">
         <div className="flex items-center gap-2 border-b px-4 py-4">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
@@ -83,7 +81,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      {/* Main content */}
       <main className="flex-1 overflow-auto">
         {children}
       </main>

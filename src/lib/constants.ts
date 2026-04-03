@@ -26,6 +26,8 @@ export const CATEGORY_COLORS: Record<string, string> = {
   'Billing & Invoicing': 'hsl(55, 80%, 48%)',
   'Background Check': 'hsl(120, 45%, 50%)',
   'M365 Management': 'hsl(215, 80%, 50%)',
+  'DNS Filtering': 'hsl(185, 75%, 45%)',
+  'Virtualization': 'hsl(240, 55%, 55%)',
 };
 
 export const CATEGORY_ICONS: Record<string, string> = {
@@ -56,4 +58,6 @@ export const CATEGORY_ICONS: Record<string, string> = {
   'Billing & Invoicing': 'Receipt',
   'Background Check': 'UserCheck',
   'M365 Management': 'Settings2',
+  'DNS Filtering': 'Filter',
+  'Virtualization': 'Server',
 };
