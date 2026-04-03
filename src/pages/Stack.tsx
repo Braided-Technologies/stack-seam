@@ -431,7 +431,7 @@ export default function Stack() {
                       navigate('/stack-map');
                     }}
                   >
-                    <Map className="h-3.5 w-3.5" />
+                    <MapIcon className="h-3.5 w-3.5" />
                     View on Stack Map
                   </Button>
                   {isAdmin && !userAppIds.has(infoApp.id) && (
