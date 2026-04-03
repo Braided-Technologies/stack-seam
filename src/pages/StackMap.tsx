@@ -90,7 +90,7 @@ export default function StackMap() {
   useMemo(() => {
     setNodes(initialNodes);
     setEdges(initialEdges);
-  }, [initialNodes, initialEdges]);
+  }, [initialNodes, initialEdges, setNodes, setEdges]);
 
   const onEdgeClick = useCallback((_: any, edge: Edge) => {
     setSelectedEdge(edge.data);
