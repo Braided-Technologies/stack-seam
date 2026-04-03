@@ -14,6 +14,12 @@ const navItems = [
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { orgName, signOut, user } = useAuth();
   const location = useLocation();
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark);
+    localStorage.setItem('theme', dark ? 'dark' : 'light');
+  }, [dark]);
 
   return (
     <div className="flex min-h-screen">
