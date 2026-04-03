@@ -44,6 +44,7 @@ function ConnectorsSection() {
   const [scalePadKey, setScalePadKey] = useState('');
   const [scalePadKeyLoaded, setScalePadKeyLoaded] = useState(false);
   const [savingKey, setSavingKey] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     if (!orgId) return;
@@ -90,6 +91,25 @@ function ConnectorsSection() {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
     }
     setSavingKey(false);
+  };
+
+  const handleTestConnection = async () => {
+    if (!scalePadKey.trim()) return;
+    setTesting(true);
+    try {
+      const res = await fetch('https://api.scalepad.com/core/v1/clients?page_size=1', {
+        headers: { 'x-api-key': scalePadKey.trim(), 'Accept': 'application/json' },
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`API returned ${res.status}: ${errText}`);
+      }
+      const body = await res.json();
+      toast({ title: 'Connection successful', description: `Found ${body.total_count ?? body.data?.length ?? 0} clients.` });
+    } catch (e: any) {
+      toast({ title: 'Connection failed', description: e.message, variant: 'destructive' });
+    }
+    setTesting(false);
   };
 
   const handleScalePadSync = async () => {
@@ -150,10 +170,16 @@ function ConnectorsSection() {
                 <p className="text-xs text-muted-foreground">Your API key is stored securely and used only for ScalePad sync.</p>
               </div>
             )}
-            <Button onClick={handleScalePadSync} disabled={syncing} className="gap-2">
-              {syncing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              {syncing ? 'Syncing...' : 'Sync from ScalePad'}
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleTestConnection} disabled={testing || !scalePadKey.trim()} variant="outline" className="gap-2">
+                {testing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Key className="h-4 w-4" />}
+                {testing ? 'Testing...' : 'Test Connection'}
+              </Button>
+              <Button onClick={handleScalePadSync} disabled={syncing} className="gap-2">
+                {syncing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                {syncing ? 'Syncing...' : 'Sync from ScalePad'}
+              </Button>
+            </div>
             {lastResult && (
               <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
                 <p><strong>Total assets found:</strong> {lastResult.total_assets}</p>

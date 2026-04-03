@@ -2,14 +2,21 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useUserApplications } from '@/hooks/useStackData';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { useUserApplications, useUpdateUserApplication } from '@/hooks/useStackData';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { DollarSign, TrendingUp, CalendarClock, FileText, ArrowUpDown, Download, Trash2 } from 'lucide-react';
+import { DollarSign, TrendingUp, CalendarClock, FileText, ArrowUpDown, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import ContactsSection from '@/components/ContactsSection';
+import ContractsSection from '@/components/ContractsSection';
 
 const COLORS = [
   'hsl(var(--primary))',
@@ -24,12 +31,13 @@ type SortKey = 'name' | 'cost_monthly' | 'cost_annual' | 'renewal_date';
 export default function Budget() {
   const { orgId, userRole } = useAuth();
   const { data: userApps = [] } = useUserApplications();
+  const updateApp = useUpdateUserApplication();
   const { toast } = useToast();
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortAsc, setSortAsc] = useState(true);
+  const [editingApp, setEditingApp] = useState<any>(null);
 
-  // Fetch all contract files across org
   const { data: allContracts = [] } = useQuery({
     queryKey: ['all_contract_files', orgId],
     enabled: !!orgId,
@@ -45,7 +53,6 @@ export default function Budget() {
     },
   });
 
-  // Summary stats
   const totalMonthly = useMemo(() =>
     userApps.reduce((sum, ua) => sum + (Number(ua.cost_monthly) || 0), 0), [userApps]);
   const totalAnnual = useMemo(() =>
@@ -64,7 +71,6 @@ export default function Budget() {
     }).length;
   }, [userApps]);
 
-  // Spend by category
   const categorySpend = useMemo(() => {
     const map = new Map<string, number>();
     for (const ua of userApps) {
@@ -78,7 +84,6 @@ export default function Budget() {
       .slice(0, 10);
   }, [userApps]);
 
-  // Sorted app table
   const sortedApps = useMemo(() => {
     const items = userApps.map(ua => ({
       id: ua.id,
@@ -90,6 +95,7 @@ export default function Budget() {
       billing_cycle: ua.billing_cycle,
       term_months: ua.term_months,
       license_count: ua.license_count,
+      notes: ua.notes,
     }));
     items.sort((a, b) => {
       let cmp = 0;
@@ -111,6 +117,25 @@ export default function Budget() {
     else { setSortKey(key); setSortAsc(true); }
   };
 
+  const handleSaveDetails = async () => {
+    if (!editingApp) return;
+    try {
+      await updateApp.mutateAsync({
+        id: editingApp.id,
+        cost_monthly: editingApp.cost_monthly ? Number(editingApp.cost_monthly) : null,
+        cost_annual: editingApp.cost_annual ? Number(editingApp.cost_annual) : null,
+        renewal_date: editingApp.renewal_date || null,
+        term_months: editingApp.term_months ? Number(editingApp.term_months) : null,
+        license_count: editingApp.license_count ? Number(editingApp.license_count) : null,
+        billing_cycle: editingApp.billing_cycle || null,
+        notes: editingApp.notes || null,
+      });
+      toast({ title: 'Details saved' });
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    }
+  };
+
   const handleDownloadContract = async (filePath: string, fileName: string) => {
     const { data, error } = await supabase.storage.from('contracts').download(filePath);
     if (error) {
@@ -126,6 +151,10 @@ export default function Budget() {
   };
 
   const fmt = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 });
+
+  const openAppEdit = (app: typeof sortedApps[0]) => {
+    setEditingApp({ ...app });
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -243,7 +272,7 @@ export default function Budget() {
                     </TableCell>
                   </TableRow>
                 ) : sortedApps.map(app => (
-                  <TableRow key={app.id}>
+                  <TableRow key={app.id} className="cursor-pointer hover:bg-accent/50" onClick={() => openAppEdit(app)}>
                     <TableCell className="font-medium">{app.name}</TableCell>
                     <TableCell><Badge variant="secondary" className="text-xs">{app.category}</Badge></TableCell>
                     <TableCell>{app.cost_monthly ? fmt(app.cost_monthly) : '—'}</TableCell>
@@ -293,6 +322,91 @@ export default function Budget() {
           )}
         </CardContent>
       </Card>
+
+      {/* App Edit Dialog */}
+      <Dialog open={!!editingApp} onOpenChange={open => !open && setEditingApp(null)}>
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>{editingApp?.name || 'Application'}</DialogTitle>
+            <DialogDescription>Edit details, contacts, and contracts</DialogDescription>
+          </DialogHeader>
+          {editingApp && (
+            <Tabs defaultValue="details">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="contacts">Contacts</TabsTrigger>
+                <TabsTrigger value="contracts">Contracts</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="details" className="space-y-4 pt-2">
+                <ScrollArea className="max-h-[50vh]">
+                  <div className="space-y-4 pr-2">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Monthly Cost ($)</Label>
+                        <Input type="number" value={editingApp.cost_monthly || ''} onChange={e => setEditingApp({ ...editingApp, cost_monthly: e.target.value })} disabled={!isAdmin} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Annual Cost ($)</Label>
+                        <Input type="number" value={editingApp.cost_annual || ''} onChange={e => setEditingApp({ ...editingApp, cost_annual: e.target.value })} disabled={!isAdmin} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Renewal Date</Label>
+                        <Input type="date" value={editingApp.renewal_date || ''} onChange={e => setEditingApp({ ...editingApp, renewal_date: e.target.value })} disabled={!isAdmin} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Term (months)</Label>
+                        <Input type="number" value={editingApp.term_months || ''} onChange={e => setEditingApp({ ...editingApp, term_months: e.target.value })} disabled={!isAdmin} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>License Count</Label>
+                        <Input type="number" value={editingApp.license_count || ''} onChange={e => setEditingApp({ ...editingApp, license_count: e.target.value })} disabled={!isAdmin} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Billing Cycle</Label>
+                        <select
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          value={editingApp.billing_cycle || ''}
+                          onChange={e => setEditingApp({ ...editingApp, billing_cycle: e.target.value })}
+                          disabled={!isAdmin}
+                        >
+                          <option value="">Select...</option>
+                          <option value="monthly">Monthly</option>
+                          <option value="annual">Annual</option>
+                          <option value="multi-year">Multi-Year</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Notes</Label>
+                      <textarea
+                        className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={editingApp.notes || ''}
+                        onChange={e => setEditingApp({ ...editingApp, notes: e.target.value })}
+                        disabled={!isAdmin}
+                      />
+                    </div>
+                    {isAdmin && <Button className="w-full" onClick={handleSaveDetails}>Save Details</Button>}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+
+              <TabsContent value="contacts" className="pt-2">
+                <ContactsSection userApplicationId={editingApp.id} isAdmin={isAdmin} />
+              </TabsContent>
+
+              <TabsContent value="contracts" className="pt-2">
+                <ContractsSection userApplicationId={editingApp.id} isAdmin={isAdmin} />
+              </TabsContent>
+            </Tabs>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
