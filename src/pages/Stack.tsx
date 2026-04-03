@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import { CATEGORY_COLORS } from '@/lib/constants';
+import { CATEGORY_GROUPS } from '@/lib/categoryGroups';
 import { Plus, Check, X, ChevronDown, ChevronUp, Settings, Search, Filter, Download } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import ContactsSection from '@/components/ContactsSection';
@@ -101,12 +102,94 @@ export default function Stack() {
     toast({ title: 'Stack exported as CSV' });
   };
 
+  // Build category rendering helpers
+  const catMap = new Map(categories.map(c => [c.name, c]));
+
+  const renderCategory = (cat: typeof categories[0]) => {
+    const catApps = applications.filter(a => a.category_id === cat.id);
+    const filteredApps = catApps.filter(a => {
+      const matchesSearch = !search || a.name.toLowerCase().includes(search.toLowerCase()) || a.description?.toLowerCase().includes(search.toLowerCase());
+      const isSelected = userAppMap.has(a.id);
+      const matchesFilter = filterMode === 'all' || (filterMode === 'selected' && isSelected) || (filterMode === 'available' && !isSelected);
+      return matchesSearch && matchesFilter;
+    });
+    if (filteredApps.length === 0) return null;
+    const selectedInCat = filteredApps.filter(a => userAppMap.has(a.id));
+    const isExpanded = expandedCategory === cat.id || !!search;
+    const color = CATEGORY_COLORS[cat.name] || 'hsl(221, 83%, 53%)';
+
+    return (
+      <Card key={cat.id} className="overflow-hidden">
+        <button
+          className="flex w-full items-center justify-between p-3 text-left hover:bg-accent/50 transition-colors"
+          onClick={() => setExpandedCategory(isExpanded ? null : cat.id)}
+        >
+          <div className="flex items-center gap-2">
+            <div className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+            <span className="font-semibold text-sm">{cat.name}</span>
+            {selectedInCat.length > 0 && (
+              <Badge variant="secondary" className="text-xs">{selectedInCat.length}</Badge>
+            )}
+          </div>
+          {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+        </button>
+
+        {isExpanded && (
+          <CardContent className="border-t pt-3 pb-3">
+            <div className="grid gap-1.5">
+              {filteredApps.map(app => {
+                const userApp = userAppMap.get(app.id);
+                const isSelected = !!userApp;
+                return (
+                  <div
+                    key={app.id}
+                    className={`flex items-center justify-between rounded-md border p-2 transition-colors ${isSelected ? 'border-primary bg-primary/5' : ''}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm truncate">{app.name}</p>
+                      {app.description && (
+                        <p className="text-xs text-muted-foreground truncate">{app.description}</p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 ml-2">
+                      {isSelected && (
+                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingApp({ ...userApp, appName: app.name })}>
+                          <Settings className="h-3 w-3" />
+                        </Button>
+                      )}
+                      {isAdmin && (
+                        isSelected ? (
+                          <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => handleRemove(userApp!.id)}>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        ) : (
+                          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleAdd(app.id)}>
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        )
+                      )}
+                      {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        )}
+      </Card>
+    );
+  };
+
+  // Find categories not in any group (ungrouped)
+  const groupedCatNames = new Set(CATEGORY_GROUPS.flatMap(g => g.categories));
+  const ungroupedCats = categories.filter(c => !groupedCatNames.has(c.name));
+
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">My Stack</h1>
-          <p className="text-muted-foreground">Select the tools in your IT stack by category</p>
+          <p className="text-muted-foreground text-sm">Select the tools in your IT stack by category</p>
         </div>
         <div className="flex gap-2">
           {isAdmin && (
@@ -145,81 +228,36 @@ export default function Stack() {
         </Select>
       </div>
 
-      <div className="grid gap-3">
-        {categories.map(cat => {
-          const catApps = applications.filter(a => a.category_id === cat.id);
-          const filteredApps = catApps.filter(a => {
-            const matchesSearch = !search || a.name.toLowerCase().includes(search.toLowerCase()) || a.description?.toLowerCase().includes(search.toLowerCase());
-            const isSelected = userAppMap.has(a.id);
-            const matchesFilter = filterMode === 'all' || (filterMode === 'selected' && isSelected) || (filterMode === 'available' && !isSelected);
-            return matchesSearch && matchesFilter;
-          });
-          if (filteredApps.length === 0) return null;
-          const selectedInCat = filteredApps.filter(a => userAppMap.has(a.id));
-          const isExpanded = expandedCategory === cat.id || !!search;
-          const color = CATEGORY_COLORS[cat.name] || 'hsl(221, 83%, 53%)';
+      {/* Grouped category layout — two columns on large screens */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {CATEGORY_GROUPS.map(group => {
+          const groupCats = group.categories.map(name => catMap.get(name)).filter(Boolean) as typeof categories;
+          const renderedCats = groupCats.map(cat => renderCategory(cat)).filter(Boolean);
+          if (renderedCats.length === 0) return null;
 
           return (
-            <Card key={cat.id} className="overflow-hidden">
-              <button
-                className="flex w-full items-center justify-between p-4 text-left hover:bg-accent/50 transition-colors"
-                onClick={() => setExpandedCategory(isExpanded ? null : cat.id)}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
-                  <span className="font-semibold">{cat.name}</span>
-                  {selectedInCat.length > 0 && (
-                    <Badge variant="secondary">{selectedInCat.length} selected</Badge>
-                  )}
-                </div>
-                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </button>
-
-              {isExpanded && (
-                <CardContent className="border-t pt-4">
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {filteredApps.map(app => {
-                      const userApp = userAppMap.get(app.id);
-                      const isSelected = !!userApp;
-                      return (
-                        <div
-                          key={app.id}
-                          className={`flex items-center justify-between rounded-lg border p-3 transition-colors ${isSelected ? 'border-primary bg-primary/5' : ''}`}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium text-sm truncate">{app.name}</p>
-                            {app.description && (
-                              <p className="text-xs text-muted-foreground truncate">{app.description}</p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-1 ml-2">
-                            {isSelected && (
-                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingApp({ ...userApp, appName: app.name })}>
-                                <Settings className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                            {isAdmin && (
-                              isSelected ? (
-                                <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleRemove(userApp!.id)}>
-                                  <X className="h-3.5 w-3.5" />
-                                </Button>
-                              ) : (
-                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleAdd(app.id)}>
-                                  <Plus className="h-3.5 w-3.5" />
-                                </Button>
-                              )
-                            )}
-                            {isSelected && <Check className="h-4 w-4 text-primary" />}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              )}
-            </Card>
+            <div key={group.label} className="space-y-2">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
+                {group.label}
+              </h2>
+              <div className="grid gap-2">
+                {renderedCats}
+              </div>
+            </div>
           );
         })}
+
+        {/* Ungrouped categories */}
+        {ungroupedCats.length > 0 && (
+          <div className="space-y-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
+              Other
+            </h2>
+            <div className="grid gap-2">
+              {ungroupedCats.map(cat => renderCategory(cat))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* App detail dialog with tabs */}

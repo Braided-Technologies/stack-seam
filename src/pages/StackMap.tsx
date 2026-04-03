@@ -19,12 +19,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 import { ExternalLink, Sparkles, RefreshCw } from 'lucide-react';
+import AppIntegrationsPanel from '@/components/AppIntegrationsPanel';
 
 export default function StackMap() {
   const { data: userApps = [] } = useUserApplications();
   const { data: allIntegrations = [] } = useIntegrations();
   const discoverIntegrations = useDiscoverIntegrations();
   const [selectedEdge, setSelectedEdge] = useState<any>(null);
+  const [selectedApp, setSelectedApp] = useState<{ id: string; name: string } | null>(null);
 
   const userAppIdList = useMemo(() => userApps.map(ua => ua.application_id), [userApps]);
 
@@ -51,10 +53,16 @@ export default function StackMap() {
       const color = CATEGORY_COLORS[catName] || 'hsl(221, 83%, 53%)';
 
       apps.forEach((ua, appIdx) => {
+        const appName = (ua as any).applications?.name || 'Unknown';
+        // Count integrations for this app
+        const integCount = relevantIntegrations.filter(
+          i => i.source_app_id === ua.application_id || i.target_app_id === ua.application_id
+        ).length;
+
         nodes.push({
           id: ua.application_id,
           position: { x: col * 300 + (appIdx % 2) * 160, y: row * 250 + Math.floor(appIdx / 2) * 80 },
-          data: { label: (ua as any).applications?.name || 'Unknown' },
+          data: { label: integCount > 0 ? `${appName} (${integCount})` : appName, appName },
           style: {
             background: color,
             color: '#fff',
@@ -64,6 +72,7 @@ export default function StackMap() {
             fontSize: '13px',
             fontWeight: 600,
             boxShadow: `0 4px 12px ${color}40`,
+            cursor: 'pointer',
           },
         });
       });
@@ -93,6 +102,10 @@ export default function StackMap() {
 
   const onEdgeClick = useCallback((_: any, edge: Edge) => {
     setSelectedEdge(edge.data);
+  }, []);
+
+  const onNodeClick = useCallback((_: any, node: Node) => {
+    setSelectedApp({ id: node.id, name: (node.data as any).appName || (node.data as any).label });
   }, []);
 
   const handleDiscover = async () => {
@@ -131,6 +144,7 @@ export default function StackMap() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onEdgeClick={onEdgeClick}
+        onNodeClick={onNodeClick}
         fitView
         fitViewOptions={{ padding: 0.3 }}
       >
@@ -142,7 +156,7 @@ export default function StackMap() {
         />
         <Panel position="top-left" className="bg-card/90 backdrop-blur rounded-lg border p-3 shadow-sm space-y-2">
           <p className="text-sm font-medium">{nodes.length} apps · {edges.length} integrations</p>
-          <p className="text-xs text-muted-foreground">Click a connection line to see details</p>
+          <p className="text-xs text-muted-foreground">Click an app to see all its integrations</p>
           <Button
             size="sm"
             onClick={handleDiscover}
@@ -158,6 +172,7 @@ export default function StackMap() {
         </Panel>
       </ReactFlow>
 
+      {/* Edge detail dialog */}
       <Dialog open={!!selectedEdge} onOpenChange={open => !open && setSelectedEdge(null)}>
         <DialogContent>
           <DialogHeader>
@@ -197,6 +212,15 @@ export default function StackMap() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* App integrations panel */}
+      <AppIntegrationsPanel
+        open={!!selectedApp}
+        onClose={() => setSelectedApp(null)}
+        appName={selectedApp?.name || ''}
+        appId={selectedApp?.id || ''}
+        integrations={allIntegrations as any}
+      />
     </div>
   );
 }
