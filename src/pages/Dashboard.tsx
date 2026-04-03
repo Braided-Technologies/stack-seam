@@ -16,6 +16,14 @@ export default function Dashboard() {
     i => userAppIds.has(i.source_app_id) && userAppIds.has(i.target_app_id)
   );
 
+  const urgentRenewals = userApps
+    .filter(ua => {
+      if (!ua.renewal_date) return false;
+      const days = differenceInDays(new Date(ua.renewal_date), new Date());
+      return days <= 30;
+    })
+    .sort((a, b) => new Date(a.renewal_date!).getTime() - new Date(b.renewal_date!).getTime());
+
   const upcomingRenewals = userApps
     .filter(ua => ua.renewal_date)
     .sort((a, b) => new Date(a.renewal_date!).getTime() - new Date(b.renewal_date!).getTime())
