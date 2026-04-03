@@ -12,15 +12,18 @@ import {
   Panel,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useUserApplications, useIntegrations } from '@/hooks/useStackData';
+import { useUserApplications, useIntegrations, useDiscoverIntegrations } from '@/hooks/useStackData';
 import { CATEGORY_COLORS } from '@/lib/constants';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { ExternalLink } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { toast } from '@/hooks/use-toast';
+import { ExternalLink, Sparkles, RefreshCw } from 'lucide-react';
 
 export default function StackMap() {
   const { data: userApps = [] } = useUserApplications();
   const { data: allIntegrations = [] } = useIntegrations();
+  const discoverIntegrations = useDiscoverIntegrations();
   const [selectedEdge, setSelectedEdge] = useState<any>(null);
 
   const userAppIdList = useMemo(() => userApps.map(ua => ua.application_id), [userApps]);
@@ -31,7 +34,6 @@ export default function StackMap() {
   }, [allIntegrations, userAppIdList]);
 
   const { initialNodes, initialEdges } = useMemo(() => {
-    // Group apps by category
     const byCategory = new Map<string, typeof userApps>();
     userApps.forEach(ua => {
       const catName = (ua as any).applications?.categories?.name || 'Other';
@@ -52,9 +54,7 @@ export default function StackMap() {
         nodes.push({
           id: ua.application_id,
           position: { x: col * 300 + (appIdx % 2) * 160, y: row * 250 + Math.floor(appIdx / 2) * 80 },
-          data: {
-            label: (ua as any).applications?.name || 'Unknown',
-          },
+          data: { label: (ua as any).applications?.name || 'Unknown' },
           style: {
             background: color,
             color: '#fff',
@@ -86,7 +86,6 @@ export default function StackMap() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  // Update nodes/edges when data changes
   useMemo(() => {
     setNodes(initialNodes);
     setEdges(initialEdges);
@@ -95,6 +94,23 @@ export default function StackMap() {
   const onEdgeClick = useCallback((_: any, edge: Edge) => {
     setSelectedEdge(edge.data);
   }, []);
+
+  const handleDiscover = async () => {
+    const appNames = userApps.map(ua => (ua as any).applications?.name).filter(Boolean);
+    if (appNames.length < 2) {
+      toast({ title: 'Need at least 2 apps', description: 'Add more tools to your stack first.' });
+      return;
+    }
+    try {
+      const result = await discoverIntegrations.mutateAsync(appNames);
+      toast({
+        title: 'Integration discovery complete',
+        description: `Found ${result.discovered} integrations, ${result.saved} new saved.`,
+      });
+    } catch (e: any) {
+      toast({ title: 'Discovery failed', description: e.message, variant: 'destructive' });
+    }
+  };
 
   if (userApps.length === 0) {
     return (
@@ -124,9 +140,21 @@ export default function StackMap() {
           nodeColor={(node) => (node.style?.background as string) || '#666'}
           style={{ background: 'hsl(var(--card))' }}
         />
-        <Panel position="top-left" className="bg-card/90 backdrop-blur rounded-lg border p-3 shadow-sm">
+        <Panel position="top-left" className="bg-card/90 backdrop-blur rounded-lg border p-3 shadow-sm space-y-2">
           <p className="text-sm font-medium">{nodes.length} apps · {edges.length} integrations</p>
           <p className="text-xs text-muted-foreground">Click a connection line to see details</p>
+          <Button
+            size="sm"
+            onClick={handleDiscover}
+            disabled={discoverIntegrations.isPending}
+            className="w-full gap-2"
+          >
+            {discoverIntegrations.isPending ? (
+              <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Discovering...</>
+            ) : (
+              <><Sparkles className="h-3.5 w-3.5" /> Discover Integrations</>
+            )}
+          </Button>
         </Panel>
       </ReactFlow>
 
