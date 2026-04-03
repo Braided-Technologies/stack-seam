@@ -289,6 +289,7 @@ export default function Admin() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
+                      <TableHead>Category</TableHead>
                       <TableHead>Description</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Date</TableHead>
@@ -303,6 +304,25 @@ export default function Admin() {
                             <Input value={editAppData.name} onChange={e => setEditAppData(prev => ({ ...prev, name: e.target.value }))} className="h-8" />
                           ) : (
                             <span className="font-medium">{app.name}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {editingApp === app.id ? (
+                            <Select value={editAppData.category_id || 'none'} onValueChange={(v) => setEditAppData(prev => ({ ...prev, category_id: v === 'none' ? null : v }))}>
+                              <SelectTrigger className="w-[140px] h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">None</SelectItem>
+                                {categories.map(c => (
+                                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">
+                              {categories.find(c => c.id === app.category_id)?.name || '—'}
+                            </span>
                           )}
                         </TableCell>
                         <TableCell className="max-w-xs">
