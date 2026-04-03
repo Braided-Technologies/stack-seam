@@ -296,6 +296,10 @@ export default function Integrations() {
             <SelectItem value="hidden">Hidden</SelectItem>
           </SelectContent>
         </Select>
+        <Button variant="outline" size="sm" onClick={handleCollapseAll} className="gap-1 whitespace-nowrap">
+          {allExpanded ? <ChevronsDownUp className="h-4 w-4" /> : <ChevronsUpDown className="h-4 w-4" />}
+          {allExpanded ? 'Collapse All' : 'Expand All'}
+        </Button>
       </div>
 
       {/* Category-grouped integrations */}
