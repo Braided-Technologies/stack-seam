@@ -61,7 +61,7 @@ export default function Stack() {
   };
 
   const userAppMap = new Map(userApps.map(ua => [ua.application_id, ua]));
-  const userAppIds = new Set(userApps.map(ua => ua.application_id));
+  const userAppIds = useMemo(() => new Set(userApps.map(ua => ua.application_id)), [userApps]);
 
   // Summary stats
   const summary = useMemo(() => {
