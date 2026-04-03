@@ -6,10 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import { CATEGORY_COLORS } from '@/lib/constants';
 import { Plus, Check, X, ChevronDown, ChevronUp, Settings } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import ContactsSection from '@/components/ContactsSection';
+import ContractsSection from '@/components/ContractsSection';
 
 export default function Stack() {
   const { data: categories = [] } = useCategories();
@@ -58,7 +61,6 @@ export default function Stack() {
         notes: editingApp.notes || null,
       });
       toast({ title: 'Details saved' });
-      setEditingApp(null);
     } catch (e: any) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
     }
@@ -112,8 +114,8 @@ export default function Stack() {
                             )}
                           </div>
                           <div className="flex items-center gap-1 ml-2">
-                            {isSelected && isAdmin && (
-                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingApp({ ...userApp })}>
+                            {isSelected && (
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingApp({ ...userApp, appName: app.name })}>
                                 <Settings className="h-3.5 w-3.5" />
                               </Button>
                             )}
@@ -141,65 +143,83 @@ export default function Stack() {
         })}
       </div>
 
-      {/* Edit details dialog */}
+      {/* App detail dialog with tabs */}
       <Dialog open={!!editingApp} onOpenChange={open => !open && setEditingApp(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Application Details</DialogTitle>
-            <DialogDescription>Update cost, renewal, and contract information</DialogDescription>
+            <DialogTitle>{editingApp?.appName || 'Application Details'}</DialogTitle>
+            <DialogDescription>Manage details, contacts, and contracts</DialogDescription>
           </DialogHeader>
           {editingApp && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Monthly Cost ($)</Label>
-                  <Input type="number" value={editingApp.cost_monthly || ''} onChange={e => setEditingApp({ ...editingApp, cost_monthly: e.target.value })} />
+            <Tabs defaultValue="details">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="details">Details</TabsTrigger>
+                <TabsTrigger value="contacts">Contacts</TabsTrigger>
+                <TabsTrigger value="contracts">Contracts</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="details" className="space-y-4 pt-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Monthly Cost ($)</Label>
+                    <Input type="number" value={editingApp.cost_monthly || ''} onChange={e => setEditingApp({ ...editingApp, cost_monthly: e.target.value })} disabled={!isAdmin} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Annual Cost ($)</Label>
+                    <Input type="number" value={editingApp.cost_annual || ''} onChange={e => setEditingApp({ ...editingApp, cost_annual: e.target.value })} disabled={!isAdmin} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Renewal Date</Label>
+                    <Input type="date" value={editingApp.renewal_date || ''} onChange={e => setEditingApp({ ...editingApp, renewal_date: e.target.value })} disabled={!isAdmin} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Term (months)</Label>
+                    <Input type="number" value={editingApp.term_months || ''} onChange={e => setEditingApp({ ...editingApp, term_months: e.target.value })} disabled={!isAdmin} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>License Count</Label>
+                    <Input type="number" value={editingApp.license_count || ''} onChange={e => setEditingApp({ ...editingApp, license_count: e.target.value })} disabled={!isAdmin} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Billing Cycle</Label>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={editingApp.billing_cycle || ''}
+                      onChange={e => setEditingApp({ ...editingApp, billing_cycle: e.target.value })}
+                      disabled={!isAdmin}
+                    >
+                      <option value="">Select...</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="annual">Annual</option>
+                      <option value="multi-year">Multi-Year</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Annual Cost ($)</Label>
-                  <Input type="number" value={editingApp.cost_annual || ''} onChange={e => setEditingApp({ ...editingApp, cost_annual: e.target.value })} />
+                  <Label>Notes</Label>
+                  <textarea
+                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={editingApp.notes || ''}
+                    onChange={e => setEditingApp({ ...editingApp, notes: e.target.value })}
+                    disabled={!isAdmin}
+                  />
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Renewal Date</Label>
-                  <Input type="date" value={editingApp.renewal_date || ''} onChange={e => setEditingApp({ ...editingApp, renewal_date: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Term (months)</Label>
-                  <Input type="number" value={editingApp.term_months || ''} onChange={e => setEditingApp({ ...editingApp, term_months: e.target.value })} />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>License Count</Label>
-                  <Input type="number" value={editingApp.license_count || ''} onChange={e => setEditingApp({ ...editingApp, license_count: e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Billing Cycle</Label>
-                  <select
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={editingApp.billing_cycle || ''}
-                    onChange={e => setEditingApp({ ...editingApp, billing_cycle: e.target.value })}
-                  >
-                    <option value="">Select...</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="annual">Annual</option>
-                    <option value="multi-year">Multi-Year</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Notes</Label>
-                <textarea
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={editingApp.notes || ''}
-                  onChange={e => setEditingApp({ ...editingApp, notes: e.target.value })}
-                />
-              </div>
-              <Button className="w-full" onClick={handleSaveDetails}>Save Details</Button>
-            </div>
+                {isAdmin && <Button className="w-full" onClick={handleSaveDetails}>Save Details</Button>}
+              </TabsContent>
+
+              <TabsContent value="contacts" className="pt-2">
+                <ContactsSection userApplicationId={editingApp.id} isAdmin={isAdmin} />
+              </TabsContent>
+
+              <TabsContent value="contracts" className="pt-2">
+                <ContractsSection userApplicationId={editingApp.id} isAdmin={isAdmin} />
+              </TabsContent>
+            </Tabs>
           )}
         </DialogContent>
       </Dialog>
