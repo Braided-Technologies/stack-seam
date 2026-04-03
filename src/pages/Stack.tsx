@@ -416,7 +416,7 @@ export default function Stack() {
             const userApp = userAppMap.get(infoApp.id);
             const isInStack = !!userApp;
             return (
-              <Tabs defaultValue="overview">
+              <Tabs defaultValue={defaultTab} key={defaultTab}>
                 <TabsList className={`grid w-full ${isInStack ? 'grid-cols-3' : 'grid-cols-2'}`}>
                   <TabsTrigger value="overview">Overview</TabsTrigger>
                   <TabsTrigger value="integrations">
