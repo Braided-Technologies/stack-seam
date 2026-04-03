@@ -1,6 +1,8 @@
+import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { ExternalLink } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ExternalLink, ArrowRight } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface Integration {
@@ -22,16 +24,21 @@ interface AppIntegrationsPanelProps {
 }
 
 export default function AppIntegrationsPanel({ open, onClose, appName, appId, integrations }: AppIntegrationsPanelProps) {
-  // Filter integrations where this app is either source or target
+  const navigate = useNavigate();
+
   const appIntegrations = integrations.filter(
     i => i.source?.id === appId || i.target?.id === appId
   );
 
-  // Group by connected app
   const grouped = appIntegrations.map(i => {
     const otherApp = i.source?.id === appId ? i.target : i.source;
     return { ...i, otherApp };
   });
+
+  const handleIntegrationClick = (integrationId: string) => {
+    onClose();
+    navigate(`/integrations?highlight=${integrationId}`);
+  };
 
   return (
     <Dialog open={open} onOpenChange={o => !o && onClose()}>
@@ -48,12 +55,19 @@ export default function AppIntegrationsPanel({ open, onClose, appName, appId, in
             No integrations discovered yet. Run "Discover Integrations" to find connections.
           </p>
         ) : (
-          <ScrollArea className="flex-1 -mx-6 px-6" style={{ maxHeight: '60vh' }}>
+          <ScrollArea className="flex-1 -mx-6 px-6 overflow-y-auto" style={{ maxHeight: 'calc(85vh - 120px)' }}>
             <div className="space-y-3 pb-2">
               {grouped.map(integ => (
-                <div key={integ.id} className="rounded-lg border p-3 space-y-2">
+                <div
+                  key={integ.id}
+                  className="rounded-lg border p-3 space-y-2 cursor-pointer hover:bg-accent/50 transition-colors"
+                  onClick={() => handleIntegrationClick(integ.id)}
+                >
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-sm">{integ.otherApp?.name || 'Unknown'}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">{integ.otherApp?.name || 'Unknown'}</span>
+                      <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                    </div>
                     <Badge variant="outline" className="text-xs">
                       {integ.integration_type || 'unknown'}
                     </Badge>
@@ -76,6 +90,7 @@ export default function AppIntegrationsPanel({ open, onClose, appName, appId, in
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                      onClick={e => e.stopPropagation()}
                     >
                       <ExternalLink className="h-3 w-3" />
                       Documentation
@@ -86,6 +101,18 @@ export default function AppIntegrationsPanel({ open, onClose, appName, appId, in
             </div>
           </ScrollArea>
         )}
+
+        <div className="pt-2 border-t">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-2"
+            onClick={() => { onClose(); navigate('/integrations'); }}
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            View all in Integrations tab
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
