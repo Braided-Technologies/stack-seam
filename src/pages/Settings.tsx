@@ -36,6 +36,59 @@ const MODELS: Record<string, { value: string; label: string }[]> = {
   ],
 };
 
+function ScalePadSection() {
+  const { toast } = useToast();
+  const [syncing, setSyncing] = useState(false);
+  const [lastResult, setLastResult] = useState<any>(null);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('scalepad-sync');
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setLastResult(data);
+      toast({
+        title: 'ScalePad sync complete',
+        description: `Matched ${data.matched} assets, updated ${data.updated} applications.`,
+      });
+    } catch (e: any) {
+      toast({ title: 'Sync failed', description: e.message, variant: 'destructive' });
+    }
+    setSyncing(false);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <Link2 className="h-5 w-5" />
+          ScalePad Lifecycle Manager
+        </CardTitle>
+        <CardDescription>
+          Sync contract and asset data from ScalePad to automatically populate renewal dates, costs, and license counts.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Button onClick={handleSync} disabled={syncing} className="gap-2">
+          {syncing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          {syncing ? 'Syncing...' : 'Sync from ScalePad'}
+        </Button>
+        {lastResult && (
+          <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
+            <p><strong>Total assets found:</strong> {lastResult.total_assets}</p>
+            <p><strong>Matched to apps:</strong> {lastResult.matched}</p>
+            <p><strong>Updated:</strong> {lastResult.updated}</p>
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">
+          The ScalePad API key must be configured as a secret. Contact your administrator if sync fails with a missing key error.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
