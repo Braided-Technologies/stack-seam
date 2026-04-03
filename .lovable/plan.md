@@ -1,69 +1,87 @@
 
 
-# Fix Integrations Quality, Reorganize Categories, Move Team to Settings, Add Stack Map Features
+# Collapsible Sidebar, Stack Page Polish, Integrations Hub, and Scheduled Discovery
 
-## Problems Identified
+## Runtime Error Fix
+There's a `useContext` error in `AppLayout.tsx` that needs fixing first — likely caused by component rendering outside router context during hot reload. Will address alongside the sidebar refactor.
 
-1. **Bogus integrations** — AI is hallucinating integrations that don't exist (e.g., Exclaimer integrating with Checkr). 51 of 117 integrations have no documentation URL. Need to require documentation proof.
-2. **Misplaced apps** — Barracuda Email Protection and Mimecast are under "Email & Collaboration" but should be "Email Security". "Mesh Security" is under Cybersecurity but should just be "Mesh" in Email Security (there's already a correct entry).
-3. **Missing categories** — DNS Filtering (e.g., DNSFilter, Cisco Umbrella, WebTitan) and Virtualization (VMware, Hyper-V, Proxmox) are not represented.
-4. **Team page** — Should be a tab within Settings, not its own nav item.
-5. **Stack Map** — Needs a category legend with show/hide toggles, and an auto-layout button that groups nodes by category.
+## 1. Collapsible Sidebar (Icon-Only + Hover Expand)
 
----
+**File: `src/components/AppLayout.tsx`**
 
-## Plan
+- Add `collapsed` state (default `false`) and a toggle button (chevron icon) at the bottom of the sidebar
+- When collapsed: sidebar shrinks to `w-16`, only icons shown, labels hidden
+- On hover (`onMouseEnter`/`onMouseLeave`): temporarily expand to full width showing labels
+- Transition with `transition-all duration-200` for smooth animation
+- Persist collapsed preference in `localStorage`
 
-### 1. Data Cleanup (Migration)
+## 2. My Stack Page Visual Polish
 
-- **Move Barracuda Email Protection and Mimecast** from "Email & Collaboration" to "Email Security"
-- **Delete "Mesh Security"** from Cybersecurity (duplicate of "Mesh" in Email Security)
-- **Delete integrations without documentation URLs** — purge all 51 records where `documentation_url IS NULL`
-- **Add new category: "DNS Filtering"** with apps: DNSFilter, Cisco Umbrella, WebTitan, SafeDNS
-- **Add new category: "Virtualization"** with apps: VMware vSphere, Microsoft Hyper-V, Proxmox, Nutanix
-- **Add unique constraint** on `integrations(source_app_id, target_app_id)` if not already present (needed for upsert)
+**File: `src/pages/Stack.tsx`**
 
-### 2. Require Documentation URL for Integrations
+- Wrap each category group in a subtle card-like container with `bg-card/50 border rounded-xl p-4` instead of floating in void
+- Add a colored left-border accent per group (using existing category colors)
+- Add a summary bar at the top showing total selected apps, total spend, categories used
+- Use `bg-muted/30` alternating backgrounds for visual separation between groups
+- Add subtle group icons next to section headers
 
-Update `supabase/functions/discover-integrations/index.ts`:
-- Add `documentation_url` as a **required** field in the AI tool schema
-- Add a post-processing filter: discard any integration where `documentation_url` is empty, null, or clearly fabricated
-- Update the AI prompt to say "Only include integrations where you can provide a real, verifiable documentation URL. Do NOT fabricate URLs."
+## 3. Integrations/Connections Tab
 
-### 3. Update Constants & Category Groups
+**New file: `src/pages/Integrations.tsx`**
 
-- **`src/lib/constants.ts`** — Add `CATEGORY_COLORS` and `CATEGORY_ICONS` entries for "DNS Filtering" and "Virtualization"
-- **`src/lib/categoryGroups.ts`** — Add "DNS Filtering" to Security group, add "Virtualization" to Infrastructure group
+A dedicated page for viewing and managing all integrations:
+- Table/list view of all integrations relevant to the user's stack
+- Sort/filter by app name, integration type, status (configured/not configured)
+- Each row shows: Source App ↔ Target App, type, description, documentation link
+- Checkbox column to mark integrations as "configured" (new DB column needed)
+- Link from Stack Map node click to this page filtered by that app
+- Link from Dashboard "Available Integrations" card to this page
 
-### 4. Move Team into Settings
+**Database migration:**
+- Add `is_configured` boolean column (default `false`) to a new `org_integrations` table that tracks per-org integration status
+- Schema: `org_integrations(id, organization_id, integration_id, is_configured, configured_at, configured_by, notes)`
+- RLS: org members can view, admins can insert/update/delete
 
-- **`src/pages/Settings.tsx`** — Add a "Team" tab using the existing `Tabs` component. Import and embed the team management UI (invite form, members list, pending invitations) directly into Settings.
-- **`src/components/AppLayout.tsx`** — Remove the Team nav item from the sidebar.
-- **`src/App.tsx`** — Remove the `/team` route. Add a redirect from `/team` to `/settings` for bookmarks.
-- **Delete** `src/pages/Team.tsx` (move its content into Settings).
+**File: `src/components/AppLayout.tsx`** — Add "Integrations" nav item with `Link2` icon
 
-### 5. Stack Map: Category Legend with Show/Hide
+**File: `src/App.tsx`** — Add `/integrations` route
 
-Add a legend panel to `src/pages/StackMap.tsx`:
-- Render a collapsible panel (top-right) listing each category present in the user's stack with its color dot
-- Each category has a checkbox/toggle to show or hide nodes of that type
-- Hidden nodes and their connected edges are filtered out from the ReactFlow render
-- State managed via a `Set<string>` of hidden category names
+**File: `src/pages/Dashboard.tsx`** — Make "Available Integrations" card clickable, linking to `/integrations`
 
-### 6. Stack Map: Auto-Layout by Category
+**File: `src/pages/StackMap.tsx`** — Add "View all integrations" link from the app detail panel that navigates to `/integrations?app=AppName`
 
-Add a "Group by Category" button to the Stack Map panel:
-- When clicked, recalculates node positions to cluster apps by category in distinct sectors (arranged in a circle or grid)
-- Each category group gets a label node (non-interactive, styled as a header)
-- Apps within each group are arranged in a compact sub-grid
-- Uses a simple algorithmic layout (no external library needed) — categories placed in a circle with radius based on count, apps in a small grid within each sector
+## 4. Scheduled Daily Integration Discovery
+
+Currently discovery is manual only. Will add automated daily checks:
+
+**Database setup (via insert tool, not migration):**
+- Enable `pg_cron` and `pg_net` extensions
+- Create a cron job that calls `discover-integrations` daily with the org's app list
+
+**File: `supabase/functions/discover-integrations/index.ts`**
+- Add a mode for scheduled runs: when called without auth but with a service role key, iterate all orgs and discover integrations for each
+- Add a `scheduled` boolean param to distinguish manual vs automated runs
+
+**Regarding MCP integrations (Claude, etc.):**
+The AI discovery prompt already includes API-based and platform integrations. For emerging MCP server integrations (like Claude ↔ Hudu via community MCP servers), we'll:
+- Add "MCP Server" as a valid `integration_type` 
+- Update the AI prompt to specifically ask about MCP server integrations
+- These will appear with community documentation URLs (GitHub repos, etc.)
+
+## 5. Navigation and Route Updates
+
+**`src/components/AppLayout.tsx`:**
+- Add Integrations nav item: `{ to: '/integrations', icon: Link2, label: 'Integrations' }`
+
+**`src/App.tsx`:**
+- Add route: `<Route path="/integrations" element={<ProtectedRoute><Integrations /></ProtectedRoute>} />`
 
 ---
 
 ## Technical Details
 
-- The discover-integrations edge function change is the key quality fix — by making `documentation_url` required and filtering out entries without valid URLs, we prevent hallucinated integrations from ever being saved
-- The Team-to-Settings merge uses Tabs with three tabs: "Company", "AI Configuration", "Team" 
-- Stack Map legend uses `useMemo` to derive visible nodes/edges from the hidden categories set
-- Auto-layout computes positions deterministically from category groupings — no physics simulation needed
+- **org_integrations table** — Separate from `integrations` table. The `integrations` table is global (what integrations exist). `org_integrations` tracks which ones a specific org has configured. RLS uses `is_org_member` / `is_org_admin`.
+- **Sidebar collapse** — Uses CSS `width` transition, not the Shadcn Sidebar component, since we already have a custom sidebar. Hover uses `onMouseEnter`/`onMouseLeave` with a slight delay to prevent flicker.
+- **Scheduled cron** — Uses `pg_cron` + `pg_net` calling the edge function URL with the service role key. Runs at 2 AM UTC daily.
+- **MCP integrations** — The discover function's AI prompt will be updated to include: "Also check for MCP (Model Context Protocol) server integrations — community-built connectors that allow tools like Claude, ChatGPT, etc. to integrate with other platforms. Include GitHub repo URLs as documentation."
 
