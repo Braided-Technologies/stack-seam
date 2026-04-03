@@ -66,7 +66,7 @@ export default function Admin() {
   const [editingOrg, setEditingOrg] = useState<string | null>(null);
   const [editOrgName, setEditOrgName] = useState('');
   const [editingApp, setEditingApp] = useState<string | null>(null);
-  const [editAppData, setEditAppData] = useState<{ name: string; description: string }>({ name: '', description: '' });
+  const [editAppData, setEditAppData] = useState<{ name: string; description: string; category_id: string | null }>({ name: '', description: '', category_id: null });
   const [appFilter, setAppFilter] = useState<'all' | 'approved' | 'org_only'>('all');
 
   useEffect(() => {
