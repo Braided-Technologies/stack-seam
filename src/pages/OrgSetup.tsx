@@ -19,10 +19,9 @@ export default function OrgSetup() {
   useEffect(() => {
     if (!user?.email) { setCheckingInvite(false); return; }
     (async () => {
-      // Use RPC to find invitation since the user isn't a member yet and can't read invitations via RLS
-      const { data, error } = await supabase.rpc('find_pending_invitation', { _email: user.email });
-      if (!error && data && data.length > 0) {
-        const inv = data[0];
+      const { data, error } = await supabase.rpc('find_pending_invitation' as any, { _email: user.email });
+      if (!error && data && Array.isArray(data) && data.length > 0) {
+        const inv = data[0] as any;
         setPendingInvite({ id: inv.id, token: inv.token, email: inv.email, organization_id: inv.organization_id, orgName: inv.org_name });
       }
       setCheckingInvite(false);
