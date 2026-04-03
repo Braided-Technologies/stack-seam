@@ -225,7 +225,10 @@ export default function Stack() {
                     </div>
                     <div className="flex items-center gap-1 ml-2" onClick={e => e.stopPropagation()}>
                       {isSelected && (
-                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingApp({ ...userApp, appName: app.name })}>
+                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => {
+                          handleAppClick(app);
+                          setDefaultTab('settings');
+                        }}>
                           <Settings className="h-3 w-3" />
                         </Button>
                       )}
