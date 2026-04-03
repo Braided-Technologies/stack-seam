@@ -127,6 +127,29 @@ function ConnectorsSection() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {scalePadKeyLoaded && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1"><Key className="h-3 w-3" /> API Key</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    value={scalePadKey}
+                    onChange={e => setScalePadKey(e.target.value)}
+                    placeholder="Enter your ScalePad API key"
+                    className="flex-1"
+                  />
+                  <Button size="sm" onClick={handleSaveKey} disabled={savingKey || !scalePadKey.trim()}>
+                    {savingKey ? 'Saving...' : 'Save'}
+                  </Button>
+                  {scalePadKey && (
+                    <Button size="sm" variant="destructive" onClick={handleDeleteKey} disabled={savingKey}>
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">Your API key is stored securely and used only for ScalePad sync.</p>
+              </div>
+            )}
             <Button onClick={handleScalePadSync} disabled={syncing} className="gap-2">
               {syncing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               {syncing ? 'Syncing...' : 'Sync from ScalePad'}
@@ -138,9 +161,6 @@ function ConnectorsSection() {
                 <p><strong>Updated:</strong> {lastResult.updated}</p>
               </div>
             )}
-            <p className="text-xs text-muted-foreground">
-              The ScalePad API key must be configured as a secret. Contact your administrator if sync fails.
-            </p>
           </CardContent>
         </Card>
       </div>
