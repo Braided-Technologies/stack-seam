@@ -54,7 +54,8 @@ Deno.serve(async (req) => {
     }
 
     const { data: isAdmin } = await userClient.rpc("is_org_admin", { _org_id: orgIdData });
-    if (!isAdmin) {
+    const { data: isPlatformAdmin } = await userClient.rpc("is_platform_admin");
+    if (!isAdmin && !isPlatformAdmin) {
       return new Response(JSON.stringify({ error: "Admin access required" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
