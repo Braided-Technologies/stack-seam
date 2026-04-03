@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (roleData) {
       setOrgId(roleData.organization_id);
-      setUserRole(roleData.role as 'admin' | 'member');
+      setUserRole(roleData.role as 'admin' | 'member' | 'platform_admin');
       const { data: orgData } = await supabase
         .from('organizations')
         .select('name')
