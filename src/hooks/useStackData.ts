@@ -185,7 +185,33 @@ export function useDeleteContractFile() {
   });
 }
 
+export function useSearchTool() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (query: string) => {
+      const { data, error } = await supabase.functions.invoke('search-tool', {
+        body: { query },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['applications'] }),
+  });
+}
+
 export function useDiscoverIntegrations() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (appNames: string[]) => {
+      const { data, error } = await supabase.functions.invoke('discover-integrations', {
+        body: { app_names: appNames },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['integrations'] }),
+  });
+}
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (appNames: string[]) => {
