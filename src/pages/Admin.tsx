@@ -57,6 +57,7 @@ export default function Admin() {
   const { userRole, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('moderation');
   const [allApps, setAllApps] = useState<PendingApp[]>([]);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
   const [orgs, setOrgs] = useState<OrgItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -65,7 +66,7 @@ export default function Admin() {
   const [editingOrg, setEditingOrg] = useState<string | null>(null);
   const [editOrgName, setEditOrgName] = useState('');
   const [editingApp, setEditingApp] = useState<string | null>(null);
-  const [editAppData, setEditAppData] = useState<{ name: string; description: string }>({ name: '', description: '' });
+  const [editAppData, setEditAppData] = useState<{ name: string; description: string; category_id: string | null }>({ name: '', description: '', category_id: null });
   const [appFilter, setAppFilter] = useState<'all' | 'approved' | 'org_only'>('all');
 
   useEffect(() => {
@@ -73,11 +74,12 @@ export default function Admin() {
   }, [userRole]);
 
   const loadData = async () => {
-    const [appsRes, fbRes, orgRes, roleRes] = await Promise.all([
+    const [appsRes, fbRes, orgRes, roleRes, catRes] = await Promise.all([
       supabase.from('applications').select('*').order('created_at', { ascending: false }),
       supabase.from('feedback').select('*').order('created_at', { ascending: false }),
       supabase.from('organizations').select('*').order('created_at', { ascending: false }),
       supabase.from('user_roles').select('*'),
+      supabase.from('categories').select('id, name').order('display_order'),
     ]);
 
     const apps = appsRes.data || [];
@@ -87,6 +89,7 @@ export default function Admin() {
 
     setAllApps(apps);
     setFeedback(fb);
+    setCategories(catRes.data || []);
 
     const countMap: Record<string, number> = {};
     roleData.forEach(r => { countMap[r.organization_id] = (countMap[r.organization_id] || 0) + 1; });
@@ -133,6 +136,7 @@ export default function Admin() {
     const { error } = await supabase.from('applications').update({
       name: editAppData.name,
       description: editAppData.description || null,
+      category_id: editAppData.category_id || null,
     }).eq('id', id);
     if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
     setEditingApp(null);
@@ -251,9 +255,9 @@ export default function Admin() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="moderation">Apps {stats.pending > 0 && `(${stats.pending})`}</TabsTrigger>
-          <TabsTrigger value="feedback">Support {stats.openTickets > 0 && `(${stats.openTickets})`}</TabsTrigger>
           <TabsTrigger value="orgs">Organizations</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="feedback">Support {stats.openTickets > 0 && `(${stats.openTickets})`}</TabsTrigger>
         </TabsList>
 
         {/* APPS TAB */}
@@ -285,6 +289,7 @@ export default function Admin() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
+                      <TableHead>Category</TableHead>
                       <TableHead>Description</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Date</TableHead>
@@ -299,6 +304,25 @@ export default function Admin() {
                             <Input value={editAppData.name} onChange={e => setEditAppData(prev => ({ ...prev, name: e.target.value }))} className="h-8" />
                           ) : (
                             <span className="font-medium">{app.name}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {editingApp === app.id ? (
+                            <Select value={editAppData.category_id || 'none'} onValueChange={(v) => setEditAppData(prev => ({ ...prev, category_id: v === 'none' ? null : v }))}>
+                              <SelectTrigger className="w-[140px] h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">None</SelectItem>
+                                {categories.map(c => (
+                                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">
+                              {categories.find(c => c.id === app.category_id)?.name || '—'}
+                            </span>
                           )}
                         </TableCell>
                         <TableCell className="max-w-xs">
@@ -327,7 +351,7 @@ export default function Admin() {
                               )}
                               <Button size="sm" variant="ghost" onClick={() => {
                                 setEditingApp(app.id);
-                                setEditAppData({ name: app.name, description: app.description || '' });
+                                setEditAppData({ name: app.name, description: app.description || '', category_id: app.category_id });
                               }}>
                                 <Pencil className="h-3 w-3" />
                               </Button>

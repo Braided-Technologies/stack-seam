@@ -127,7 +127,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <Building2 className="h-4 w-4 text-muted-foreground" />
             </div>
           )}
-          <FeedbackDialog />
+          <FeedbackDialog isExpanded={isExpanded} />
           <Button
             variant="ghost"
             size="sm"

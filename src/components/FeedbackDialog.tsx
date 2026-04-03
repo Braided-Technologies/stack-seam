@@ -12,8 +12,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { MessageSquare, Send } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { cn } from '@/lib/utils';
 
-export default function FeedbackDialog() {
+export default function FeedbackDialog({ isExpanded = true }: { isExpanded?: boolean }) {
   const { user, orgId } = useAuth();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -70,9 +71,14 @@ export default function FeedbackDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="w-full gap-2 text-muted-foreground justify-start" title="Feedback">
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn('w-full gap-2 text-muted-foreground', isExpanded ? 'justify-start' : 'justify-center px-0')}
+          title="Feedback"
+        >
           <MessageSquare className="h-4 w-4 flex-shrink-0" />
-          <span className="whitespace-nowrap">Feedback</span>
+          {isExpanded && <span className="whitespace-nowrap">Feedback</span>}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-lg">

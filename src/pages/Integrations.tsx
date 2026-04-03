@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from '@/hooks/use-toast';
 import { CATEGORY_GROUPS } from '@/lib/categoryGroups';
-import { Search, ExternalLink, Filter, Link2, CheckCircle2, Circle, Map as MapIcon, ChevronDown, ChevronRight, EyeOff, SkipForward } from 'lucide-react';
+import { Search, ExternalLink, Filter, Link2, CheckCircle2, Circle, Map as MapIcon, ChevronDown, ChevronRight, EyeOff, SkipForward, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 
 type StatusFilter = 'all' | 'configured' | 'pending' | 'skipped' | 'hidden';
 
@@ -24,6 +24,8 @@ export default function Integrations() {
   const [search, setSearch] = useState(initialApp);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(CATEGORY_GROUPS.map(g => g.label)));
+  const [openApps, setOpenApps] = useState<Set<string>>(new Set());
+  const [allExpanded, setAllExpanded] = useState(true);
 
   const { orgId, userRole, user } = useAuth();
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
@@ -197,6 +199,26 @@ export default function Integrations() {
     });
   };
 
+  const toggleApp = (appId: string) => {
+    setOpenApps(prev => {
+      const next = new Set(prev);
+      if (next.has(appId)) next.delete(appId); else next.add(appId);
+      return next;
+    });
+  };
+
+  const handleCollapseAll = () => {
+    if (allExpanded) {
+      setOpenGroups(new Set());
+      setOpenApps(new Set());
+      setAllExpanded(false);
+    } else {
+      setOpenGroups(new Set(CATEGORY_GROUPS.map(g => g.label)));
+      setOpenApps(new Set());
+      setAllExpanded(true);
+    }
+  };
+
   // Stats
   const totalIntegrations = stackIntegrations.length;
   const configuredCount = stackIntegrations.filter(i => configuredMap[i.id]?.status === 'configured').length;
@@ -274,6 +296,10 @@ export default function Integrations() {
             <SelectItem value="hidden">Hidden</SelectItem>
           </SelectContent>
         </Select>
+        <Button variant="outline" size="sm" onClick={handleCollapseAll} className="gap-1 whitespace-nowrap">
+          {allExpanded ? <ChevronsDownUp className="h-4 w-4" /> : <ChevronsUpDown className="h-4 w-4" />}
+          {allExpanded ? 'Collapse All' : 'Expand All'}
+        </Button>
       </div>
 
       {/* Category-grouped integrations */}
@@ -311,14 +337,18 @@ export default function Integrations() {
                   {group.apps.map(app => {
                     const filteredIntegrations = app.integrations.filter(filterIntegration);
                     if (filteredIntegrations.length === 0) return null;
+                    const isAppOpen = openApps.has(app.appId);
 
                     return (
-                      <Card key={app.appId} className="overflow-hidden">
-                        <div className="px-4 py-2 border-b bg-muted/30">
-                          <span className="text-sm font-medium">{app.appName}</span>
-                          <span className="text-xs text-muted-foreground ml-2">({filteredIntegrations.length})</span>
-                        </div>
-                        <div className="px-4 pb-3 pt-2 space-y-2">
+                      <Collapsible key={app.appId} open={isAppOpen} onOpenChange={() => toggleApp(app.appId)}>
+                        <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border bg-card px-4 py-2 text-left hover:bg-accent/30 transition-colors">
+                          <div className="flex items-center gap-2">
+                            {isAppOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                            <span className="text-sm font-medium">{app.appName}</span>
+                            <span className="text-xs text-muted-foreground">({filteredIntegrations.length})</span>
+                          </div>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-1 space-y-2 pl-4">
                           {filteredIntegrations.map(i => {
                             const otherApp = (i as any).source?.id === app.appId ? (i as any).target : (i as any).source;
                             const entry = configuredMap[i.id];
@@ -385,8 +415,8 @@ export default function Integrations() {
                               </div>
                             );
                           })}
-                        </div>
-                      </Card>
+                        </CollapsibleContent>
+                      </Collapsible>
                     );
                   })}
                 </CollapsibleContent>

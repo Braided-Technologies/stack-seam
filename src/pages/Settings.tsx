@@ -226,6 +226,20 @@ function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
     },
   });
 
+  const changeRole = useMutation({
+    mutationFn: async ({ roleId, newRole }: { roleId: string; newRole: string }) => {
+      const { error } = await supabase.from('user_roles').update({ role: newRole } as any).eq('id', roleId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: 'Role updated' });
+      queryClient.invalidateQueries({ queryKey: ['team-members'] });
+    },
+    onError: (e: any) => {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    },
+  });
+
   return (
     <div className="space-y-6">
       {isAdmin && (
@@ -274,7 +288,7 @@ function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <Users className="h-5 w-5" />
-            Members ({members.length})
+            Members ({members.length + invitations.length})
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -290,7 +304,19 @@ function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant={member.role === 'admin' ? 'default' : 'secondary'}>{member.role}</Badge>
+                {isAdmin ? (
+                  <Select value={member.role} onValueChange={(v) => changeRole.mutate({ roleId: member.id, newRole: v })}>
+                    <SelectTrigger className="w-[110px] h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Badge variant={member.role === 'admin' ? 'default' : 'secondary'}>{member.role}</Badge>
+                )}
                 {isAdmin && member.role !== 'admin' && (
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeMember.mutate(member.id)}>
                     <X className="h-3.5 w-3.5" />
@@ -299,41 +325,36 @@ function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
               </div>
             </div>
           ))}
-        </CardContent>
-      </Card>
-
-      {isAdmin && invitations.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Mail className="h-5 w-5" />
-              Pending Invitations ({invitations.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {invitations.map(inv => (
-              <div key={inv.id} className="flex items-center justify-between rounded-lg border p-3">
+          {/* Pending invitations inline */}
+          {invitations.map(inv => (
+            <div key={inv.id} className="flex items-center justify-between rounded-lg border border-dashed p-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                </div>
                 <div>
                   <p className="text-sm font-medium">{inv.email}</p>
                   <p className="text-xs text-muted-foreground">
                     Invited {new Date(inv.created_at).toLocaleDateString()} · Expires {new Date(inv.expires_at).toLocaleDateString()}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline">{inv.role}</Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline">{inv.role}</Badge>
+                <Badge variant="secondary" className="text-xs">Pending</Badge>
+                {isAdmin && (
                   <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => cancelInvite.mutate(inv.id)}>
                     <X className="h-3.5 w-3.5" />
                   </Button>
-                </div>
+                )}
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
     </div>
   );
 }
-
 export default function Settings() {
   const { orgId, orgName, userRole, refreshOrg } = useAuth();
   const { toast } = useToast();
