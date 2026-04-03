@@ -24,6 +24,8 @@ export default function Integrations() {
   const [search, setSearch] = useState(initialApp);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(CATEGORY_GROUPS.map(g => g.label)));
+  const [openApps, setOpenApps] = useState<Set<string>>(new Set());
+  const [allExpanded, setAllExpanded] = useState(true);
 
   const { orgId, userRole, user } = useAuth();
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
