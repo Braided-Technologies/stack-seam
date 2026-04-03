@@ -126,7 +126,7 @@ export default function Integrations() {
     return items;
   }, [stackIntegrations, search, typeFilter, statusFilter, sortField, sortDir, configuredMap]);
 
-  const configuredCount = stackIntegrations.filter(i => configuredMap[i.id)?.is_configured].length;
+  const configuredCount = stackIntegrations.filter(i => configuredMap[i.id]?.is_configured).length;
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
