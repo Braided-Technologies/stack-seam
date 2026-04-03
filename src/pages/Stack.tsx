@@ -12,7 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { CATEGORY_COLORS } from '@/lib/constants';
 import { CATEGORY_GROUPS } from '@/lib/categoryGroups';
-import { Plus, Check, X, ChevronDown, ChevronUp, Settings, Search, Filter, Download, Layers, DollarSign, FolderOpen, ExternalLink, Map as MapIcon, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { Plus, Check, X, ChevronDown, ChevronUp, Settings, Search, Filter, Download, Layers, DollarSign, FolderOpen, ExternalLink, Map as MapIcon, ChevronsDownUp, ChevronsUpDown, Loader2, Zap } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import ContactsSection from '@/components/ContactsSection';
 import ContractsSection from '@/components/ContractsSection';
