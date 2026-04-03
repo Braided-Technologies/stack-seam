@@ -9,10 +9,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import { CATEGORY_COLORS } from '@/lib/constants';
-import { Plus, Check, X, ChevronDown, ChevronUp, Settings } from 'lucide-react';
+import { Plus, Check, X, ChevronDown, ChevronUp, Settings, Search, Filter } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import ContactsSection from '@/components/ContactsSection';
 import ContractsSection from '@/components/ContractsSection';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+type FilterMode = 'all' | 'selected' | 'available';
 
 export default function Stack() {
   const { data: categories = [] } = useCategories();
@@ -26,6 +29,8 @@ export default function Stack() {
 
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [editingApp, setEditingApp] = useState<any>(null);
+  const [search, setSearch] = useState('');
+  const [filterMode, setFilterMode] = useState<FilterMode>('all');
 
   const userAppMap = new Map(userApps.map(ua => [ua.application_id, ua]));
 
@@ -73,11 +78,41 @@ export default function Stack() {
         <p className="text-muted-foreground">Select the tools in your IT stack by category</p>
       </div>
 
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search apps across all categories..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select value={filterMode} onValueChange={(v: FilterMode) => setFilterMode(v)}>
+          <SelectTrigger className="w-full sm:w-[160px]">
+            <Filter className="h-4 w-4 mr-2" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Apps</SelectItem>
+            <SelectItem value="selected">In My Stack</SelectItem>
+            <SelectItem value="available">Not Selected</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="grid gap-3">
         {categories.map(cat => {
           const catApps = applications.filter(a => a.category_id === cat.id);
-          const selectedInCat = catApps.filter(a => userAppMap.has(a.id));
-          const isExpanded = expandedCategory === cat.id;
+          const filteredApps = catApps.filter(a => {
+            const matchesSearch = !search || a.name.toLowerCase().includes(search.toLowerCase()) || a.description?.toLowerCase().includes(search.toLowerCase());
+            const isSelected = userAppMap.has(a.id);
+            const matchesFilter = filterMode === 'all' || (filterMode === 'selected' && isSelected) || (filterMode === 'available' && !isSelected);
+            return matchesSearch && matchesFilter;
+          });
+          if (filteredApps.length === 0) return null;
+          const selectedInCat = filteredApps.filter(a => userAppMap.has(a.id));
+          const isExpanded = expandedCategory === cat.id || !!search;
           const color = CATEGORY_COLORS[cat.name] || 'hsl(221, 83%, 53%)';
 
           return (
@@ -99,7 +134,7 @@ export default function Stack() {
               {isExpanded && (
                 <CardContent className="border-t pt-4">
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {catApps.map(app => {
+                    {filteredApps.map(app => {
                       const userApp = userAppMap.get(app.id);
                       const isSelected = !!userApp;
                       return (
