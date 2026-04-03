@@ -1,67 +1,58 @@
 
-# Dashboard, Sidebar, Settings, Integrations, Admin Fixes
 
-## Changes
+# ScalePad API Key Management + Budget/Spend Tab
 
-### 1. Dashboard — Clickable "Total Apps" + Fix ScrollArea
-**File: `src/pages/Dashboard.tsx`**
-- Wrap "Total Apps" card in a `Link` to `/stack` (same pattern as Integrations card)
-- Fix ScrollArea: the current `max-h-[400px]` on ScrollArea needs an explicit `h-[400px]` instead — ScrollArea requires a fixed height, not max-height, to enable scrolling
-- Match card styling to Stack page: use `rounded-xl` with icon in colored circle (`bg-primary/10` wrapper) instead of plain Card+CardHeader layout
+## 1. ScalePad API Key in Settings UI
 
-### 2. Sidebar — Hide "Feedback" text when collapsed
-**File: `src/components/FeedbackDialog.tsx`**
-- The FeedbackDialog button always shows the word "Feedback" regardless of sidebar state
-- It doesn't have access to the `isExpanded` prop — need to pass it from `AppLayout.tsx`
-- Update `FeedbackDialog` to accept an `isExpanded` prop, conditionally render the text
-- Update `AppLayout.tsx` line 130 to pass `isExpanded` to `<FeedbackDialog />`
+**Settings > Connectors > ScalePad card**: Add an API key input field with save/delete buttons. Store the key in `org_settings` (key: `scalepad_api_key`). The edge function will check `org_settings` first, then fall back to the environment secret.
 
-### 3. Settings — Role management + Pending invitees in members list
-**File: `src/pages/Settings.tsx`**
-- In TeamSection, add a role dropdown (Select) for each member so admins can change roles between `member` and `admin` (add a `changeRole` mutation)
-- Merge pending invitations into the Members list with a "Pending" badge instead of showing them in a separate card — or keep both but also show pending invitations inline in the members card
-- Show member name and email instead of truncated user_id: query profiles or auth metadata. Since we likely don't have a profiles table with names, we'll show email from a join. Actually, `user_roles` only has `user_id` — we need to fetch user emails. We can query `invitations` for email, and for existing members we'd need a profiles table or to store email on user_roles. For now, show the pending invitations in the Members section and query user email from profiles if available.
+### Files
+- **`src/pages/Settings.tsx`** — Add masked API key input, Save/Delete buttons to ConnectorsSection. Load current key from `org_settings`, save via upsert, delete via delete.
+- **`supabase/functions/scalepad-sync/index.ts`** — After auth, query `org_settings` for `scalepad_api_key` for the user's org. Use that if found, otherwise fall back to `SCALEPAD_API_KEY` env secret.
 
-Let me check what's available:
+## 2. Budget / Spend Tab
 
-The members query only gets `user_id` from `user_roles`. To show emails, we'd need to either:
-- Create a `profiles` table (proper solution)
-- Or query auth.users (not possible from client)
+New top-level navigation item between "Research" and "Settings". Shows spend visualization and contract management across all apps.
 
-For now: add pending invitations into the members list with "Pending" badge, and for existing members show the truncated user_id (we can enhance with a profiles table later). Add role change dropdown for admins.
+### Layout
+- **Summary cards** at top (same styling as Dashboard/Stack): Total Monthly Spend, Total Annual Spend, Apps with Contracts, Upcoming Renewals
+- **Spend by Category** — bar or horizontal chart showing cost breakdown by category group (using existing `user_applications` cost data)
+- **App Spend Table** — sortable table of all apps with costs, renewal dates, billing cycle, term
+- **Contracts section** — list of all uploaded contract files across all apps, with ability to view/download/delete
 
-### 4. Integrations — Collapsible apps within groups + Collapse All
-**File: `src/pages/Integrations.tsx`**
-- Add `openApps` state (`Set<string>`) to track which apps are expanded
-- Make each app card header clickable to collapse/expand its integrations
-- Add a "Collapse All" / "Expand All" button next to the filters
-- Add chevron icons to app headers
+### Contract Handling (all options available)
+Each app's contract workflow offers:
+1. **Manual entry only** — already works via the edit dialog in My Stack
+2. **Upload + manual entry** — upload file for reference, manually enter/edit cost data (current behavior)
+3. **Upload + scan** — upload file, use AI to extract key fields (vendor, cost, renewal date, term), user can review/edit extracted data before saving
+4. **After upload**: user chooses to **keep file stored** (current secure storage) or **delete after scanning** (extract data then remove the file)
 
-### 5. Admin — Category column on Apps tab + Reorder tabs
-**File: `src/pages/Admin.tsx`**
-- Apps table: add a "Category" column. Need to join `applications` with `categories` table. Update the query to include category info. Add a category dropdown for editing.
-- Reorder tabs to: Apps | Organizations | Users | Support
-- Update the `StackMap` text reference to current platform name
+For scanning, create an edge function `scan-contract` that:
+- Receives the uploaded file path from storage
+- Downloads the file, extracts text (using PDF parsing)
+- Sends text to AI (Lovable built-in model) to extract structured data (cost, renewal date, term, billing cycle)
+- Returns extracted fields for user to review/confirm
+- If user chose "delete after scan", removes the file from storage after confirmation
 
-### 6. Category consistency check
-- Stack page uses `CATEGORY_GROUPS` from `categoryGroups.ts` — confirmed
-- Stack Map uses same `CATEGORY_GROUPS` — need to verify
-- Integrations page uses `CATEGORY_GROUPS` — confirmed
-- All pages reference the same source file, so categories are consistent
+### Files
+- **`src/components/AppLayout.tsx`** — Add "Budget" nav item (DollarSign icon)
+- **`src/App.tsx`** — Add `/budget` route
+- **`src/pages/Budget.tsx`** — New page with summary cards, category spend breakdown, app spend table, contracts list
+- **`supabase/functions/scan-contract/index.ts`** — Edge function to extract text from uploaded PDF/doc and use AI to parse contract fields
+- **`src/components/ContractsSection.tsx`** — Add "Scan & Extract" option after upload, with "Keep file / Delete after scan" choice
 
-### 7. ScalePad / Contract data
-The user asks about using MCP server vs API for contract data. This is a discussion point, not a code change. The MCP connector for ScalePad is not available in the connector catalog. The edge function `scalepad-sync` already attempts API calls. The user should provide the correct API endpoint/key. No code change needed here — just guidance.
+### Data
+No new tables needed — all spend data comes from `user_applications` (cost_monthly, cost_annual, renewal_date, term_months, billing_cycle). Contract files are already in `contract_files` table + `contracts` storage bucket.
 
-## Files to Change
+## Summary of Changes
 
 | File | Change |
 |------|--------|
-| `src/pages/Dashboard.tsx` | Clickable Total Apps card, fix ScrollArea, match Stack page card styling |
-| `src/components/FeedbackDialog.tsx` | Accept `isExpanded` prop, hide text when collapsed |
-| `src/components/AppLayout.tsx` | Pass `isExpanded` to FeedbackDialog |
-| `src/pages/Settings.tsx` | Add role change dropdown for members, show pending invites in members section |
-| `src/pages/Integrations.tsx` | App-level collapsing, collapse all button |
-| `src/pages/Admin.tsx` | Category column in Apps table with edit, reorder tabs to Apps/Orgs/Users/Support |
+| `src/pages/Settings.tsx` | API key input/save/delete in ConnectorsSection |
+| `supabase/functions/scalepad-sync/index.ts` | Read API key from org_settings first |
+| `src/components/AppLayout.tsx` | Add Budget nav item |
+| `src/App.tsx` | Add /budget route |
+| `src/pages/Budget.tsx` | New budget/spend page with charts, table, contracts |
+| `supabase/functions/scan-contract/index.ts` | New edge function for AI contract parsing |
+| `src/components/ContractsSection.tsx` | Add scan option + keep/delete choice |
 
-## Notes on ScalePad
-The ScalePad sync edge function already exists. The MCP server approach (Claude pulling data) works for you interactively but can't be used by the app directly — MCP tools are only available to the Lovable agent, not to the deployed application. The app needs the ScalePad API endpoint and key configured as secrets. If the current API endpoint is wrong, we need the correct ScalePad API docs to fix it.
