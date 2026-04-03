@@ -38,8 +38,59 @@ const MODELS: Record<string, { value: string; label: string }[]> = {
 
 function ConnectorsSection() {
   const { toast } = useToast();
+  const { orgId } = useAuth();
   const [syncing, setSyncing] = useState(false);
   const [lastResult, setLastResult] = useState<any>(null);
+  const [scalePadKey, setScalePadKey] = useState('');
+  const [scalePadKeyLoaded, setScalePadKeyLoaded] = useState(false);
+  const [savingKey, setSavingKey] = useState(false);
+
+  useEffect(() => {
+    if (!orgId) return;
+    (async () => {
+      const { data } = await supabase
+        .from('org_settings')
+        .select('setting_value')
+        .eq('organization_id', orgId)
+        .eq('setting_key', 'scalepad_api_key')
+        .maybeSingle();
+      if (data?.setting_value) setScalePadKey(data.setting_value);
+      setScalePadKeyLoaded(true);
+    })();
+  }, [orgId]);
+
+  const handleSaveKey = async () => {
+    if (!orgId || !scalePadKey.trim()) return;
+    setSavingKey(true);
+    try {
+      const { error } = await supabase
+        .from('org_settings')
+        .upsert({ organization_id: orgId, setting_key: 'scalepad_api_key', setting_value: scalePadKey.trim() }, { onConflict: 'organization_id,setting_key' });
+      if (error) throw error;
+      toast({ title: 'API key saved' });
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    }
+    setSavingKey(false);
+  };
+
+  const handleDeleteKey = async () => {
+    if (!orgId) return;
+    setSavingKey(true);
+    try {
+      const { error } = await supabase
+        .from('org_settings')
+        .delete()
+        .eq('organization_id', orgId)
+        .eq('setting_key', 'scalepad_api_key');
+      if (error) throw error;
+      setScalePadKey('');
+      toast({ title: 'API key removed' });
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    }
+    setSavingKey(false);
+  };
 
   const handleScalePadSync = async () => {
     setSyncing(true);
