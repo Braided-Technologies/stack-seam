@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication, useIntegrations } from '@/hooks/useStackData';
+import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication, useIntegrations, useDiscoverIntegrations } from '@/hooks/useStackData';
 import SearchToolDialog from '@/components/SearchToolDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
