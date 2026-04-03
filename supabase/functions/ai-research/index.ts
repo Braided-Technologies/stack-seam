@@ -33,13 +33,19 @@ serve(async (req) => {
       });
     }
 
-    const { messages, stackContext } = await req.json();
+    const { messages, stackContext, model: requestedModel } = await req.json();
     if (!messages || !Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: "messages array required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const allowedModels = [
+      "google/gemini-3-flash-preview", "google/gemini-2.5-flash", "google/gemini-2.5-pro",
+      "google/gemini-2.5-flash-lite", "google/gemini-3.1-pro-preview",
+      "openai/gpt-5", "openai/gpt-5-mini", "openai/gpt-5-nano", "openai/gpt-5.2",
+    ];
 
     // Get user's org
     const { data: roleData } = await supabase
