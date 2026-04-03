@@ -255,9 +255,9 @@ export default function Admin() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="moderation">Apps {stats.pending > 0 && `(${stats.pending})`}</TabsTrigger>
-          <TabsTrigger value="feedback">Support {stats.openTickets > 0 && `(${stats.openTickets})`}</TabsTrigger>
           <TabsTrigger value="orgs">Organizations</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="feedback">Support {stats.openTickets > 0 && `(${stats.openTickets})`}</TabsTrigger>
         </TabsList>
 
         {/* APPS TAB */}
