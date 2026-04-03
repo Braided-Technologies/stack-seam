@@ -3,13 +3,14 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Layers, Map, LogOut, Building2, Moon, Sun, Users } from 'lucide-react';
+import { LayoutDashboard, Layers, Map, LogOut, Building2, Moon, Sun, Users, Sparkles, Settings } from 'lucide-react';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/stack', icon: Layers, label: 'My Stack' },
   { to: '/map', icon: Map, label: 'Stack Map' },
   { to: '/team', icon: Users, label: 'Team' },
+  { to: '/research', icon: Sparkles, label: 'Research' },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {
