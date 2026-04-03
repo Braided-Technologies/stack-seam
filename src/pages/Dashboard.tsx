@@ -75,7 +75,38 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {upcomingRenewals.length > 0 && (
+      {/* Urgent renewal alerts */}
+      {urgentRenewals.length > 0 && (
+        <Card className="border-destructive/50 bg-destructive/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Renewal Alerts — {urgentRenewals.length} contract{urgentRenewals.length > 1 ? 's' : ''} expiring within 30 days
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {urgentRenewals.map(ua => {
+                const daysUntil = differenceInDays(new Date(ua.renewal_date!), new Date());
+                return (
+                  <div key={ua.id} className="flex items-center justify-between rounded-lg border border-destructive/20 bg-background p-3">
+                    <div>
+                      <p className="font-medium">{(ua as any).applications?.name || 'Unknown App'}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Renews {format(new Date(ua.renewal_date!), 'MMM d, yyyy')}
+                        {ua.cost_annual ? ` · $${Number(ua.cost_annual).toLocaleString()}/yr` : ''}
+                      </p>
+                    </div>
+                    <Badge variant={daysUntil <= 0 ? 'destructive' : 'outline'} className={daysUntil > 0 ? 'border-destructive/50 text-destructive' : ''}>
+                      {daysUntil <= 0 ? 'Overdue!' : daysUntil === 1 ? '1 day left' : `${daysUntil} days left`}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
