@@ -15,6 +15,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { useUserApplications, useIntegrations, useDiscoverIntegrations } from '@/hooks/useStackData';
 import { CATEGORY_COLORS } from '@/lib/constants';
+import { CATEGORY_GROUPS } from '@/lib/categoryGroups';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,26 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { ExternalLink, Sparkles, RefreshCw, LayoutGrid, Eye } from 'lucide-react';
 import AppIntegrationsPanel from '@/components/AppIntegrationsPanel';
+
+// Map each category to its group
+const categoryToGroup = new Map<string, string>();
+CATEGORY_GROUPS.forEach(g => g.categories.forEach(c => categoryToGroup.set(c, g.label)));
+
+// Group layout positions for a 3x2 grid
+const GROUP_POSITIONS: Record<string, { col: number; row: number }> = {
+  'Core Operations': { col: 0, row: 0 },
+  'Security': { col: 1, row: 0 },
+  'Business & Finance': { col: 2, row: 0 },
+  'Infrastructure': { col: 0, row: 1 },
+  'Productivity & Communication': { col: 1, row: 1 },
+  'Strategy': { col: 2, row: 1 },
+};
+
+const SECTOR_WIDTH = 550;
+const SECTOR_HEIGHT = 400;
+const SECTOR_GAP_X = 80;
+const SECTOR_GAP_Y = 80;
+const SECTOR_PADDING = 60;
 
 export default function StackMap() {
   const { data: userApps = [] } = useUserApplications();
@@ -41,7 +62,6 @@ export default function StackMap() {
     return allIntegrations.filter(i => ids.has(i.source_app_id) && ids.has(i.target_app_id));
   }, [allIntegrations, userAppIdList]);
 
-  // Build category map for apps
   const appCategoryMap = useMemo(() => {
     const map = new Map<string, string>();
     userApps.forEach(ua => {
@@ -51,7 +71,6 @@ export default function StackMap() {
     return map;
   }, [userApps]);
 
-  // Unique categories present in the user's stack
   const presentCategories = useMemo(() => {
     const cats = new Set<string>();
     appCategoryMap.forEach(cat => cats.add(cat));
@@ -68,14 +87,12 @@ export default function StackMap() {
   };
 
   const { computedNodes, computedEdges } = useMemo(() => {
-    // Filter visible apps
     const visibleApps = userApps.filter(ua => {
       const cat = appCategoryMap.get(ua.application_id) || 'Other';
       return !hiddenCategories.has(cat);
     });
     const visibleIds = new Set(visibleApps.map(ua => ua.application_id));
 
-    // Group by category
     const byCategory = new Map<string, typeof userApps>();
     visibleApps.forEach(ua => {
       const catName = appCategoryMap.get(ua.application_id) || 'Other';
@@ -91,63 +108,96 @@ export default function StackMap() {
     const categoryEntries = Array.from(byCategory.entries());
 
     if (groupLayout) {
-      // Grouped sector layout - arrange categories in a circle
-      const categoryCount = categoryEntries.length;
-      const baseRadius = Math.max(350, categoryCount * 60);
+      // Named quadrant/sector layout using CATEGORY_GROUPS
+      const byGroup = new Map<string, { catName: string; apps: typeof userApps }[]>();
+      categoryEntries.forEach(([catName, apps]) => {
+        const groupName = categoryToGroup.get(catName) || 'Other';
+        if (!byGroup.has(groupName)) byGroup.set(groupName, []);
+        byGroup.get(groupName)!.push({ catName, apps });
+      });
 
-      categoryEntries.forEach(([catName, apps], catIdx) => {
-        const angle = (catIdx / categoryCount) * 2 * Math.PI - Math.PI / 2;
-        const centerX = Math.cos(angle) * baseRadius;
-        const centerY = Math.sin(angle) * baseRadius;
-        const color = CATEGORY_COLORS[catName] || 'hsl(221, 83%, 53%)';
+      byGroup.forEach((catEntries, groupName) => {
+        const pos = GROUP_POSITIONS[groupName] || { col: 2, row: 1 };
+        const sectorX = pos.col * (SECTOR_WIDTH + SECTOR_GAP_X);
+        const sectorY = pos.row * (SECTOR_HEIGHT + SECTOR_GAP_Y);
 
-        // Category label node
+        // Background zone node
+        const totalAppsInGroup = catEntries.reduce((s, e) => s + e.apps.length, 0);
+        const dynamicHeight = Math.max(SECTOR_HEIGHT, SECTOR_PADDING + 40 + Math.ceil(totalAppsInGroup / 3) * 70 + 20);
+
         nodes.push({
-          id: `label-${catName}`,
-          position: { x: centerX - 60, y: centerY - 40 },
-          data: { label: catName },
+          id: `zone-${groupName}`,
+          position: { x: sectorX, y: sectorY },
+          data: { label: '' },
+          selectable: false,
+          draggable: false,
+          style: {
+            width: `${SECTOR_WIDTH}px`,
+            height: `${dynamicHeight}px`,
+            background: 'hsl(var(--muted) / 0.3)',
+            border: '1px dashed hsl(var(--border))',
+            borderRadius: '16px',
+            pointerEvents: 'none' as const,
+            zIndex: -1,
+          },
+        });
+
+        // Group label
+        nodes.push({
+          id: `label-zone-${groupName}`,
+          position: { x: sectorX + 16, y: sectorY + 12 },
+          data: { label: groupName },
           selectable: false,
           draggable: false,
           style: {
             background: 'transparent',
             border: 'none',
-            fontSize: '11px',
+            fontSize: '13px',
             fontWeight: 700,
-            color: color,
+            color: 'hsl(var(--foreground))',
             textTransform: 'uppercase' as const,
-            letterSpacing: '0.05em',
+            letterSpacing: '0.06em',
             pointerEvents: 'none' as const,
             width: 'auto',
             padding: '0',
           },
         });
 
-        // Arrange apps in a small grid within the sector
-        const gridCols = Math.ceil(Math.sqrt(apps.length));
-        apps.forEach((ua, appIdx) => {
-          const appName = (ua as any).applications?.name || 'Unknown';
-          const integCount = visibleIntegrations.filter(
-            i => i.source_app_id === ua.application_id || i.target_app_id === ua.application_id
-          ).length;
+        // Position apps within the sector in a grid
+        let appIndex = 0;
+        const gridCols = 3;
+        catEntries.forEach(({ catName, apps }) => {
+          const color = CATEGORY_COLORS[catName] || 'hsl(221, 83%, 53%)';
+          apps.forEach(ua => {
+            const appName = (ua as any).applications?.name || 'Unknown';
+            const integCount = visibleIntegrations.filter(
+              i => i.source_app_id === ua.application_id || i.target_app_id === ua.application_id
+            ).length;
 
-          const col = appIdx % gridCols;
-          const row = Math.floor(appIdx / gridCols);
+            const col = appIndex % gridCols;
+            const row = Math.floor(appIndex / gridCols);
 
-          nodes.push({
-            id: ua.application_id,
-            position: { x: centerX + col * 160, y: centerY + row * 70 },
-            data: { label: integCount > 0 ? `${appName} (${integCount})` : appName, appName },
-            style: {
-              background: color,
-              color: '#fff',
-              border: 'none',
-              borderRadius: '12px',
-              padding: '12px 20px',
-              fontSize: '13px',
-              fontWeight: 600,
-              boxShadow: `0 4px 12px ${color}40`,
-              cursor: 'pointer',
-            },
+            nodes.push({
+              id: ua.application_id,
+              position: {
+                x: sectorX + SECTOR_PADDING / 2 + col * 170,
+                y: sectorY + SECTOR_PADDING + 20 + row * 65,
+              },
+              data: { label: integCount > 0 ? `${appName} (${integCount})` : appName, appName },
+              style: {
+                background: color,
+                color: '#fff',
+                border: 'none',
+                borderRadius: '12px',
+                padding: '10px 16px',
+                fontSize: '12px',
+                fontWeight: 600,
+                boxShadow: `0 4px 12px ${color}40`,
+                cursor: 'pointer',
+                maxWidth: '155px',
+              },
+            });
+            appIndex++;
           });
         });
       });
@@ -214,7 +264,7 @@ export default function StackMap() {
   }, []);
 
   const onNodeClick = useCallback((_: any, node: Node) => {
-    if (node.id.startsWith('label-')) return;
+    if (node.id.startsWith('label-') || node.id.startsWith('zone-')) return;
     setSelectedApp({ id: node.id, name: (node.data as any).appName || (node.data as any).label });
   }, []);
 
@@ -246,7 +296,7 @@ export default function StackMap() {
     );
   }
 
-  const visibleNodeCount = nodes.filter(n => !n.id.startsWith('label-')).length;
+  const visibleNodeCount = nodes.filter(n => !n.id.startsWith('label-') && !n.id.startsWith('zone-')).length;
 
   return (
     <div className="h-full w-full" style={{ height: 'calc(100vh)' }}>
@@ -258,7 +308,7 @@ export default function StackMap() {
         onEdgeClick={onEdgeClick}
         onNodeClick={onNodeClick}
         fitView
-        fitViewOptions={{ padding: 0.3 }}
+        fitViewOptions={{ padding: 0.2 }}
       >
         <Background />
         <Controls />
@@ -267,7 +317,6 @@ export default function StackMap() {
           style={{ background: 'hsl(var(--card))' }}
         />
 
-        {/* Info + actions panel */}
         <Panel position="top-left" className="bg-card/90 backdrop-blur rounded-lg border p-3 shadow-sm space-y-2">
           <p className="text-sm font-medium">{visibleNodeCount} apps · {edges.length} integrations</p>
           <p className="text-xs text-muted-foreground">Click an app to see all its integrations</p>
@@ -289,9 +338,10 @@ export default function StackMap() {
               variant={groupLayout ? 'default' : 'outline'}
               onClick={() => setGroupLayout(!groupLayout)}
               className="gap-1"
+              title={groupLayout ? 'Switch to default layout' : 'Group by business area'}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
-              Group
+              {groupLayout ? 'Zones' : 'Group'}
             </Button>
             <Link to="/integrations">
               <Button size="sm" variant="outline" className="gap-1">
@@ -302,7 +352,6 @@ export default function StackMap() {
           </div>
         </Panel>
 
-        {/* Category legend panel */}
         <Panel position="top-right" className="bg-card/90 backdrop-blur rounded-lg border shadow-sm">
           <button
             onClick={() => setLegendOpen(!legendOpen)}
@@ -342,7 +391,6 @@ export default function StackMap() {
         </Panel>
       </ReactFlow>
 
-      {/* Edge detail dialog */}
       <Dialog open={!!selectedEdge} onOpenChange={open => !open && setSelectedEdge(null)}>
         <DialogContent>
           <DialogHeader>
@@ -383,7 +431,6 @@ export default function StackMap() {
         </DialogContent>
       </Dialog>
 
-      {/* App integrations panel */}
       <AppIntegrationsPanel
         open={!!selectedApp}
         onClose={() => setSelectedApp(null)}
