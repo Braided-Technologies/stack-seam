@@ -154,6 +154,7 @@ export default function Stack() {
 
   const handleAppClick = (app: any) => {
     const cat = categories.find(c => c.id === app.category_id);
+    setDefaultTab('overview');
     setInfoApp({
       id: app.id,
       name: app.name,
