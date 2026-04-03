@@ -420,17 +420,6 @@ export default function Integrations() {
                     );
                   })}
                 </CollapsibleContent>
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </Card>
-                    );
-                  })}
-                </CollapsibleContent>
               </Collapsible>
             );
           })}
