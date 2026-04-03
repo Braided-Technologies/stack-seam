@@ -12,7 +12,7 @@ type AuthContextType = {
   signUp: (email: string, password: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
-  createOrg: (name: string) => Promise<{ error: any }>;
+  createOrg: (name: string, domain?: string) => Promise<{ error: any }>;
   refreshOrg: () => Promise<void>;
 };
 
