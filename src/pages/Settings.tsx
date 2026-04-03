@@ -150,10 +150,16 @@ function ConnectorsSection() {
                 <p className="text-xs text-muted-foreground">Your API key is stored securely and used only for ScalePad sync.</p>
               </div>
             )}
-            <Button onClick={handleScalePadSync} disabled={syncing} className="gap-2">
-              {syncing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              {syncing ? 'Syncing...' : 'Sync from ScalePad'}
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleTestConnection} disabled={testing || !scalePadKey.trim()} variant="outline" className="gap-2">
+                {testing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Key className="h-4 w-4" />}
+                {testing ? 'Testing...' : 'Test Connection'}
+              </Button>
+              <Button onClick={handleScalePadSync} disabled={syncing} className="gap-2">
+                {syncing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                {syncing ? 'Syncing...' : 'Sync from ScalePad'}
+              </Button>
+            </div>
             {lastResult && (
               <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-1">
                 <p><strong>Total assets found:</strong> {lastResult.total_assets}</p>

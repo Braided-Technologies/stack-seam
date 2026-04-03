@@ -11,8 +11,8 @@ const navItems = [
   { to: '/stack', icon: Layers, label: 'My Stack' },
   { to: '/map', icon: Map, label: 'Stack Map' },
   { to: '/integrations', icon: Link2, label: 'Integrations' },
-  { to: '/research', icon: Sparkles, label: 'Research' },
   { to: '/budget', icon: DollarSign, label: 'Budget' },
+  { to: '/research', icon: Sparkles, label: 'Research' },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {
