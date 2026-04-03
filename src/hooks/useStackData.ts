@@ -121,6 +121,18 @@ export function useAddContact() {
   });
 }
 
+export function useUpdateContact() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, userApplicationId, ...updates }: { id: string; userApplicationId: string; name?: string; email?: string | null; phone?: string | null; role?: string | null; support_url?: string | null }) => {
+      const { error } = await supabase.from('contacts').update(updates).eq('id', id);
+      if (error) throw error;
+      return userApplicationId;
+    },
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: ['contacts', vars.userApplicationId] }),
+  });
+}
+
 export function useDeleteContact() {
   const qc = useQueryClient();
   return useMutation({
