@@ -9,6 +9,7 @@ import OrgSetup from "./pages/OrgSetup";
 import Dashboard from "./pages/Dashboard";
 import Stack from "./pages/Stack";
 import StackMap from "./pages/StackMap";
+import Team from "./pages/Team";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
