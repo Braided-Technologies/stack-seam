@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication, useIntegrations } from '@/hooks/useStackData';
+import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication, useIntegrations, useDiscoverIntegrations } from '@/hooks/useStackData';
 import SearchToolDialog from '@/components/SearchToolDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { CATEGORY_COLORS } from '@/lib/constants';
 import { CATEGORY_GROUPS } from '@/lib/categoryGroups';
-import { Plus, Check, X, ChevronDown, ChevronUp, Settings, Search, Filter, Download, Layers, DollarSign, FolderOpen, ExternalLink, Map as MapIcon, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { Plus, Check, X, ChevronDown, ChevronUp, Settings, Search, Filter, Download, Layers, DollarSign, FolderOpen, ExternalLink, Map as MapIcon, ChevronsDownUp, ChevronsUpDown, Loader2, Zap } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import ContactsSection from '@/components/ContactsSection';
 import ContractsSection from '@/components/ContractsSection';
@@ -28,6 +28,7 @@ export default function Stack() {
   const addApp = useAddUserApplication();
   const removeApp = useRemoveUserApplication();
   const updateApp = useUpdateUserApplication();
+  const discoverIntegrations = useDiscoverIntegrations();
   const { userRole } = useAuth();
   const isAdmin = userRole === 'admin';
   const navigate = useNavigate();
@@ -468,9 +469,47 @@ export default function Stack() {
 
                 <TabsContent value="integrations" className="pt-2">
                   {infoAppIntegrations.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-4">
-                      No integrations discovered yet. Run "Discover Integrations" on the Stack Map to find connections.
-                    </p>
+                    <div className="py-4 space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        No integrations discovered yet for {infoApp.name}.
+                      </p>
+                      {userApps.length > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-2"
+                          disabled={discoverIntegrations.isPending}
+                          onClick={async () => {
+                            const stackNames = userApps
+                              .map((ua: any) => ua.applications?.name)
+                              .filter(Boolean) as string[];
+                            const allNames = stackNames.includes(infoApp.name)
+                              ? stackNames
+                              : [infoApp.name, ...stackNames];
+                            if (allNames.length < 2) {
+                              toast({ title: 'Need at least 2 apps', description: 'Add more apps to your stack first.', variant: 'destructive' });
+                              return;
+                            }
+                            try {
+                              const result = await discoverIntegrations.mutateAsync(allNames);
+                              toast({ title: `Found ${result.discovered || 0} integrations` });
+                            } catch (e: any) {
+                              toast({ title: 'Discovery failed', description: e.message, variant: 'destructive' });
+                            }
+                          }}
+                        >
+                          {discoverIntegrations.isPending ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Zap className="h-3.5 w-3.5" />
+                          )}
+                          Check Integrations with My Stack
+                        </Button>
+                      )}
+                      {userApps.length === 0 && (
+                        <p className="text-xs text-muted-foreground">Add apps to your stack first, then check for integrations.</p>
+                      )}
+                    </div>
                   ) : (
                     <ScrollArea className="max-h-[50vh]">
                       <div className="space-y-2 pr-2">
@@ -504,6 +543,33 @@ export default function Stack() {
                           </div>
                         ))}
                       </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="gap-2 mt-3 w-full"
+                        disabled={discoverIntegrations.isPending}
+                        onClick={async () => {
+                          const stackNames = userApps
+                            .map((ua: any) => ua.applications?.name)
+                            .filter(Boolean) as string[];
+                          const allNames = stackNames.includes(infoApp.name)
+                            ? stackNames
+                            : [infoApp.name, ...stackNames];
+                          try {
+                            const result = await discoverIntegrations.mutateAsync(allNames);
+                            toast({ title: `Found ${result.discovered || 0} integrations` });
+                          } catch (e: any) {
+                            toast({ title: 'Discovery failed', description: e.message, variant: 'destructive' });
+                          }
+                        }}
+                      >
+                        {discoverIntegrations.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Zap className="h-3.5 w-3.5" />
+                        )}
+                        Re-check Integrations
+                      </Button>
                     </ScrollArea>
                   )}
                 </TabsContent>
