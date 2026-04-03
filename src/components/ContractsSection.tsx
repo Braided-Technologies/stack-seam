@@ -38,8 +38,12 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
       return;
     }
     try {
-      await uploadContract.mutateAsync({ file, userApplicationId });
+      const result = await uploadContract.mutateAsync({ file, userApplicationId });
       toast({ title: 'Contract uploaded' });
+      // Show scan options immediately after upload
+      if (result) {
+        setShowStorageChoice({ filePath: result.file_path, fileId: result.id });
+      }
     } catch (err: any) {
       toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
     }
