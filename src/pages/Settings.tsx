@@ -38,8 +38,59 @@ const MODELS: Record<string, { value: string; label: string }[]> = {
 
 function ConnectorsSection() {
   const { toast } = useToast();
+  const { orgId } = useAuth();
   const [syncing, setSyncing] = useState(false);
   const [lastResult, setLastResult] = useState<any>(null);
+  const [scalePadKey, setScalePadKey] = useState('');
+  const [scalePadKeyLoaded, setScalePadKeyLoaded] = useState(false);
+  const [savingKey, setSavingKey] = useState(false);
+
+  useEffect(() => {
+    if (!orgId) return;
+    (async () => {
+      const { data } = await supabase
+        .from('org_settings')
+        .select('setting_value')
+        .eq('organization_id', orgId)
+        .eq('setting_key', 'scalepad_api_key')
+        .maybeSingle();
+      if (data?.setting_value) setScalePadKey(data.setting_value);
+      setScalePadKeyLoaded(true);
+    })();
+  }, [orgId]);
+
+  const handleSaveKey = async () => {
+    if (!orgId || !scalePadKey.trim()) return;
+    setSavingKey(true);
+    try {
+      const { error } = await supabase
+        .from('org_settings')
+        .upsert({ organization_id: orgId, setting_key: 'scalepad_api_key', setting_value: scalePadKey.trim() }, { onConflict: 'organization_id,setting_key' });
+      if (error) throw error;
+      toast({ title: 'API key saved' });
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    }
+    setSavingKey(false);
+  };
+
+  const handleDeleteKey = async () => {
+    if (!orgId) return;
+    setSavingKey(true);
+    try {
+      const { error } = await supabase
+        .from('org_settings')
+        .delete()
+        .eq('organization_id', orgId)
+        .eq('setting_key', 'scalepad_api_key');
+      if (error) throw error;
+      setScalePadKey('');
+      toast({ title: 'API key removed' });
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    }
+    setSavingKey(false);
+  };
 
   const handleScalePadSync = async () => {
     setSyncing(true);
@@ -76,6 +127,29 @@ function ConnectorsSection() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {scalePadKeyLoaded && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1"><Key className="h-3 w-3" /> API Key</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="password"
+                    value={scalePadKey}
+                    onChange={e => setScalePadKey(e.target.value)}
+                    placeholder="Enter your ScalePad API key"
+                    className="flex-1"
+                  />
+                  <Button size="sm" onClick={handleSaveKey} disabled={savingKey || !scalePadKey.trim()}>
+                    {savingKey ? 'Saving...' : 'Save'}
+                  </Button>
+                  {scalePadKey && (
+                    <Button size="sm" variant="destructive" onClick={handleDeleteKey} disabled={savingKey}>
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">Your API key is stored securely and used only for ScalePad sync.</p>
+              </div>
+            )}
             <Button onClick={handleScalePadSync} disabled={syncing} className="gap-2">
               {syncing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               {syncing ? 'Syncing...' : 'Sync from ScalePad'}
@@ -87,9 +161,6 @@ function ConnectorsSection() {
                 <p><strong>Updated:</strong> {lastResult.updated}</p>
               </div>
             )}
-            <p className="text-xs text-muted-foreground">
-              The ScalePad API key must be configured as a secret. Contact your administrator if sync fails.
-            </p>
           </CardContent>
         </Card>
       </div>
