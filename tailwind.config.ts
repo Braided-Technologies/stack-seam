@@ -13,6 +13,11 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        display: ["Syne", "system-ui", "sans-serif"],
+        body: ["Outfit", "system-ui", "sans-serif"],
+        mono: ["DM Mono", "ui-monospace", "monospace"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
