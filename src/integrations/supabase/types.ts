@@ -544,6 +544,18 @@ export type Database = {
           token: string
         }[]
       }
+      get_org_invitations: {
+        Args: { _org_id: string }
+        Returns: {
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string
+          role: Database["public"]["Enums"]["app_role"]
+          status: string
+        }[]
+      }
       get_user_org_id: { Args: never; Returns: string }
       is_org_admin: { Args: { _org_id: string }; Returns: boolean }
       is_org_member: { Args: { _org_id: string }; Returns: boolean }
