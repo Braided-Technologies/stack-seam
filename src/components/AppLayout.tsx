@@ -14,7 +14,7 @@ const navItems = [
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {
-  const { orgName, signOut, user } = useAuth();
+  const { orgName, signOut, user, userRole } = useAuth();
   const location = useLocation();
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
 
