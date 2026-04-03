@@ -93,6 +93,25 @@ function ConnectorsSection() {
     setSavingKey(false);
   };
 
+  const handleTestConnection = async () => {
+    if (!scalePadKey.trim()) return;
+    setTesting(true);
+    try {
+      const res = await fetch('https://api.scalepad.com/core/v1/clients?page_size=1', {
+        headers: { 'x-api-key': scalePadKey.trim(), 'Accept': 'application/json' },
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`API returned ${res.status}: ${errText}`);
+      }
+      const body = await res.json();
+      toast({ title: 'Connection successful', description: `Found ${body.total_count ?? body.data?.length ?? 0} clients.` });
+    } catch (e: any) {
+      toast({ title: 'Connection failed', description: e.message, variant: 'destructive' });
+    }
+    setTesting(false);
+  };
+
   const handleScalePadSync = async () => {
     setSyncing(true);
     try {
