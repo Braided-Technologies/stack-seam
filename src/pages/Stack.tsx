@@ -32,6 +32,7 @@ export default function Stack() {
   const [editingApp, setEditingApp] = useState<any>(null);
   const [search, setSearch] = useState('');
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
+  const [searchToolOpen, setSearchToolOpen] = useState(false);
 
   const userAppMap = new Map(userApps.map(ua => [ua.application_id, ua]));
 
