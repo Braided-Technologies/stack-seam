@@ -1,71 +1,69 @@
 
 
-# Platform Admin vs Org Admin — Role Separation & Admin Portal
+# Dashboard, Integrations, Admin Portal & Role Fixes
 
-## The Problem
+## Issues to Address
 
-Currently there's one role tier: `app_role` enum with `admin` and `member`. Both org admins and you (platform owner) share the same `admin` role. We need a clear separation:
-
-| Role | Scope | Can Do |
-|------|-------|--------|
-| **member** | Organization | View stack, integrations, contacts |
-| **admin** | Organization | Manage apps, team, connectors, settings for their org |
-| **platform_admin** | Global | Approve catalog apps, handle support requests, manage all orgs, account deletions |
+1. **Dashboard integrations not clickable / not scrollable** — integration items are static divs; only shows first 8 with no scroll
+2. **Integrations tab not grouped by category** — currently grouped by app, but user wants category-based collapsible groups matching Stack page
+3. **Platform admin can't access Settings** — the sidebar only shows Settings for `admin` role, but `platform_admin` should also have org-level access (or: platform admins should be able to access their own org's settings)
+4. **Admin portal lacks CRUD for orgs/users/apps** — currently read-only tables with no edit/delete
+5. **Stat boxes not clickable** — the 5 stat cards at the top of Admin page should navigate to relevant tabs
 
 ## Plan
 
-### 1. Add `platform_admin` to the `app_role` Enum
+### 1. Dashboard — Clickable + Scrollable Integrations
 
-Migration to add the new role value. Platform admins still belong to an org (yours), but have elevated global privileges.
+**File: `src/pages/Dashboard.tsx`**
 
-A new security-definer function `is_platform_admin()` checks if the current user has a `platform_admin` role in `user_roles`.
+- Wrap the integrations list in a `ScrollArea` with a max height so all integrations are scrollable (not limited to 8)
+- Make each integration item a clickable link using `useNavigate` to `/integrations?highlight={integrationId}`
+- Add hover styles and cursor pointer
 
-### 2. Database: `feedback` Table + Admin Policies
+### 2. Integrations Tab — Category-Based Grouping
 
-**New `feedback` table:**
-- `id`, `user_id`, `organization_id`, `type` (bug/idea/question), `title`, `description`, `status` (open/in_progress/resolved/closed), `admin_response`, `created_at`, `updated_at`
-- RLS: users see own submissions; platform admins see all
+**File: `src/pages/Integrations.tsx`**
 
-**New policies on `applications`:**
-- UPDATE policy: platform admins can change `status` (org_only → approved)
-- DELETE policy: platform admins can remove apps
+- Import `CATEGORY_GROUPS` from `categoryGroups.ts`
+- Instead of grouping by individual app, group by category group (Core Operations, Security, etc.) with collapsible sections
+- Within each category group, show apps and their integrations nested underneath
+- Maintain existing expand/collapse, status controls, and progress indicators
 
-### 3. Platform Admin Portal (`/admin`)
+### 3. Platform Admin Access to Settings
 
-New page with tabs:
+**File: `src/components/AppLayout.tsx`**
 
-- **App Moderation** — List of `org_only` submissions. Approve (set to `approved`) or reject (delete). Also browse full approved catalog.
-- **Support / Feedback** — All feedback across orgs. Update status, add admin response.
-- **Organizations** — List all orgs with user counts, created dates. Account management actions.
-- **Platform Stats** — Counts: total orgs, users, apps, pending submissions, open tickets.
+- The Settings link condition already includes `platform_admin` (line 82: `userRole === 'admin' || userRole === 'platform_admin'`), so this should work
+- The issue is likely that `is_org_admin` check in Settings page or RLS is failing because `platform_admin` is not `admin`. Need to check Settings page guard
 
-### 4. Feedback Dialog (All Users)
+**File: `src/pages/Settings.tsx`** — Update the admin check to include `platform_admin`:
+```
+const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
+```
 
-A `FeedbackDialog` component accessible from the sidebar (message/help icon). Users select type (Bug / Feature Idea / Question), enter title + description, submit. They can view their past submissions and see admin responses.
+### 4. Admin Portal — Full CRUD + Clickable Stats
 
-### 5. Navigation Updates
+**File: `src/pages/Admin.tsx`**
 
-- **Sidebar**: Add "Feedback" button (MessageSquare icon) in footer area for all users
-- **Sidebar**: Add "Platform Admin" link (ShieldCheck icon) visible only to `platform_admin` users
-- Existing "Settings" link stays for org admins
+- **Clickable stat cards**: Each stat card sets the active tab and optionally a sub-filter (e.g., clicking "Pending Apps" switches to moderation tab)
+- **Organizations tab**: Add Edit (rename) and Delete buttons per org. Delete requires a confirmation dialog. Needs a new DB migration for platform admin DELETE policy on organizations
+- **Users tab**: Add a new "Users" tab showing all users across orgs with role info. Allow role changes and removal. Query `user_roles` joined with org name
+- **Apps tab**: Expand moderation to show ALL apps (not just pending). Allow editing name/description/category, deleting, and changing status
 
-### 6. AuthContext Update
+### 5. Database Migration
 
-Extend `userRole` to include `'platform_admin'`. The `fetchOrg` function already reads the role from `user_roles` — just needs to handle the new value.
+New migration needed:
+- Add DELETE policy on `organizations` for platform admins
+- Add UPDATE policy on `user_roles` for platform admins (to manage users across orgs)
+- Add DELETE policy on `user_roles` for platform admins
 
-### Files to Create/Edit
+### Files Changed
 
 | File | Change |
 |------|--------|
-| Migration SQL | Add `platform_admin` to enum, create `feedback` table, add UPDATE/DELETE policies on `applications` |
-| `src/pages/Admin.tsx` | New platform admin page |
-| `src/components/FeedbackDialog.tsx` | New feedback submission dialog |
-| `src/components/AppLayout.tsx` | Add Platform Admin + Feedback nav items |
-| `src/contexts/AuthContext.tsx` | Extend `userRole` type to include `platform_admin` |
-| `src/App.tsx` | Add `/admin` route |
-| `mem://features/roles` | Document the role hierarchy |
-
-### Assigning You as Platform Admin
-
-After migration, we'll use an INSERT to give your user account the `platform_admin` role. You'll provide your user ID or we'll look it up by email.
+| `src/pages/Dashboard.tsx` | Scrollable + clickable integration items |
+| `src/pages/Integrations.tsx` | Category-group-based collapsible layout |
+| `src/pages/Admin.tsx` | Clickable stats, org/user/app CRUD, Users tab |
+| `src/pages/Settings.tsx` | Allow `platform_admin` access |
+| Migration SQL | DELETE on orgs, UPDATE/DELETE on user_roles for platform admins |
 
