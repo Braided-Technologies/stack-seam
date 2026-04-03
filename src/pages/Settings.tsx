@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Settings as SettingsIcon, Key, Cpu } from 'lucide-react';
+import { Settings as SettingsIcon, Key, Cpu, Building2 } from 'lucide-react';
 
 const PROVIDERS = [
   { value: 'lovable', label: 'Built-in AI (default)' },
@@ -34,13 +34,23 @@ const MODELS: Record<string, { value: string; label: string }[]> = {
 };
 
 export default function Settings() {
-  const { orgId, userRole } = useAuth();
+  const { orgId, orgName, userRole, refreshOrg } = useAuth();
   const { toast } = useToast();
+  
+  // Org settings
+  const [companyName, setCompanyName] = useState('');
+  const [savingOrg, setSavingOrg] = useState(false);
+
+  // AI settings
   const [provider, setProvider] = useState('lovable');
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState('google/gemini-3-flash-preview');
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (orgName) setCompanyName(orgName);
+  }, [orgName]);
 
   useEffect(() => {
     if (!orgId) return;
@@ -61,6 +71,23 @@ export default function Settings() {
       setLoading(false);
     })();
   }, [orgId]);
+
+  const handleSaveOrg = async () => {
+    if (!orgId || !companyName.trim()) return;
+    setSavingOrg(true);
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .update({ name: companyName.trim() })
+        .eq('id', orgId);
+      if (error) throw error;
+      await refreshOrg();
+      toast({ title: 'Company name updated' });
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    }
+    setSavingOrg(false);
+  };
 
   const saveSetting = async (key: string, value: string) => {
     if (!orgId) return;
@@ -95,12 +122,40 @@ export default function Settings() {
   }
 
   return (
-    <div className="p-6 max-w-2xl">
-      <div className="flex items-center gap-2 mb-6">
+    <div className="p-6 max-w-2xl space-y-6">
+      <div className="flex items-center gap-2">
         <SettingsIcon className="h-6 w-6" />
         <h1 className="text-2xl font-bold">Settings</h1>
       </div>
 
+      {/* Company / Organization */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Company
+          </CardTitle>
+          <CardDescription>
+            Manage your company name and organization details.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Company Name</Label>
+            <Input
+              value={companyName}
+              onChange={e => setCompanyName(e.target.value)}
+              placeholder="e.g. Acme MSP"
+              maxLength={100}
+            />
+          </div>
+          <Button onClick={handleSaveOrg} disabled={savingOrg || !companyName.trim() || companyName.trim() === orgName}>
+            {savingOrg ? 'Saving...' : 'Update Company Name'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* AI Configuration */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
