@@ -39,6 +39,7 @@ export default function Stack() {
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [searchToolOpen, setSearchToolOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [defaultTab, setDefaultTab] = useState('overview');
 
   const toggleGroup = (label: string) => {
     setCollapsedGroups(prev => {
