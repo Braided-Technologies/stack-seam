@@ -44,6 +44,7 @@ function ConnectorsSection() {
   const [scalePadKey, setScalePadKey] = useState('');
   const [scalePadKeyLoaded, setScalePadKeyLoaded] = useState(false);
   const [savingKey, setSavingKey] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
     if (!orgId) return;
