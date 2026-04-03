@@ -499,7 +499,7 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="connectors" className="mt-4">
-          <ScalePadSection />
+          <ConnectorsSection />
         </TabsContent>
 
         <TabsContent value="team" className="mt-4">
