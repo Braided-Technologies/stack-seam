@@ -302,6 +302,8 @@ export default function Stack() {
           )}
         </DialogContent>
       </Dialog>
+
+      <SearchToolDialog open={searchToolOpen} onOpenChange={setSearchToolOpen} />
     </div>
   );
 }
