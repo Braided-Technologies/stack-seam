@@ -74,11 +74,12 @@ export default function Admin() {
   }, [userRole]);
 
   const loadData = async () => {
-    const [appsRes, fbRes, orgRes, roleRes] = await Promise.all([
+    const [appsRes, fbRes, orgRes, roleRes, catRes] = await Promise.all([
       supabase.from('applications').select('*').order('created_at', { ascending: false }),
       supabase.from('feedback').select('*').order('created_at', { ascending: false }),
       supabase.from('organizations').select('*').order('created_at', { ascending: false }),
       supabase.from('user_roles').select('*'),
+      supabase.from('categories').select('id, name').order('display_order'),
     ]);
 
     const apps = appsRes.data || [];
