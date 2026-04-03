@@ -107,6 +107,8 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       )}
+
+      {upcomingRenewals.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -128,7 +130,7 @@ export default function Dashboard() {
                     </div>
                     <span className={cn(
                       'text-sm font-medium',
-                      daysUntil <= 30 ? 'text-destructive' : daysUntil <= 90 ? 'text-yellow-600' : 'text-muted-foreground'
+                      daysUntil <= 30 ? 'text-destructive' : daysUntil <= 90 ? 'text-muted-foreground' : 'text-muted-foreground'
                     )}>
                       {daysUntil <= 0 ? 'Overdue' : `${daysUntil} days`}
                     </span>
