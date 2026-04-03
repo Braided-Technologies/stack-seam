@@ -89,6 +89,7 @@ export default function Admin() {
 
     setAllApps(apps);
     setFeedback(fb);
+    setCategories(catRes.data || []);
 
     const countMap: Record<string, number> = {};
     roleData.forEach(r => { countMap[r.organization_id] = (countMap[r.organization_id] || 0) + 1; });
