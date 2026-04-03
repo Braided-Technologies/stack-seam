@@ -1,69 +1,71 @@
 
 
-# App Info Panel on Stack, Collapse All, Stack Map Quadrants, ScalePad + M365 SSO
+# Platform Admin vs Org Admin — Role Separation & Admin Portal
 
-## 1. App Click -> Info Panel on My Stack
+## The Problem
 
-**File: `src/pages/Stack.tsx`**
+Currently there's one role tier: `app_role` enum with `admin` and `member`. Both org admins and you (platform owner) share the same `admin` role. We need a clear separation:
 
-When a user clicks an app row in the stack list, show an info popover/panel with:
-- App name, description, and vendor URL (from `applications` table)
-- A "Show Possible Integrations" button that queries the `integrations` table for all integrations involving that app (not just ones in user's stack) and lists them
-- Category badge
-- Quick actions: open vendor site, view on Stack Map
+| Role | Scope | Can Do |
+|------|-------|--------|
+| **member** | Organization | View stack, integrations, contacts |
+| **admin** | Organization | Manage apps, team, connectors, settings for their org |
+| **platform_admin** | Global | Approve catalog apps, handle support requests, manage all orgs, account deletions |
 
-This replaces the current behavior where clicking only shows the settings gear for selected apps. The info panel will be a Dialog with tabs: "Overview" (description, URL, category) and "Integrations" (list of all known integrations for that app, with indicators for which connected apps are already in the user's stack).
+## Plan
 
-## 2. Collapse All Button
+### 1. Add `platform_admin` to the `app_role` Enum
 
-**File: `src/pages/Stack.tsx`**
+Migration to add the new role value. Platform admins still belong to an org (yours), but have elevated global privileges.
 
-Add a "Collapse All" / "Expand All" toggle button next to the search bar. When clicked:
-- Sets all group labels into `collapsedGroups`
-- A second click clears the set to expand all
+A new security-definer function `is_platform_admin()` checks if the current user has a `platform_admin` role in `user_roles`.
 
-## 3. Stack Map Grouped Layout -> Named Quadrants
+### 2. Database: `feedback` Table + Admin Policies
 
-**File: `src/pages/StackMap.tsx`**
+**New `feedback` table:**
+- `id`, `user_id`, `organization_id`, `type` (bug/idea/question), `title`, `description`, `status` (open/in_progress/resolved/closed), `admin_response`, `created_at`, `updated_at`
+- RLS: users see own submissions; platform admins see all
 
-Refactor the group layout to use `CATEGORY_GROUPS` (Core Operations, Security, Business & Finance, Infrastructure, Productivity & Communication, Strategy) as named sectors instead of individual categories:
-- Arrange the 6 groups in a 3x2 grid layout with generous spacing
-- Each sector gets a large semi-transparent background rectangle node with the group name as a header
-- Apps within each sector are arranged in a compact grid
-- Categories within each sector share a sub-label
-- This makes it feel like distinct "zones" on the map you can navigate between
+**New policies on `applications`:**
+- UPDATE policy: platform admins can change `status` (org_only → approved)
+- DELETE policy: platform admins can remove apps
 
-## 4. ScalePad Lifecycle Manager Integration
+### 3. Platform Admin Portal (`/admin`)
 
-**New edge function: `supabase/functions/scalepad-sync/index.ts`**
+New page with tabs:
 
-- Accepts the ScalePad API key (stored as a secret)
-- Pulls contract/asset data from ScalePad's API
-- Maps ScalePad assets to matching applications in the `applications` table by name
-- Updates `user_applications` with contract dates, costs, license counts from ScalePad
-- Adds a "Sync from ScalePad" button on the Settings page under a new "Integrations" tab
+- **App Moderation** — List of `org_only` submissions. Approve (set to `approved`) or reject (delete). Also browse full approved catalog.
+- **Support / Feedback** — All feedback across orgs. Update status, add admin response.
+- **Organizations** — List all orgs with user counts, created dates. Account management actions.
+- **Platform Stats** — Counts: total orgs, users, apps, pending submissions, open tickets.
 
-**File: `src/pages/Settings.tsx`** — Add an "Integrations" tab with ScalePad sync config and trigger button.
+### 4. Feedback Dialog (All Users)
 
-Before implementation: will use `add_secret` to request the ScalePad API key from the user.
+A `FeedbackDialog` component accessible from the sidebar (message/help icon). Users select type (Bug / Feature Idea / Question), enter title + description, submit. They can view their past submissions and see admin responses.
 
-## 5. M365 SSO (Sign in with Microsoft)
+### 5. Navigation Updates
 
-Lovable Cloud does not natively support Microsoft/Azure AD as an OAuth provider. The supported providers are Google, Apple, Email, and Phone.
+- **Sidebar**: Add "Feedback" button (MessageSquare icon) in footer area for all users
+- **Sidebar**: Add "Platform Admin" link (ShieldCheck icon) visible only to `platform_admin` users
+- Existing "Settings" link stays for org admins
 
-**Options:**
-- **Google OAuth** is natively supported if that helps
-- For Microsoft SSO specifically, you would need to connect an external Supabase project and configure Azure AD there
-- Alternatively, we could implement a custom OAuth flow via an edge function that handles the Microsoft OAuth dance, but this is complex
+### 6. AuthContext Update
 
-I'll note this limitation and we can discuss the best path forward.
+Extend `userRole` to include `'platform_admin'`. The `fetchOrg` function already reads the role from `user_roles` — just needs to handle the new value.
 
----
+### Files to Create/Edit
 
-## Technical Details
+| File | Change |
+|------|--------|
+| Migration SQL | Add `platform_admin` to enum, create `feedback` table, add UPDATE/DELETE policies on `applications` |
+| `src/pages/Admin.tsx` | New platform admin page |
+| `src/components/FeedbackDialog.tsx` | New feedback submission dialog |
+| `src/components/AppLayout.tsx` | Add Platform Admin + Feedback nav items |
+| `src/contexts/AuthContext.tsx` | Extend `userRole` type to include `platform_admin` |
+| `src/App.tsx` | Add `/admin` route |
+| `mem://features/roles` | Document the role hierarchy |
 
-- **App info panel** reuses the existing `useIntegrations` hook data. The "possible integrations" list shows all integrations where the app is source or target, with a green indicator for apps already in the user's stack.
-- **Stack Map quadrants** use `CATEGORY_GROUPS` from `categoryGroups.ts` to cluster categories into 6 zones. Each zone is a large non-interactive background node + label, with app nodes positioned inside.
-- **ScalePad** — will need to research their API endpoints. The edge function will authenticate with their API key and pull asset/contract data. We'll use the `add_secret` tool to store the key.
-- **M365 SSO** — Not available natively in Lovable Cloud. Will document as a future item unless you want to pursue the custom edge function approach.
+### Assigning You as Platform Admin
+
+After migration, we'll use an INSERT to give your user account the `platform_admin` role. You'll provide your user ID or we'll look it up by email.
 
