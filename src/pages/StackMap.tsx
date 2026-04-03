@@ -1,4 +1,5 @@
 import { useMemo, useCallback, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   ReactFlow,
   Background,
@@ -292,6 +293,12 @@ export default function StackMap() {
               <LayoutGrid className="h-3.5 w-3.5" />
               Group
             </Button>
+            <Link to="/integrations">
+              <Button size="sm" variant="outline" className="gap-1">
+                <ExternalLink className="h-3.5 w-3.5" />
+                All
+              </Button>
+            </Link>
           </div>
         </Panel>
 

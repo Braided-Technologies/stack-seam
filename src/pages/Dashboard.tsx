@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useUserApplications, useIntegrations } from '@/hooks/useStackData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -64,15 +65,18 @@ export default function Dashboard() {
             <div className="text-2xl font-bold">${totalAnnual.toLocaleString()}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Integrations Available</CardTitle>
-            <Link2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{relevantIntegrations.length}</div>
-          </CardContent>
-        </Card>
+        <Link to="/integrations" className="block">
+          <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Integrations Available</CardTitle>
+              <Link2 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{relevantIntegrations.length}</div>
+              <p className="text-xs text-muted-foreground mt-1">Click to manage →</p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       {/* Urgent renewal alerts */}
@@ -144,11 +148,14 @@ export default function Dashboard() {
 
       {relevantIntegrations.length > 0 && (
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Link2 className="h-5 w-5" />
               Available Integrations in Your Stack
             </CardTitle>
+            <Link to="/integrations" className="text-sm text-primary hover:underline">
+              View all →
+            </Link>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">

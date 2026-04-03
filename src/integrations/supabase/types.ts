@@ -256,6 +256,57 @@ export type Database = {
           },
         ]
       }
+      org_integrations: {
+        Row: {
+          configured_at: string | null
+          configured_by: string | null
+          created_at: string
+          id: string
+          integration_id: string
+          is_configured: boolean
+          notes: string | null
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          configured_at?: string | null
+          configured_by?: string | null
+          created_at?: string
+          id?: string
+          integration_id: string
+          is_configured?: boolean
+          notes?: string | null
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          configured_at?: string | null
+          configured_by?: string | null
+          created_at?: string
+          id?: string
+          integration_id?: string
+          is_configured?: boolean
+          notes?: string | null
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_integrations_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "org_integrations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_settings: {
         Row: {
           created_at: string
