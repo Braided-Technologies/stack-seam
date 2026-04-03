@@ -108,10 +108,18 @@ export default function Stack() {
           <h1 className="text-2xl font-bold">My Stack</h1>
           <p className="text-muted-foreground">Select the tools in your IT stack by category</p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={userApps.length === 0}>
-          <Download className="h-4 w-4 mr-2" />
-          Export CSV
-        </Button>
+        <div className="flex gap-2">
+          {isAdmin && (
+            <Button variant="outline" size="sm" onClick={() => setSearchToolOpen(true)}>
+              <Search className="h-4 w-4 mr-2" />
+              Find a Tool
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={userApps.length === 0}>
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
