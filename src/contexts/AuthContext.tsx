@@ -88,16 +88,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const createOrg = async (name: string) => {
-    const { data: org, error: orgError } = await supabase
+    const newOrgId = crypto.randomUUID();
+
+    const { error: orgError } = await supabase
       .from('organizations')
-      .insert({ name })
-      .select()
-      .single();
+      .insert({ id: newOrgId, name });
     if (orgError) return { error: orgError };
 
     const { error: roleError } = await supabase
       .from('user_roles')
-      .insert({ user_id: user!.id, organization_id: org.id, role: 'admin' });
+      .insert({ user_id: user!.id, organization_id: newOrgId, role: 'admin' });
     if (roleError) return { error: roleError };
 
     await fetchOrg(user!.id);
