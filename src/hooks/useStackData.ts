@@ -171,14 +171,15 @@ export function useUploadContract() {
         .upload(filePath, file);
       if (uploadError) throw uploadError;
 
-      const { error: dbError } = await supabase.from('contract_files').insert({
+      const { data: dbData, error: dbError } = await supabase.from('contract_files').insert({
         user_application_id: userApplicationId,
         file_name: file.name,
         file_path: filePath,
         file_size: file.size,
         uploaded_by: user!.id,
-      });
+      }).select().single();
       if (dbError) throw dbError;
+      return dbData;
     },
     onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: ['contract_files', vars.userApplicationId] }),
   });

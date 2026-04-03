@@ -38,8 +38,12 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
       return;
     }
     try {
-      await uploadContract.mutateAsync({ file, userApplicationId });
+      const result = await uploadContract.mutateAsync({ file, userApplicationId });
       toast({ title: 'Contract uploaded' });
+      // Show scan options immediately after upload
+      if (result) {
+        setShowStorageChoice({ filePath: result.file_path, fileId: result.id });
+      }
     } catch (err: any) {
       toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
     }
@@ -170,13 +174,13 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
       <AlertDialog open={!!showStorageChoice} onOpenChange={() => setShowStorageChoice(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Scan Contract</AlertDialogTitle>
+            <AlertDialogTitle>Scan Contract?</AlertDialogTitle>
             <AlertDialogDescription>
-              Extract cost, renewal, and term data from this contract using AI. What should happen to the file after scanning?
+              Use AI to extract cost, renewal, and term data from this contract. You can also choose what happens to the file afterward.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Skip (Keep File Only)</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => showStorageChoice && handleScan(showStorageChoice.filePath, showStorageChoice.fileId, false)}
             >
