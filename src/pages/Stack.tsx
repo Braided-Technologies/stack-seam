@@ -247,12 +247,29 @@ export default function Stack() {
 
           return (
             <div key={group.label} className="space-y-2">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
-                {group.label}
-              </h2>
-              <div className="grid gap-2">
-                {renderedCats}
-              </div>
+              <button
+                className="flex items-center gap-2 w-full text-left px-1 group"
+                onClick={() => toggleGroup(group.label)}
+              >
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {group.label}
+                </h2>
+                <Badge variant="outline" className="text-xs font-normal">
+                  {groupCats.reduce((sum, cat) => {
+                    const catApps = applications.filter(a => a.category_id === cat.id);
+                    return sum + catApps.filter(a => userAppMap.has(a.id)).length;
+                  }, 0)} selected
+                </Badge>
+                {collapsedGroups.has(group.label)
+                  ? <ChevronDown className="h-3 w-3 text-muted-foreground ml-auto" />
+                  : <ChevronUp className="h-3 w-3 text-muted-foreground ml-auto" />
+                }
+              </button>
+              {!collapsedGroups.has(group.label) && (
+                <div className="grid gap-2">
+                  {renderedCats}
+                </div>
+              )}
             </div>
           );
         })}

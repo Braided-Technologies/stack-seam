@@ -4,8 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
-import { useSearchTool, useAddUserApplication } from '@/hooks/useStackData';
+import { useSearchTool, useAddUserApplication, useCategories, useUpdateUserApplication } from '@/hooks/useStackData';
 import { Search, Plus, Loader2, Check, ExternalLink } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SearchToolDialogProps {
   open: boolean;
@@ -16,7 +18,9 @@ export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialo
   const [query, setQuery] = useState('');
   const searchTool = useSearchTool();
   const addApp = useAddUserApplication();
+  const { data: categories = [] } = useCategories();
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+  const [categoryOverrides, setCategoryOverrides] = useState<Record<string, string>>({});
 
   const handleSearch = async () => {
     if (query.trim().length < 2) return;
@@ -33,10 +37,69 @@ export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialo
     }
   };
 
+  const handleCategoryChange = async (appId: string, categoryId: string) => {
+    setCategoryOverrides(prev => ({ ...prev, [appId]: categoryId }));
+    // Update in DB via edge function (service role needed since apps table is read-only)
+    try {
+      const { error } = await supabase.functions.invoke('search-tool', {
+        body: { updateCategory: true, appId, categoryId },
+      });
+      if (error) throw error;
+      const catName = categories.find(c => c.id === categoryId)?.name;
+      toast({ title: `Category updated to ${catName}` });
+    } catch (e: any) {
+      toast({ title: 'Error updating category', description: e.message, variant: 'destructive' });
+    }
+  };
+
   const result = searchTool.data;
 
+  const renderAppCard = (app: any) => {
+    const currentCategoryId = categoryOverrides[app.id] || app.category_id;
+    const currentCategoryName = categories.find(c => c.id === currentCategoryId)?.name || app.categories?.name;
+
+    return (
+      <div key={app.id} className="rounded-lg border p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="font-medium text-sm">{app.name}</p>
+              {app.vendor_url && (
+                <a href={app.vendor_url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+            {app.description && <p className="text-xs text-muted-foreground">{app.description}</p>}
+          </div>
+          <Button
+            size="sm"
+            variant={addedIds.has(app.id) ? "secondary" : "default"}
+            disabled={addedIds.has(app.id) || addApp.isPending}
+            onClick={() => handleAddToStack(app.id)}
+          >
+            {addedIds.has(app.id) ? <><Check className="h-3 w-3 mr-1" /> Added</> : <><Plus className="h-3 w-3 mr-1" /> Add to Stack</>}
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Category:</span>
+          <Select value={currentCategoryId || ''} onValueChange={(v) => handleCategoryChange(app.id, v)}>
+            <SelectTrigger className="h-7 text-xs w-auto min-w-[140px]">
+              <SelectValue placeholder={currentCategoryName || 'Select...'} />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map(cat => (
+                <SelectItem key={cat.id} value={cat.id} className="text-xs">{cat.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <Dialog open={open} onOpenChange={open => { onOpenChange(open); if (!open) { setQuery(''); searchTool.reset(); setAddedIds(new Set()); } }}>
+    <Dialog open={open} onOpenChange={o => { onOpenChange(o); if (!o) { setQuery(''); searchTool.reset(); setAddedIds(new Set()); setCategoryOverrides({}); } }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Search for a Tool</DialogTitle>
@@ -72,51 +135,14 @@ export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialo
         {result?.found && result.existing && result.applications?.length > 0 && (
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">Already in the catalog:</p>
-            {result.applications.map((app: any) => (
-              <div key={app.id} className="flex items-center justify-between rounded-lg border p-3">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-sm">{app.name}</p>
-                  {app.description && <p className="text-xs text-muted-foreground truncate">{app.description}</p>}
-                  {app.categories?.name && <Badge variant="outline" className="mt-1 text-xs">{app.categories.name}</Badge>}
-                </div>
-                <Button
-                  size="sm"
-                  variant={addedIds.has(app.id) ? "secondary" : "default"}
-                  disabled={addedIds.has(app.id) || addApp.isPending}
-                  onClick={() => handleAddToStack(app.id)}
-                >
-                  {addedIds.has(app.id) ? <><Check className="h-3 w-3 mr-1" /> Added</> : <><Plus className="h-3 w-3 mr-1" /> Add to Stack</>}
-                </Button>
-              </div>
-            ))}
+            {result.applications.map((app: any) => renderAppCard(app))}
           </div>
         )}
 
         {result?.found && !result.existing && result.application && (
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">Found and added to the catalog:</p>
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="font-medium text-sm">{result.application.name}</p>
-                  {result.application.vendor_url && (
-                    <a href={result.application.vendor_url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  )}
-                </div>
-                {result.application.description && <p className="text-xs text-muted-foreground">{result.application.description}</p>}
-                {result.application.categories?.name && <Badge variant="outline" className="mt-1 text-xs">{result.application.categories.name}</Badge>}
-              </div>
-              <Button
-                size="sm"
-                variant={addedIds.has(result.application.id) ? "secondary" : "default"}
-                disabled={addedIds.has(result.application.id) || addApp.isPending}
-                onClick={() => handleAddToStack(result.application.id)}
-              >
-                {addedIds.has(result.application.id) ? <><Check className="h-3 w-3 mr-1" /> Added</> : <><Plus className="h-3 w-3 mr-1" /> Add to Stack</>}
-              </Button>
-            </div>
+            {renderAppCard(result.application)}
           </div>
         )}
       </DialogContent>
