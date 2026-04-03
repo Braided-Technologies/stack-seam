@@ -8,7 +8,7 @@ type AuthContextType = {
   loading: boolean;
   orgId: string | null;
   orgName: string | null;
-  userRole: 'admin' | 'member' | null;
+  userRole: 'admin' | 'member' | 'platform_admin' | null;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
