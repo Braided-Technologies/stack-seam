@@ -71,11 +71,45 @@ export default function Stack() {
     }
   };
 
+  const handleExportCSV = () => {
+    const rows = [['Application', 'Category', 'Monthly Cost', 'Annual Cost', 'Billing Cycle', 'Renewal Date', 'Term (Months)', 'License Count', 'Notes']];
+    for (const ua of userApps) {
+      const app = (ua as any).applications;
+      const catName = app?.categories?.name || '';
+      rows.push([
+        app?.name || '',
+        catName,
+        ua.cost_monthly?.toString() || '',
+        ua.cost_annual?.toString() || '',
+        ua.billing_cycle || '',
+        ua.renewal_date || '',
+        ua.term_months?.toString() || '',
+        ua.license_count?.toString() || '',
+        (ua.notes || '').replace(/"/g, '""'),
+      ]);
+    }
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `stack-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: 'Stack exported as CSV' });
+  };
+
   return (
     <div className="p-6 space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">My Stack</h1>
-        <p className="text-muted-foreground">Select the tools in your IT stack by category</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">My Stack</h1>
+          <p className="text-muted-foreground">Select the tools in your IT stack by category</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={userApps.length === 0}>
+          <Download className="h-4 w-4 mr-2" />
+          Export CSV
+        </Button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
