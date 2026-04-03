@@ -199,6 +199,26 @@ export default function Integrations() {
     });
   };
 
+  const toggleApp = (appId: string) => {
+    setOpenApps(prev => {
+      const next = new Set(prev);
+      if (next.has(appId)) next.delete(appId); else next.add(appId);
+      return next;
+    });
+  };
+
+  const handleCollapseAll = () => {
+    if (allExpanded) {
+      setOpenGroups(new Set());
+      setOpenApps(new Set());
+      setAllExpanded(false);
+    } else {
+      setOpenGroups(new Set(CATEGORY_GROUPS.map(g => g.label)));
+      setOpenApps(new Set());
+      setAllExpanded(true);
+    }
+  };
+
   // Stats
   const totalIntegrations = stackIntegrations.length;
   const configuredCount = stackIntegrations.filter(i => configuredMap[i.id]?.status === 'configured').length;
