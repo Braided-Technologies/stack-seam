@@ -148,11 +148,14 @@ export default function Dashboard() {
 
       {relevantIntegrations.length > 0 && (
         <Card>
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Link2 className="h-5 w-5" />
               Available Integrations in Your Stack
             </CardTitle>
+            <Link to="/integrations" className="text-sm text-primary hover:underline">
+              View all →
+            </Link>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
