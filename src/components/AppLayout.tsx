@@ -59,7 +59,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary flex-shrink-0">
             <Layers className="h-4 w-4 text-primary-foreground" />
           </div>
-          {isExpanded && <span className="font-semibold whitespace-nowrap">StackMap</span>}
+          {isExpanded && <span className="font-display font-bold whitespace-nowrap">StackSeam</span>}
         </div>
 
         <nav className="flex-1 space-y-1 p-3">

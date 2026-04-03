@@ -28,6 +28,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   'M365 Management': 'hsl(215, 80%, 50%)',
   'DNS Filtering': 'hsl(185, 75%, 45%)',
   'Virtualization': 'hsl(240, 55%, 55%)',
+  'Alerting & Incident Management': 'hsl(10, 78%, 54%)',
 };
 
 export const CATEGORY_ICONS: Record<string, string> = {
@@ -60,4 +61,5 @@ export const CATEGORY_ICONS: Record<string, string> = {
   'M365 Management': 'Settings2',
   'DNS Filtering': 'Filter',
   'Virtualization': 'Server',
+  'Alerting & Incident Management': 'Bell',
 };
