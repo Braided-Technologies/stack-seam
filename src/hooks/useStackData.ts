@@ -109,3 +109,92 @@ export function useContacts(userApplicationId?: string) {
     },
   });
 }
+
+export function useAddContact() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (contact: { user_application_id: string; name: string; email?: string; phone?: string; role?: string; support_url?: string; is_primary?: boolean }) => {
+      const { error } = await supabase.from('contacts').insert(contact);
+      if (error) throw error;
+    },
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: ['contacts', vars.user_application_id] }),
+  });
+}
+
+export function useDeleteContact() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, userApplicationId }: { id: string; userApplicationId: string }) => {
+      const { error } = await supabase.from('contacts').delete().eq('id', id);
+      if (error) throw error;
+      return userApplicationId;
+    },
+    onSuccess: (_data, vars) => qc.invalidateQueries({ queryKey: ['contacts', vars.userApplicationId] }),
+  });
+}
+
+export function useContractFiles(userApplicationId?: string) {
+  return useQuery({
+    queryKey: ['contract_files', userApplicationId],
+    enabled: !!userApplicationId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('contract_files')
+        .select('*')
+        .eq('user_application_id', userApplicationId!);
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useUploadContract() {
+  const qc = useQueryClient();
+  const { orgId, user } = useAuth();
+  return useMutation({
+    mutationFn: async ({ file, userApplicationId }: { file: File; userApplicationId: string }) => {
+      const filePath = `${orgId}/${userApplicationId}/${Date.now()}_${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('contracts')
+        .upload(filePath, file);
+      if (uploadError) throw uploadError;
+
+      const { error: dbError } = await supabase.from('contract_files').insert({
+        user_application_id: userApplicationId,
+        file_name: file.name,
+        file_path: filePath,
+        file_size: file.size,
+        uploaded_by: user!.id,
+      });
+      if (dbError) throw dbError;
+    },
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: ['contract_files', vars.userApplicationId] }),
+  });
+}
+
+export function useDeleteContractFile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, filePath, userApplicationId }: { id: string; filePath: string; userApplicationId: string }) => {
+      await supabase.storage.from('contracts').remove([filePath]);
+      const { error } = await supabase.from('contract_files').delete().eq('id', id);
+      if (error) throw error;
+      return userApplicationId;
+    },
+    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: ['contract_files', vars.userApplicationId] }),
+  });
+}
+
+export function useDiscoverIntegrations() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (appNames: string[]) => {
+      const { data, error } = await supabase.functions.invoke('discover-integrations', {
+        body: { app_names: appNames },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['integrations'] }),
+  });
+}
