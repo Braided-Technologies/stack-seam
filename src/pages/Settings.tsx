@@ -764,7 +764,7 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="team" className="mt-4">
-          {orgId && <TeamSection orgId={orgId} isAdmin={isAdmin} />}
+          {orgId && <TeamSection orgId={orgId} isAdmin={isAdmin} orgName={orgName} />}
         </TabsContent>
       </Tabs>
     </div>
