@@ -477,6 +477,47 @@ export default function Integrations() {
           })}
         </div>
       )}
+
+      {/* Submit Integration Dialog */}
+      <Dialog open={showSubmitDialog} onOpenChange={setShowSubmitDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Submit an Integration</DialogTitle>
+            <DialogDescription>Select two apps and provide the documentation URL. Your submission will be reviewed by an administrator.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Source App</Label>
+              <Select value={submitSourceApp} onValueChange={setSubmitSourceApp}>
+                <SelectTrigger><SelectValue placeholder="Select source app..." /></SelectTrigger>
+                <SelectContent>
+                  {allApps.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Target App</Label>
+              <Select value={submitTargetApp} onValueChange={setSubmitTargetApp}>
+                <SelectTrigger><SelectValue placeholder="Select target app..." /></SelectTrigger>
+                <SelectContent>
+                  {allApps.filter(a => a.id !== submitSourceApp).map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Documentation URL</Label>
+              <Input value={submitDocUrl} onChange={e => setSubmitDocUrl(e.target.value)} placeholder="https://docs.example.com/integration-guide" />
+            </div>
+            <Button
+              className="w-full"
+              onClick={() => submitIntegration.mutate()}
+              disabled={submitIntegration.isPending || !submitSourceApp || !submitTargetApp || !submitDocUrl.trim()}
+            >
+              {submitIntegration.isPending ? 'Submitting...' : 'Submit for Review'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
