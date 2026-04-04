@@ -11,8 +11,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from '@/hooks/use-toast';
-import { Check, X, Building2, Users, Layers, MessageSquare, BarChart3, Pencil, Trash2, Save } from 'lucide-react';
+import { Check, X, Building2, Users, Layers, MessageSquare, BarChart3, Pencil, Trash2, Save, ChevronDown, ArrowUpDown } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 type PendingApp = {
   id: string;
@@ -71,6 +73,8 @@ function AdminScreenshot({ path }: { path: string }) {
   );
 }
 
+type FeedbackSortKey = 'date' | 'type' | 'status';
+
 export default function Admin() {
   const { userRole, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('moderation');
@@ -86,6 +90,10 @@ export default function Admin() {
   const [editingApp, setEditingApp] = useState<string | null>(null);
   const [editAppData, setEditAppData] = useState<{ name: string; description: string; category_id: string | null }>({ name: '', description: '', category_id: null });
   const [appFilter, setAppFilter] = useState<'all' | 'approved' | 'org_only'>('all');
+  const [fbTypeFilter, setFbTypeFilter] = useState<'all' | 'bug' | 'idea' | 'question'>('all');
+  const [fbSortKey, setFbSortKey] = useState<FeedbackSortKey>('date');
+  const [fbSortAsc, setFbSortAsc] = useState(false);
+  const [expandedFb, setExpandedFb] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (userRole === 'platform_admin') loadData();
@@ -111,7 +119,6 @@ export default function Admin() {
     const orgNameMap: Record<string, string> = {};
     orgData.forEach(o => { orgNameMap[o.id] = o.name; });
 
-    // Fetch user emails for feedback submitters
     const feedbackUserIds = [...new Set(fb.map(f => f.user_id))];
     let emailMap: Record<string, string> = {};
     if (feedbackUserIds.length > 0) {
@@ -248,6 +255,30 @@ export default function Admin() {
   };
 
   const filteredApps = appFilter === 'all' ? allApps : allApps.filter(a => a.status === appFilter);
+
+  // Feedback filtering & sorting
+  const filteredFeedback = (fbTypeFilter === 'all' ? feedback : feedback.filter(f => f.type === fbTypeFilter))
+    .sort((a, b) => {
+      let cmp = 0;
+      if (fbSortKey === 'date') cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      else if (fbSortKey === 'type') cmp = a.type.localeCompare(b.type);
+      else if (fbSortKey === 'status') cmp = a.status.localeCompare(b.status);
+      return fbSortAsc ? cmp : -cmp;
+    });
+
+  const toggleFbSort = (key: FeedbackSortKey) => {
+    if (fbSortKey === key) setFbSortAsc(!fbSortAsc);
+    else { setFbSortKey(key); setFbSortAsc(key === 'type'); }
+  };
+
+  const toggleFbExpand = (id: string) => {
+    setExpandedFb(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const statCards = [
     { label: 'Organizations', value: stats.orgs, icon: Building2, tab: 'orgs' },
@@ -416,79 +447,116 @@ export default function Admin() {
           </Card>
         </TabsContent>
 
-        {/* FEEDBACK TAB */}
+        {/* FEEDBACK TAB — collapsible, sortable, filterable */}
         <TabsContent value="feedback" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>User Feedback & Support</CardTitle>
-              <CardDescription>Bug reports, feature ideas, and questions from all users</CardDescription>
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <CardTitle>User Feedback & Support</CardTitle>
+                  <CardDescription>Bug reports, feature ideas, and questions from all users</CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select value={fbTypeFilter} onValueChange={(v: any) => setFbTypeFilter(v)}>
+                    <SelectTrigger className="w-[130px] h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="bug">🐛 Bugs</SelectItem>
+                      <SelectItem value="idea">💡 Ideas</SelectItem>
+                      <SelectItem value="question">❓ Questions</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => toggleFbSort('date')}>
+                    <ArrowUpDown className="h-3 w-3" /> Date
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => toggleFbSort('status')}>
+                    <ArrowUpDown className="h-3 w-3" /> Status
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
-              {feedback.length === 0 ? (
-                <p className="text-muted-foreground text-sm py-4 text-center">No feedback yet</p>
+              {filteredFeedback.length === 0 ? (
+                <p className="text-muted-foreground text-sm py-4 text-center">No feedback found</p>
               ) : (
-                <div className="space-y-4">
-                  {feedback.map(fb => (
-                    <Card key={fb.id} className="border">
-                      <CardContent className="p-4 space-y-3">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="space-y-1 flex-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <Badge variant={typeColor(fb.type) as any}>{fb.type}</Badge>
-                              <Badge variant={statusColor(fb.status) as any}>{fb.status.replace('_', ' ')}</Badge>
-                              <span className="text-xs text-muted-foreground">{new Date(fb.created_at).toLocaleDateString()}</span>
+                <ScrollArea className="h-[600px]">
+                  <div className="space-y-2 pr-4">
+                    {filteredFeedback.map(fb => {
+                      const isOpen = expandedFb.has(fb.id);
+                      return (
+                        <Collapsible key={fb.id} open={isOpen} onOpenChange={() => toggleFbExpand(fb.id)}>
+                          <CollapsibleTrigger asChild>
+                            <div className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:bg-accent/50 transition-colors">
+                              <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+                                <Badge variant={typeColor(fb.type) as any} className="text-xs">{fb.type}</Badge>
+                                <Badge variant={statusColor(fb.status) as any} className="text-xs">{fb.status.replace('_', ' ')}</Badge>
+                                <span className="text-sm font-medium truncate">{fb.title}</span>
+                                <span className="text-xs text-muted-foreground ml-auto flex-shrink-0">{new Date(fb.created_at).toLocaleDateString()}</span>
+                              </div>
+                              <ChevronDown className={`h-4 w-4 ml-2 text-muted-foreground transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
                             </div>
-                            <h4 className="font-medium">{fb.title}</h4>
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                              <span>User: {fb.user_email}</span>
-                              {fb.org_name && <span>Org: <span className="text-foreground font-medium">{fb.org_name}</span></span>}
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <div className="border border-t-0 rounded-b-lg p-4 space-y-3 bg-card">
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                <span>User: {fb.user_email}</span>
+                                {fb.org_name && <span>Org: <span className="text-foreground font-medium">{fb.org_name}</span></span>}
+                              </div>
+                              {fb.description && <p className="text-sm text-muted-foreground">{fb.description}</p>}
+
+                              {fb.screenshot_urls && fb.screenshot_urls.length > 0 && (
+                                <div className="space-y-1">
+                                  <span className="text-xs font-medium text-muted-foreground">Attachments ({fb.screenshot_urls.length})</span>
+                                  <div className="flex gap-2 flex-wrap">
+                                    {fb.screenshot_urls.map((path, i) => (
+                                      <AdminScreenshot key={i} path={path} />
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {fb.admin_response && (
+                                <div className="bg-muted rounded-md p-3 text-sm">
+                                  <span className="font-medium text-xs text-muted-foreground">Admin Response:</span>
+                                  <p className="mt-1">{fb.admin_response}</p>
+                                </div>
+                              )}
+
+                              <div className="flex items-start gap-2">
+                                <div className="flex-1 space-y-2">
+                                  <Textarea
+                                    placeholder="Write a response..."
+                                    value={adminResponses[fb.id] || ''}
+                                    onChange={e => setAdminResponses(prev => ({ ...prev, [fb.id]: e.target.value }))}
+                                    className="min-h-[60px]"
+                                  />
+                                  <div className="flex gap-2">
+                                    <Button size="sm" onClick={() => sendAdminResponse(fb.id)} disabled={!adminResponses[fb.id]?.trim()}>
+                                      Reply
+                                    </Button>
+                                    <Select value={fb.status} onValueChange={(v) => updateFeedbackStatus(fb.id, v)}>
+                                      <SelectTrigger className="w-32 h-8">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="open">Open</SelectItem>
+                                        <SelectItem value="in_progress">In Progress</SelectItem>
+                                        <SelectItem value="resolved">Resolved</SelectItem>
+                                        <SelectItem value="closed">Closed</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                            {fb.description && <p className="text-sm text-muted-foreground mt-1">{fb.description}</p>}
-                          </div>
-                          <Select value={fb.status} onValueChange={(v) => updateFeedbackStatus(fb.id, v)}>
-                            <SelectTrigger className="w-32">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="open">Open</SelectItem>
-                              <SelectItem value="in_progress">In Progress</SelectItem>
-                              <SelectItem value="resolved">Resolved</SelectItem>
-                              <SelectItem value="closed">Closed</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        {/* Screenshots */}
-                        {fb.screenshot_urls && fb.screenshot_urls.length > 0 && (
-                          <div className="space-y-1">
-                            <span className="text-xs font-medium text-muted-foreground">Attachments ({fb.screenshot_urls.length})</span>
-                            <div className="flex gap-2 flex-wrap">
-                              {fb.screenshot_urls.map((path, i) => (
-                                <AdminScreenshot key={i} path={path} />
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {fb.admin_response && (
-                          <div className="bg-muted rounded-md p-3 text-sm">
-                            <span className="font-medium text-xs text-muted-foreground">Admin Response:</span>
-                            <p className="mt-1">{fb.admin_response}</p>
-                          </div>
-                        )}
-                        <div className="flex gap-2">
-                          <Textarea
-                            placeholder="Write a response..."
-                            value={adminResponses[fb.id] || ''}
-                            onChange={e => setAdminResponses(prev => ({ ...prev, [fb.id]: e.target.value }))}
-                            className="min-h-[60px]"
-                          />
-                          <Button size="sm" onClick={() => sendAdminResponse(fb.id)} disabled={!adminResponses[fb.id]?.trim()}>
-                            Reply
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
               )}
             </CardContent>
           </Card>
