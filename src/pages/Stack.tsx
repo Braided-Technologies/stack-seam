@@ -405,7 +405,7 @@ export default function Stack() {
 
       {/* App info dialog */}
       <Dialog open={!!infoApp} onOpenChange={open => !open && setInfoApp(null)}>
-        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {infoApp?.name}
