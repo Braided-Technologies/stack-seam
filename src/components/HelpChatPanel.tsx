@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { HelpCircle, Send, Loader2, Bot, User, RotateCcw } from 'lucide-react';
+import { HelpCircle, Send, Loader2, Bot, User, RotateCcw, BookOpen, MessageSquare, Search, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 
@@ -11,13 +11,42 @@ type Msg = { role: 'user' | 'assistant'; content: string };
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/help-chat`;
 
-export default function HelpChatPanel() {
+const QUICK_ACTIONS = [
+  {
+    icon: BookOpen,
+    label: 'Browse Help Articles',
+    description: 'Find guides and documentation',
+    action: 'navigate-help' as const,
+  },
+  {
+    icon: MessageSquare,
+    label: 'Submit Feedback',
+    description: 'Report a bug, request a feature, or ask a question',
+    action: 'open-feedback' as const,
+  },
+  {
+    icon: Search,
+    label: 'Find a specific feature',
+    description: 'Ask me how to do something in StackSeam',
+    action: 'prompt' as const,
+    prompt: 'How do I ',
+  },
+  {
+    icon: Sparkles,
+    label: 'Get stack recommendations',
+    description: 'AI-powered advice for your MSP stack',
+    action: 'prompt' as const,
+    prompt: 'What tools would you recommend for ',
+  },
+];
+
+export default function HelpChatPanel({ onOpenFeedback }: { onOpenFeedback?: () => void }) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<Msg[]>([
-    { role: 'assistant', content: "👋 Hi! I'm StackSeam's support assistant. I can help with questions about your IT stack, integrations, best practices, and more.\n\nHow can I help you today?" },
-  ]);
+  const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showQuickActions, setShowQuickActions] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -27,11 +56,11 @@ export default function HelpChatPanel() {
     }
   }, [messages]);
 
-  const send = useCallback(async () => {
-    const text = input.trim();
-    if (!text || isLoading) return;
+  const sendMessage = useCallback(async (text: string) => {
+    if (!text.trim() || isLoading) return;
 
-    const userMsg: Msg = { role: 'user', content: text };
+    setShowQuickActions(false);
+    const userMsg: Msg = { role: 'user', content: text.trim() };
     setInput('');
     setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
@@ -50,7 +79,7 @@ export default function HelpChatPanel() {
     };
 
     try {
-      const allMessages = [...messages.slice(1), userMsg]; // skip initial greeting
+      const allMessages = [...messages, userMsg];
       const resp = await fetch(CHAT_URL, {
         method: 'POST',
         headers: {
@@ -98,12 +127,29 @@ export default function HelpChatPanel() {
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, messages]);
+  }, [isLoading, messages]);
+
+  const send = useCallback(() => {
+    sendMessage(input);
+  }, [input, sendMessage]);
+
+  const handleQuickAction = (action: typeof QUICK_ACTIONS[number]) => {
+    if (action.action === 'navigate-help') {
+      setOpen(false);
+      navigate('/help');
+    } else if (action.action === 'open-feedback') {
+      setOpen(false);
+      onOpenFeedback?.();
+    } else if (action.action === 'prompt' && action.prompt) {
+      setInput(action.prompt);
+      setShowQuickActions(false);
+      inputRef.current?.focus();
+    }
+  };
 
   const resetChat = () => {
-    setMessages([
-      { role: 'assistant', content: "👋 Hi! I'm StackSeam's support assistant. How can I help you today?" },
-    ]);
+    setMessages([]);
+    setShowQuickActions(true);
   };
 
   return (
@@ -123,13 +169,49 @@ export default function HelpChatPanel() {
               <Bot className="h-4 w-4 text-primary" />
               StackSeam Support
             </SheetTitle>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={resetChat} title="New conversation">
-              <RotateCcw className="h-3.5 w-3.5" />
-            </Button>
+            {messages.length > 0 && (
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={resetChat} title="New conversation">
+                <RotateCcw className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
         </SheetHeader>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+          {/* Welcome + Quick Actions */}
+          {showQuickActions && messages.length === 0 && (
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
+                  <Bot className="h-3.5 w-3.5 text-primary" />
+                </div>
+                <div className="rounded-lg px-3 py-2 text-sm bg-muted max-w-[85%]">
+                  <p className="mb-1">👋 Hi! I'm StackSeam's support assistant.</p>
+                  <p className="text-muted-foreground">What can I help you with today?</p>
+                </div>
+              </div>
+
+              <div className="space-y-2 pl-8">
+                {QUICK_ACTIONS.map((action, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleQuickAction(action)}
+                    className="w-full flex items-start gap-3 rounded-lg border border-border p-3 text-left hover:border-primary/50 hover:bg-accent/50 transition-colors group"
+                  >
+                    <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/15 transition-colors">
+                      <action.icon className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{action.label}</p>
+                      <p className="text-xs text-muted-foreground">{action.description}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Messages */}
           {messages.map((msg, i) => (
             <div key={i} className={cn('flex gap-2', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
               {msg.role === 'assistant' && (
@@ -190,7 +272,7 @@ export default function HelpChatPanel() {
             </Button>
           </form>
           <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
-            Can't find an answer? Use the Feedback button in the sidebar to submit a ticket.
+            Powered by AI · Answers may not always be accurate
           </p>
         </div>
       </SheetContent>

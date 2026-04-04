@@ -22,6 +22,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar-collapsed') === 'true');
   const [hovered, setHovered] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
@@ -143,7 +144,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <HelpCircle className="h-4 w-4 flex-shrink-0" />
             {isExpanded && 'Help Center'}
           </Link>
-          <FeedbackDialog isExpanded={isExpanded} />
+          <FeedbackDialog isExpanded={isExpanded} externalOpen={feedbackOpen} onExternalOpenChange={setFeedbackOpen} />
           <Button
             variant="ghost"
             size="sm"
@@ -180,7 +181,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <main className="flex-1 overflow-auto">
         {children}
       </main>
-      <HelpChatPanel />
+      <HelpChatPanel onOpenFeedback={() => { setFeedbackOpen(true); }} />
     </div>
   );
 }
