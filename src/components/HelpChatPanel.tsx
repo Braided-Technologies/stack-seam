@@ -183,7 +183,7 @@ export default function HelpChatPanel({ onOpenFeedback }: { onOpenFeedback?: () 
         </Button>
       </SheetTrigger>
       <SheetContent className="w-[400px] sm:w-[440px] flex flex-col p-0">
-        <SheetHeader className="px-4 py-3 border-b">
+        <SheetHeader className="px-4 py-3 pr-12 border-b">
           <div className="flex items-center justify-between">
             <SheetTitle className="flex items-center gap-2 text-base">
               <Bot className="h-4 w-4 text-primary" />
