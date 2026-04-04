@@ -22,6 +22,7 @@ import {
   ChevronRight, FileText, MessageSquare, Send, ImageIcon
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import ArticleRenderer from '@/components/ArticleRenderer';
 
 
 const CATEGORY_ICONS: Record<string, any> = {
