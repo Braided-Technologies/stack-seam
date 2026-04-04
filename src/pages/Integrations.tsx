@@ -234,7 +234,7 @@ export default function Integrations() {
             Manage and track integrations between your stack tools
           </p>
         </div>
-        <Link to="/stack-map">
+        <Link to="/map">
           <Button variant="outline" size="sm" className="gap-2">
             <MapIcon className="h-4 w-4" />
             Stack Map

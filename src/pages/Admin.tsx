@@ -157,7 +157,7 @@ export default function Admin() {
 
     const countMap: Record<string, number> = {};
     roleData.forEach(r => { countMap[r.organization_id] = (countMap[r.organization_id] || 0) + 1; });
-    setOrgs(orgData.map(o => ({ ...o, user_count: countMap[o.id] || 0 })));
+    setOrgs(orgData.map(o => ({ ...o, user_count: countMap[o.id] || 0, website_url: (o as any).website_url || null })));
 
     // Fetch user emails and names for users tab
     const allUserIds = [...new Set(roleData.map(r => r.user_id))];
