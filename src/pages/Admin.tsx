@@ -56,6 +56,21 @@ type UserItem = {
   created_at: string;
 };
 
+function AdminScreenshot({ path }: { path: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.storage.from('feedback-screenshots').createSignedUrl(path, 3600).then(({ data }) => {
+      if (data?.signedUrl) setUrl(data.signedUrl);
+    });
+  }, [path]);
+  if (!url) return <div className="h-20 w-20 rounded-md bg-muted animate-pulse" />;
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer">
+      <img src={url} alt="Screenshot" className="h-20 w-20 object-cover rounded-md border border-border hover:opacity-80 transition-opacity" />
+    </a>
+  );
+}
+
 export default function Admin() {
   const { userRole, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('moderation');
