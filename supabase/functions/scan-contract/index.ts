@@ -6,6 +6,15 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -75,10 +84,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Extract text from the file (basic approach: read as text for now)
-    const text = await fileData.text();
-    const truncatedText = text.slice(0, 15000); // Limit context size
-
     if (!lovableApiKey) {
       return new Response(JSON.stringify({ error: "AI service not configured" }), {
         status: 500,
@@ -86,7 +91,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Use AI to extract contract fields
+    // Convert file to base64 for multimodal input
+    const arrayBuffer = await fileData.arrayBuffer();
+    const base64Data = arrayBufferToBase64(arrayBuffer);
+    const mimeType = file_path.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream";
+
+    // Use AI to extract contract fields via multimodal (send PDF directly)
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -94,15 +104,26 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         messages: [
           {
             role: "system",
-            content: `You are a contract data extraction assistant. Extract structured data from contract/invoice text. The document may contain multiple line items or products from the same vendor. Extract each line item separately. Return ONLY the tool call, no other text.`,
+            content: `You are a contract/invoice data extraction assistant. You will receive a document (PDF or image). Extract ALL structured data including every individual line item, product, or service listed. Be thorough — capture every row in any table. Return ONLY the tool call, no other text.`,
           },
           {
             role: "user",
-            content: `Extract the following fields from this contract/invoice document. If a field is not found, use null. Also extract individual line items if the document contains multiple products or services.\n\nDocument text:\n${truncatedText}`,
+            content: [
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${mimeType};base64,${base64Data}`,
+                },
+              },
+              {
+                type: "text",
+                text: "Extract all fields and every line item from this contract/invoice document. If a field is not found, use null. Be thorough with line items — include every product, service, or charge listed.",
+              },
+            ],
           },
         ],
         tools: [
@@ -124,13 +145,15 @@ Deno.serve(async (req) => {
                   notes: { type: "string", description: "Brief summary of key contract terms" },
                   line_items: {
                     type: "array",
-                    description: "Individual products or services listed in the document",
+                    description: "Individual products or services listed in the document. Include EVERY line item.",
                     items: {
                       type: "object",
                       properties: {
                         name: { type: "string", description: "Product or service name" },
+                        quantity: { type: "integer", description: "Quantity or seat count for this item" },
                         monthly_cost: { type: "number", description: "Monthly cost for this item, or null" },
                         annual_cost: { type: "number", description: "Annual cost for this item, or null" },
+                        unit_price: { type: "number", description: "Per-unit price if applicable" },
                         description: { type: "string", description: "Brief description of this line item" },
                       },
                       required: ["name"],
@@ -178,6 +201,25 @@ Deno.serve(async (req) => {
       }
     } catch (e) {
       console.error("Failed to parse AI response:", e);
+    }
+
+    // Auto-rename the file based on extracted data
+    if (extractedData.vendor_name && !delete_after_scan) {
+      try {
+        const vendor = extractedData.vendor_name.replace(/[^a-zA-Z0-9-_ ]/g, "").trim().replace(/\s+/g, "_");
+        const date = extractedData.renewal_date || new Date().toISOString().split("T")[0];
+        const ext = file_path.split(".").pop() || "pdf";
+        const newFileName = `${vendor}_${date}.${ext}`;
+        
+        // Update the file name in contract_files table
+        await serviceClient
+          .from("contract_files")
+          .update({ file_name: newFileName })
+          .eq("file_path", file_path)
+          .eq("user_application_id", user_application_id);
+      } catch (renameErr) {
+        console.error("Auto-rename failed (non-critical):", renameErr);
+      }
     }
 
     // Optionally delete the file after scanning

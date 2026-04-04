@@ -411,7 +411,21 @@ export default function Budget() {
               </TabsContent>
 
               <TabsContent value="contracts" className="pt-2">
-                <ContractsSection userApplicationId={editingApp.id} isAdmin={isAdmin} />
+                <ContractsSection
+                  userApplicationId={editingApp.id}
+                  isAdmin={isAdmin}
+                  onExtractedData={(data) => {
+                    const updated = { ...editingApp };
+                    if (data.cost_monthly != null) updated.cost_monthly = data.cost_monthly;
+                    if (data.cost_annual != null) updated.cost_annual = data.cost_annual;
+                    if (data.renewal_date) updated.renewal_date = data.renewal_date;
+                    if (data.term_months != null) updated.term_months = data.term_months;
+                    if (data.billing_cycle) updated.billing_cycle = data.billing_cycle;
+                    if (data.license_count != null) updated.license_count = data.license_count;
+                    if (data.notes) updated.notes = data.notes;
+                    setEditingApp(updated);
+                  }}
+                />
               </TabsContent>
             </Tabs>
           )}

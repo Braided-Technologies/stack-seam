@@ -860,8 +860,19 @@ export default function Settings() {
                 <Label>Organization Name</Label>
                 <Input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="e.g. Acme MSP" maxLength={100} />
               </div>
-              <Button onClick={handleSaveOrg} disabled={savingOrg || !companyName.trim() || companyName.trim() === orgName}>
-                {savingOrg ? 'Saving...' : 'Update Organization Name'}
+              <div className="space-y-2">
+                <Label>Website URL</Label>
+                <Input value={orgUrl} onChange={e => setOrgUrl(e.target.value)} placeholder="e.g. https://acme.com" />
+              </div>
+              {orgDomain && (
+                <div className="space-y-2">
+                  <Label>Domain</Label>
+                  <Input value={orgDomain} disabled className="opacity-60" />
+                  <p className="text-xs text-muted-foreground">Domain is set during organization creation and used to prevent duplicates.</p>
+                </div>
+              )}
+              <Button onClick={handleSaveOrg} disabled={savingOrg || !companyName.trim()}>
+                {savingOrg ? 'Saving...' : 'Update Organization'}
               </Button>
             </CardContent>
           </Card>
