@@ -29,13 +29,13 @@ export default function MfaSetup() {
       }
 
       // Unenroll any unverified factors first
-      const unverified = factors?.totp?.filter(f => (f as any).status !== 'verified') || [];
+      const unverified = factors?.totp?.filter(f => f.status !== 'verified') || [];
       for (const f of unverified) {
         await supabase.auth.mfa.unenroll({ factorId: f.id });
       }
 
-      // Enroll new factor
-      const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'StackSeam Authenticator' });
+      // Enroll new factor (no friendlyName to avoid name conflict errors)
+      const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp' });
       if (error) {
         toast({ title: 'Error', description: error.message, variant: 'destructive' });
         setEnrolling(false);
