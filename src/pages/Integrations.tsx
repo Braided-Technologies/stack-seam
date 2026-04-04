@@ -39,6 +39,44 @@ export default function Integrations() {
   const { data: userApps = [] } = useUserApplications();
   const queryClient = useQueryClient();
 
+  // Fetch all approved apps for submit integration dialog
+  const { data: allApps = [] } = useQuery({
+    queryKey: ['all_applications'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('applications').select('id, name').eq('status', 'approved').order('name');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const submitIntegration = useMutation({
+    mutationFn: async () => {
+      if (!submitSourceApp || !submitTargetApp || !submitDocUrl.trim()) throw new Error('All fields are required');
+      if (submitSourceApp === submitTargetApp) throw new Error('Source and target apps must be different');
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase.from('integrations').insert({
+        source_app_id: submitSourceApp,
+        target_app_id: submitTargetApp,
+        documentation_url: submitDocUrl.trim(),
+        status: 'pending',
+        submitted_by_org: orgId,
+        submitted_by_user: user!.id,
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: 'Integration submitted', description: 'Your submission will be reviewed by an administrator.' });
+      setShowSubmitDialog(false);
+      setSubmitSourceApp('');
+      setSubmitTargetApp('');
+      setSubmitDocUrl('');
+      queryClient.invalidateQueries({ queryKey: ['integrations'] });
+    },
+    onError: (e: any) => {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    },
+  });
+
   const userAppIds = useMemo(() => new Set(userApps.map(ua => ua.application_id)), [userApps]);
 
   const stackIntegrations = useMemo(
