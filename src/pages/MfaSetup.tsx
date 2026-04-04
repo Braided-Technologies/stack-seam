@@ -29,7 +29,7 @@ export default function MfaSetup() {
       }
 
       // Unenroll any unverified factors first
-      const unverified = factors?.totp?.filter(f => f.status === 'unverified') || [];
+      const unverified = factors?.totp?.filter(f => (f as any).status !== 'verified') || [];
       for (const f of unverified) {
         await supabase.auth.mfa.unenroll({ factorId: f.id });
       }
