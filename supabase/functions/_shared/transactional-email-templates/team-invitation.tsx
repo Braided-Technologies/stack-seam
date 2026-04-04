@@ -68,7 +68,7 @@ export const template = {
     orgName: 'Acme IT',
     role: 'member',
     invitedByEmail: 'admin@acme.com',
-    signupUrl: 'https://stack-map-nexus.lovable.app/auth',
+    signupUrl: 'https://stackseam.tech/auth',
   },
 } satisfies TemplateEntry
 
