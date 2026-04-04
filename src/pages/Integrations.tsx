@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { useIntegrations, useUserApplications } from '@/hooks/useStackData';
+import { useIntegrations, useUserApplications, useDiscoverIntegrations } from '@/hooks/useStackData';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from '@/hooks/use-toast';
 import { CATEGORY_GROUPS } from '@/lib/categoryGroups';
-import { Search, ExternalLink, Filter, Link2, CheckCircle2, Circle, Map as MapIcon, ChevronDown, ChevronRight, EyeOff, SkipForward, ChevronsDownUp, ChevronsUpDown, Plus } from 'lucide-react';
+import { Search, ExternalLink, Filter, Link2, CheckCircle2, Circle, Map as MapIcon, ChevronDown, ChevronRight, EyeOff, SkipForward, ChevronsDownUp, ChevronsUpDown, Plus, Zap, Loader2 } from 'lucide-react';
 
 type StatusFilter = 'all' | 'configured' | 'pending' | 'skipped' | 'hidden';
 
@@ -37,6 +37,7 @@ export default function Integrations() {
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
   const { data: allIntegrations = [] } = useIntegrations();
   const { data: userApps = [] } = useUserApplications();
+  const discoverIntegrations = useDiscoverIntegrations();
   const queryClient = useQueryClient();
 
   // Fetch all approved apps for submit integration dialog
@@ -279,6 +280,36 @@ export default function Integrations() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {isAdmin && userApps.length >= 2 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              disabled={discoverIntegrations.isPending}
+              onClick={async () => {
+                const stackNames = userApps
+                  .map((ua: any) => ua.applications?.name)
+                  .filter(Boolean) as string[];
+                if (stackNames.length < 2) {
+                  toast({ title: 'Need at least 2 apps', description: 'Add more apps to your stack first.', variant: 'destructive' });
+                  return;
+                }
+                try {
+                  const result = await discoverIntegrations.mutateAsync(stackNames);
+                  toast({ title: `Found ${result.saved || 0} new integrations`, description: result.discovered > result.saved ? `${result.discovered - result.saved} already existed or were filtered.` : undefined });
+                } catch (e: any) {
+                  toast({ title: 'Discovery failed', description: e.message, variant: 'destructive' });
+                }
+              }}
+            >
+              {discoverIntegrations.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Zap className="h-4 w-4" />
+              )}
+              Discover Integrations
+            </Button>
+          )}
           <Link to="/map">
             <Button variant="outline" size="sm" className="gap-2">
               <MapIcon className="h-4 w-4" />

@@ -1,18 +1,37 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUserApplications, useIntegrations } from '@/hooks/useStackData';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Layers, DollarSign, CalendarClock, Link2, AlertTriangle } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { formatCompact, formatCompactCurrency } from '@/lib/formatters';
 
+type RenewalWindow = 30 | 60 | 90 | 'all';
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { data: userApps = [] } = useUserApplications();
   const { data: integrations = [] } = useIntegrations();
+  const [renewalWindow, setRenewalWindow] = useState<RenewalWindow>(90);
 
-  const totalMonthly = userApps.reduce((sum, ua) => sum + (Number(ua.cost_monthly) || 0), 0);
-  const totalAnnual = userApps.reduce((sum, ua) => sum + (Number(ua.cost_annual) || 0), 0);
+  // Compute totals: monthly includes annual/12, annual includes monthly*12
+  const totalMonthly = userApps.reduce((sum, ua) => {
+    const m = Number(ua.cost_monthly) || 0;
+    const a = Number(ua.cost_annual) || 0;
+    if (m > 0) return sum + m;
+    if (a > 0) return sum + a / 12;
+    return sum;
+  }, 0);
+
+  const totalAnnual = userApps.reduce((sum, ua) => {
+    const m = Number(ua.cost_monthly) || 0;
+    const a = Number(ua.cost_annual) || 0;
+    if (a > 0) return sum + a;
+    if (m > 0) return sum + m * 12;
+    return sum;
+  }, 0);
 
   const userAppIds = new Set(userApps.map(ua => ua.application_id));
   const relevantIntegrations = integrations.filter(
@@ -28,9 +47,13 @@ export default function Dashboard() {
     .sort((a, b) => new Date(a.renewal_date!).getTime() - new Date(b.renewal_date!).getTime());
 
   const upcomingRenewals = userApps
-    .filter(ua => ua.renewal_date)
-    .sort((a, b) => new Date(a.renewal_date!).getTime() - new Date(b.renewal_date!).getTime())
-    .slice(0, 5);
+    .filter(ua => {
+      if (!ua.renewal_date) return false;
+      if (renewalWindow === 'all') return true;
+      const days = differenceInDays(new Date(ua.renewal_date), new Date());
+      return days >= 0 && days <= renewalWindow;
+    })
+    .sort((a, b) => new Date(a.renewal_date!).getTime() - new Date(b.renewal_date!).getTime());
 
   return (
     <div className="p-6 space-y-6">
@@ -42,8 +65,8 @@ export default function Dashboard() {
       <div className="grid gap-4 md:grid-cols-4">
         {[
           { to: '/stack', icon: Layers, value: formatCompact(userApps.length), label: 'Total Apps', link: true },
-          { icon: DollarSign, value: formatCompactCurrency(totalMonthly), label: 'Monthly Spend' },
-          { icon: DollarSign, value: formatCompactCurrency(totalAnnual), label: 'Annual Spend' },
+          { to: '/budget', icon: DollarSign, value: formatCompactCurrency(totalMonthly), label: 'Monthly Spend', link: true },
+          { to: '/budget', icon: DollarSign, value: formatCompactCurrency(totalAnnual), label: 'Annual Spend', link: true },
           { to: '/integrations', icon: Link2, value: formatCompact(relevantIntegrations.length), label: 'Integrations Available', link: true },
         ].map((card, i) => {
           const content = (
@@ -98,10 +121,25 @@ export default function Dashboard() {
 
       {upcomingRenewals.length > 0 && (
         <div className="rounded-xl border bg-card p-5 space-y-3">
-          <h3 className="flex items-center gap-2 font-semibold">
-            <CalendarClock className="h-5 w-5" />
-            Upcoming Renewals
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="flex items-center gap-2 font-semibold">
+              <CalendarClock className="h-5 w-5" />
+              Upcoming Renewals
+            </h3>
+            <div className="flex items-center gap-1 rounded-lg border p-0.5">
+              {([30, 60, 90, 'all'] as RenewalWindow[]).map(w => (
+                <Button
+                  key={w}
+                  size="sm"
+                  variant={renewalWindow === w ? 'default' : 'ghost'}
+                  className="h-7 text-xs px-2.5"
+                  onClick={() => setRenewalWindow(w)}
+                >
+                  {w === 'all' ? 'All' : `${w}d`}
+                </Button>
+              ))}
+            </div>
+          </div>
           <div className="space-y-3">
             {upcomingRenewals.map(ua => {
               const daysUntil = differenceInDays(new Date(ua.renewal_date!), new Date());

@@ -55,10 +55,23 @@ export default function Budget() {
     },
   });
 
+  // Compute effective totals: monthly includes annual/12, annual includes monthly*12
   const totalMonthly = useMemo(() =>
-    userApps.reduce((sum, ua) => sum + (Number(ua.cost_monthly) || 0), 0), [userApps]);
+    userApps.reduce((sum, ua) => {
+      const m = Number(ua.cost_monthly) || 0;
+      const a = Number(ua.cost_annual) || 0;
+      if (m > 0) return sum + m;
+      if (a > 0) return sum + a / 12;
+      return sum;
+    }, 0), [userApps]);
   const totalAnnual = useMemo(() =>
-    userApps.reduce((sum, ua) => sum + (Number(ua.cost_annual) || 0), 0), [userApps]);
+    userApps.reduce((sum, ua) => {
+      const m = Number(ua.cost_monthly) || 0;
+      const a = Number(ua.cost_annual) || 0;
+      if (a > 0) return sum + a;
+      if (m > 0) return sum + m * 12;
+      return sum;
+    }, 0), [userApps]);
   const appsWithContracts = useMemo(() => {
     const uaIdsWithContracts = new Set(allContracts.map(c => c.user_application_id));
     return uaIdsWithContracts.size;
@@ -79,7 +92,14 @@ export default function Budget() {
     const map = new Map<string, number>();
     for (const ua of userApps) {
       const cat = (ua.applications as any)?.categories?.name || 'Uncategorized';
-      const cost = spendView === 'monthly' ? (Number(ua.cost_monthly) || 0) : (Number(ua.cost_annual) || 0);
+      const m = Number(ua.cost_monthly) || 0;
+      const a = Number(ua.cost_annual) || 0;
+      let cost: number;
+      if (spendView === 'monthly') {
+        cost = m > 0 ? m : a > 0 ? a / 12 : 0;
+      } else {
+        cost = a > 0 ? a : m > 0 ? m * 12 : 0;
+      }
       map.set(cat, (map.get(cat) || 0) + cost);
     }
     return Array.from(map.entries())
