@@ -39,46 +39,32 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Link to="/stack" className="block">
-          <div className="rounded-xl border bg-card p-4 flex items-center gap-3 hover:border-primary/50 transition-colors cursor-pointer">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-              <Layers className="h-4 w-4 text-primary" />
+        {[
+          { to: '/stack', icon: Layers, value: userApps.length, label: 'Total Apps', link: true },
+          { icon: DollarSign, value: `$${totalMonthly.toLocaleString()}`, label: 'Monthly Spend' },
+          { icon: DollarSign, value: `$${totalAnnual.toLocaleString()}`, label: 'Annual Spend' },
+          { to: '/integrations', icon: Link2, value: relevantIntegrations.length, label: 'Integrations Available', link: true },
+        ].map((card, i) => {
+          const content = (
+            <div className={cn(
+              'rounded-xl border bg-card p-4 flex items-center gap-3 h-full',
+              card.link && 'hover:border-primary/50 transition-colors cursor-pointer'
+            )}>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 flex-shrink-0">
+                <card.icon className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{card.value}</p>
+                <p className="text-xs text-muted-foreground">{card.label}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-2xl font-bold">{userApps.length}</p>
-              <p className="text-xs text-muted-foreground">Total Apps</p>
-            </div>
-          </div>
-        </Link>
-        <div className="rounded-xl border bg-card p-4 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-            <DollarSign className="h-4 w-4 text-primary" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold">${totalMonthly.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">Monthly Spend</p>
-          </div>
-        </div>
-        <div className="rounded-xl border bg-card p-4 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-            <DollarSign className="h-4 w-4 text-primary" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold">${totalAnnual.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">Annual Spend</p>
-          </div>
-        </div>
-        <Link to="/integrations" className="block">
-          <div className="rounded-xl border bg-card p-4 flex items-center gap-3 hover:border-primary/50 transition-colors cursor-pointer">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-              <Link2 className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{relevantIntegrations.length}</p>
-              <p className="text-xs text-muted-foreground">Integrations Available</p>
-            </div>
-          </div>
-        </Link>
+          );
+          return card.to ? (
+            <Link key={i} to={card.to} className="block">{content}</Link>
+          ) : (
+            <div key={i}>{content}</div>
+          );
+        })}
       </div>
 
       {/* Urgent renewal alerts */}

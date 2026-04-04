@@ -429,16 +429,23 @@ export default function Support() {
 
     return (
       <div className="max-w-4xl mx-auto p-6">
-        <Button variant="ghost" className="mb-4 gap-2 text-muted-foreground hover:text-foreground" onClick={() => {
-          if (activeArticle.category_id) {
-            setSearchParams({ category: activeArticle.category_id });
-          } else {
-            setSearchParams({});
-          }
-        }}>
-          <ArrowLeft className="h-4 w-4" />
-          {(activeArticle as any).kb_categories?.name || 'Knowledge Base'}
-        </Button>
+        <nav className="flex items-center gap-1 mb-4 text-sm">
+          <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground hover:text-foreground px-2" onClick={() => setSearchParams({})}>
+            Help Center
+          </Button>
+          {(activeArticle as any).kb_categories?.name && (
+            <>
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+              <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground hover:text-foreground px-2" onClick={() => {
+                if (activeArticle.category_id) setSearchParams({ category: activeArticle.category_id });
+              }}>
+                {(activeArticle as any).kb_categories.name}
+              </Button>
+            </>
+          )}
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-foreground font-medium truncate max-w-[300px]">{activeArticle.title}</span>
+        </nav>
 
         <div className="flex items-start justify-between mb-4">
           <div>
