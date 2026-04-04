@@ -15,6 +15,43 @@ function isValidDocUrl(url: string | undefined | null): boolean {
   return true;
 }
 
+async function verifyUrl(url: string): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(url, {
+      method: 'HEAD',
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StackSeam/1.0)' },
+      signal: controller.signal,
+      redirect: 'follow',
+    });
+    clearTimeout(timeout);
+
+    // Accept 200-399 as valid
+    if (res.status >= 200 && res.status < 400) return true;
+
+    // Some servers don't support HEAD, try GET
+    if (res.status === 405 || res.status === 403) {
+      const controller2 = new AbortController();
+      const timeout2 = setTimeout(() => controller2.abort(), 8000);
+      const res2 = await fetch(url, {
+        method: 'GET',
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StackSeam/1.0)' },
+        signal: controller2.signal,
+        redirect: 'follow',
+      });
+      clearTimeout(timeout2);
+      // Read body to avoid resource leak
+      await res2.text();
+      return res2.status >= 200 && res2.status < 400;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 async function discoverBatch(appNames: string[], LOVABLE_API_KEY: string) {
   const appList = appNames.join(", ");
   const prompt = `You are an expert on MSP/IT software integrations. Given these tools: ${appList}
@@ -25,13 +62,13 @@ List ALL known integrations between ANY pair of these tools. Be thorough — inc
 - Integrations through platforms like Zapier, Power Automate, etc.
 - PSA/RMM integrations with documentation, cybersecurity, billing tools
 - Vendor marketplace integrations
-- MCP (Model Context Protocol) server integrations — community-built connectors that allow AI tools like Claude, ChatGPT, etc. to integrate with platforms. Include GitHub repo URLs as documentation for these.
 
 CRITICAL RULES:
-1. Only include integrations where you can provide a REAL, VERIFIABLE documentation URL. Do NOT fabricate or guess URLs.
-2. The documentation_url must be an actual page on the vendor's website, knowledge base, marketplace, or GitHub repo that describes the integration.
-3. If you cannot find a real documentation URL for an integration, do NOT include it.
-4. Do NOT make up URLs that look plausible — only use URLs you are confident exist.`;
+1. Only include integrations where you can provide a REAL documentation URL from the vendor's actual website or knowledge base.
+2. The documentation_url must be an actual existing page — not a guessed or constructed URL.
+3. If you are not 100% certain a URL exists, do NOT include the integration.
+4. Prefer URLs from official knowledge bases, help centers, and marketplace listings.
+5. Do NOT include MCP or community integrations unless the GitHub repo URL is verified.`;
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -42,7 +79,7 @@ CRITICAL RULES:
     body: JSON.stringify({
       model: "google/gemini-2.5-flash",
       messages: [
-        { role: "system", content: "You are an MSP/IT integration expert. Be thorough and accurate. Only include integrations that truly exist AND have verifiable documentation URLs. Never fabricate URLs. For MCP server integrations, use the GitHub repo URL as documentation." },
+        { role: "system", content: "You are an MSP/IT integration expert. Only report integrations with documentation URLs you are confident are real and accessible. Never guess or construct URLs." },
         { role: "user", content: prompt },
       ],
       tools: [{
@@ -61,7 +98,7 @@ CRITICAL RULES:
                     source: { type: "string" },
                     target: { type: "string" },
                     description: { type: "string" },
-                    integration_type: { type: "string", enum: ["native", "api", "zapier", "webhook", "mcp", "other"] },
+                    integration_type: { type: "string", enum: ["native", "api", "zapier", "webhook", "other"] },
                     data_shared: { type: "string" },
                     documentation_url: { type: "string", description: "REQUIRED. A real, verifiable URL to the integration documentation page." },
                   },
@@ -95,7 +132,32 @@ CRITICAL RULES:
   const parsed = JSON.parse(toolCall.function.arguments);
   const integrations = parsed.integrations || [];
 
-  return integrations.filter((i: any) => isValidDocUrl(i.documentation_url));
+  // Filter by basic URL format first
+  const candidates = integrations.filter((i: any) => isValidDocUrl(i.documentation_url));
+
+  // Verify each URL actually returns 200
+  console.log(`Verifying ${candidates.length} candidate URLs...`);
+  const verified: any[] = [];
+  
+  // Verify in parallel batches of 5
+  for (let i = 0; i < candidates.length; i += 5) {
+    const batch = candidates.slice(i, i + 5);
+    const results = await Promise.all(
+      batch.map(async (integ: any) => {
+        const ok = await verifyUrl(integ.documentation_url);
+        if (!ok) {
+          console.log(`DEAD: ${integ.source} -> ${integ.target}: ${integ.documentation_url}`);
+        }
+        return { integ, ok };
+      })
+    );
+    for (const { integ, ok } of results) {
+      if (ok) verified.push(integ);
+    }
+  }
+
+  console.log(`${verified.length}/${candidates.length} URLs verified as live`);
+  return verified;
 }
 
 serve(async (req) => {
@@ -136,7 +198,6 @@ serve(async (req) => {
           console.error(`Discovery failed for org ${org.id}:`, e);
         }
 
-        // Rate limit buffer between orgs
         await new Promise(r => setTimeout(r, 2000));
       }
 
@@ -220,7 +281,7 @@ async function processDiscovery(appNames: string[], apiKey: string, supabase: an
     const targetId = appMap.get(integ.target?.toLowerCase());
     if (!sourceId || !targetId || sourceId === targetId) continue;
 
-    // Check for reverse duplicate — only keep one direction
+    // Check for reverse duplicate
     const { data: reverseExists } = await supabase
       .from("integrations")
       .select("id")
@@ -228,7 +289,7 @@ async function processDiscovery(appNames: string[], apiKey: string, supabase: an
       .eq("target_app_id", sourceId)
       .maybeSingle();
 
-    if (reverseExists) continue; // Skip — reverse already exists
+    if (reverseExists) continue;
 
     const { error } = await supabase
       .from("integrations")
@@ -239,6 +300,7 @@ async function processDiscovery(appNames: string[], apiKey: string, supabase: an
         integration_type: integ.integration_type,
         data_shared: integ.data_shared,
         documentation_url: integ.documentation_url,
+        link_status: 'verified',
         last_verified: new Date().toISOString(),
       }, { onConflict: "source_app_id,target_app_id" });
 
