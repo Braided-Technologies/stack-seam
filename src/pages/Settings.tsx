@@ -492,7 +492,9 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
                   <p className="text-xs text-muted-foreground mt-0.5">Joined {new Date(member.created_at).toLocaleDateString()}</p>
                 </div>
                 <div>
-                  {isAdmin ? (
+                  {member.role === 'platform_admin' ? (
+                    <Badge variant="outline" className="opacity-60 cursor-not-allowed">Platform Admin</Badge>
+                  ) : isAdmin ? (
                     <Select value={member.role} onValueChange={(v) => changeRole.mutate({ roleId: member.id, newRole: v })}>
                       <SelectTrigger className="w-[110px] h-8">
                         <SelectValue />
