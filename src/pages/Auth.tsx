@@ -41,7 +41,7 @@ export default function Auth() {
     setGoogleLoading(true);
     try {
       const result = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: window.location.origin,
+        redirect_uri: 'https://stackseam.tech',
       });
       if (result.error) {
         toast({ title: 'Error', description: result.error.message, variant: 'destructive' });
@@ -61,7 +61,7 @@ export default function Auth() {
     }
     setForgotSubmitting(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: 'https://stackseam.tech/reset-password',
     });
     setForgotSubmitting(false);
     if (error) {

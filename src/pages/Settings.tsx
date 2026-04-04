@@ -303,7 +303,7 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
             orgName: orgName || 'your organization',
             role: inviteRole,
             invitedByEmail: user!.email,
-            signupUrl: `${window.location.origin}/auth`,
+            signupUrl: 'https://stackseam.tech/auth',
           },
         },
       });

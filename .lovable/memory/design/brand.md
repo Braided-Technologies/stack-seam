@@ -5,7 +5,7 @@ type: design
 ---
 Brand: StackSeam
 Slogan: Every connection. Every cost.
-Domain: stackseam.tech
+Domain: stackseam.tech — ALL links, redirects, and email URLs must use https://stackseam.tech. Never use window.location.origin or lovable.app URLs.
 Email sender domain: notify.stackseam.tech
 
 Colors (Slate + Amber):
@@ -19,4 +19,5 @@ Fonts:
 - Body/UI: Outfit (font-body)
 - Data/code: DM Mono (font-mono)
 
-Logo: src/assets/stackseam-logo.png (horizontal lines + thread/needle icon in amber)
+Logo: src/assets/stackseam-logo.png (full logo with text)
+Icon: src/assets/stackseam-icon.svg (icon only, used in auth pages and sidebar)
