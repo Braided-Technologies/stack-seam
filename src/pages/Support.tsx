@@ -464,20 +464,7 @@ export default function Support() {
         </div>
         <Separator className="mb-6" />
 
-        <div className="prose prose-sm dark:prose-invert max-w-none 
-          prose-headings:scroll-mt-4 
-          prose-h2:text-lg prose-h2:font-semibold prose-h2:mt-8 prose-h2:mb-3 prose-h2:border-b prose-h2:pb-2 prose-h2:border-border
-          prose-h3:text-base prose-h3:font-medium prose-h3:mt-6 prose-h3:mb-2
-          prose-table:border prose-table:border-border prose-table:rounded-md
-          prose-th:bg-muted/50 prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:text-xs prose-th:font-medium
-          prose-td:px-3 prose-td:py-2 prose-td:text-sm prose-td:border-t prose-td:border-border
-          prose-blockquote:border-l-primary prose-blockquote:bg-primary/5 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-md prose-blockquote:not-italic
-          prose-li:marker:text-primary
-          prose-strong:text-foreground
-          prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-xs
-        ">
-          <ReactMarkdown>{activeArticle.content}</ReactMarkdown>
-        </div>
+        <ArticleRenderer content={activeArticle.content} />
 
         {sameCategoryArticles.length > 0 && (
           <div className="mt-12 pt-6 border-t border-border">
