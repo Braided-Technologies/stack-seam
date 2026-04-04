@@ -118,6 +118,8 @@ export default function Stack() {
         notes: editingApp.notes || null,
       });
       toast({ title: 'Details saved' });
+      setInfoApp(null);
+      setEditingApp(null);
     } catch (e: any) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
     }

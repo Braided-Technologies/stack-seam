@@ -73,18 +73,20 @@ export default function Budget() {
     }).length;
   }, [userApps]);
 
+  const [spendView, setSpendView] = useState<'monthly' | 'annual'>('monthly');
+
   const categorySpend = useMemo(() => {
     const map = new Map<string, number>();
     for (const ua of userApps) {
       const cat = (ua.applications as any)?.categories?.name || 'Uncategorized';
-      const cost = Number(ua.cost_monthly) || 0;
+      const cost = spendView === 'monthly' ? (Number(ua.cost_monthly) || 0) : (Number(ua.cost_annual) || 0);
       map.set(cat, (map.get(cat) || 0) + cost);
     }
     return Array.from(map.entries())
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
-  }, [userApps]);
+  }, [userApps, spendView]);
 
   // Map user_application_id -> has contract
   const contractByUaId = useMemo(() => {
