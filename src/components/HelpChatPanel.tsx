@@ -183,7 +183,7 @@ export default function HelpChatPanel({ onOpenFeedback }: { onOpenFeedback?: () 
         </Button>
       </SheetTrigger>
       <SheetContent className="w-[400px] sm:w-[440px] flex flex-col p-0">
-        <SheetHeader className="px-4 py-3 border-b">
+        <SheetHeader className="px-4 py-3 pr-12 border-b">
           <div className="flex items-center justify-between">
             <SheetTitle className="flex items-center gap-2 text-base">
               <Bot className="h-4 w-4 text-primary" />
@@ -269,6 +269,25 @@ export default function HelpChatPanel({ onOpenFeedback }: { onOpenFeedback?: () 
               </div>
               <div className="bg-muted rounded-lg px-3 py-2">
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            </div>
+          )}
+
+          {/* Follow-up quick actions after assistant response */}
+          {!isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && (
+            <div className="pl-8 space-y-1.5">
+              <p className="text-xs text-muted-foreground">Anything else I can help with?</p>
+              <div className="flex flex-wrap gap-1.5">
+                {QUICK_ACTIONS.map((action, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleQuickAction(action)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs hover:border-primary/50 hover:bg-accent/50 transition-colors"
+                  >
+                    <action.icon className="h-3 w-3 text-primary" />
+                    {action.label}
+                  </button>
+                ))}
               </div>
             </div>
           )}
