@@ -1,57 +1,22 @@
 /// <reference types="npm:@types/react@18.3.1" />
-
 import * as React from 'npm:react@18.3.1'
-
-import {
-  Body,
-  Button,
-  Container,
-  Head,
-  Heading,
-  Hr,
-  Html,
-  Img,
-  Preview,
-  Section,
-  Text,
-} from 'npm:@react-email/components@0.0.22'
+import { Body, Button, Container, Head, Heading, Html, Preview, Text } from 'npm:@react-email/components@0.0.22'
 
 const LOGO_URL = 'https://ivmbbnmmioeufmxtvsgs.supabase.co/storage/v1/object/public/email-assets/stackseam-logo.png'
 
-interface MagicLinkEmailProps {
-  siteName: string
-  confirmationUrl: string
-}
+interface MagicLinkEmailProps { siteName: string; confirmationUrl: string }
 
-export const MagicLinkEmail = ({
-  siteName,
-  confirmationUrl,
-}: MagicLinkEmailProps) => (
+export const MagicLinkEmail = ({ siteName, confirmationUrl }: MagicLinkEmailProps) => (
   <Html lang="en" dir="ltr">
     <Head />
-    <Preview>Your StackSeam login link</Preview>
+    <Preview>Your login link for {siteName}</Preview>
     <Body style={main}>
-      <Container style={card}>
-        <Section style={logoSection}>
-          <Img src={LOGO_URL} alt="StackSeam" width="140" height="auto" style={logo} />
-        </Section>
-        <Hr style={divider} />
-        <Heading style={h1}>Your Login Link</Heading>
-        <Text style={text}>
-          Click the button below to securely log in to StackSeam. This link will expire shortly.
-        </Text>
-        <Section style={buttonSection}>
-          <Button style={button} href={confirmationUrl}>
-            Log In to StackSeam
-          </Button>
-        </Section>
-        <Text style={textSmall}>
-          If you didn't request this link, you can safely ignore this email.
-        </Text>
-        <Hr style={divider} />
-        <Text style={footerBrand}>
-          © StackSeam — IT Stack Intelligence for MSPs
-        </Text>
+      <Container style={container}>
+        <img src={LOGO_URL} alt="StackSeam" width="140" height="auto" style={logo} />
+        <Heading style={h1}>Your login link</Heading>
+        <Text style={text}>Click the button below to log in to {siteName}. This link will expire shortly.</Text>
+        <Button style={button} href={confirmationUrl}>Log In</Button>
+        <Text style={footer}>If you didn't request this link, you can safely ignore this email.</Text>
       </Container>
     </Body>
   </Html>
@@ -59,57 +24,10 @@ export const MagicLinkEmail = ({
 
 export default MagicLinkEmail
 
-const main = {
-  backgroundColor: '#f4f4f5',
-  fontFamily: 'Outfit, system-ui, sans-serif',
-  padding: '40px 0',
-}
-const card = {
-  backgroundColor: '#ffffff',
-  borderRadius: '12px',
-  padding: '40px 32px',
-  maxWidth: '480px',
-  margin: '0 auto',
-  border: '1px solid #e4e4e7',
-}
-const logoSection = { textAlign: 'center' as const, marginBottom: '8px' }
-const logo = { margin: '0 auto' }
-const divider = { borderColor: '#e4e4e7', margin: '20px 0' }
-const h1 = {
-  fontSize: '24px',
-  fontWeight: 'bold' as const,
-  color: '#1a1f36',
-  margin: '0 0 12px',
-  textAlign: 'center' as const,
-}
-const text = {
-  fontSize: '15px',
-  color: '#6b7280',
-  lineHeight: '1.6',
-  margin: '0 0 20px',
-  textAlign: 'center' as const,
-}
-const textSmall = {
-  fontSize: '13px',
-  color: '#9ca3af',
-  lineHeight: '1.5',
-  margin: '0 0 16px',
-  textAlign: 'center' as const,
-}
-const buttonSection = { textAlign: 'center' as const, margin: '8px 0 16px' }
-const button = {
-  backgroundColor: '#e8930c',
-  color: '#1a1f36',
-  fontSize: '15px',
-  fontWeight: '600' as const,
-  borderRadius: '8px',
-  padding: '14px 28px',
-  textDecoration: 'none',
-  display: 'inline-block' as const,
-}
-const footerBrand = {
-  fontSize: '11px',
-  color: '#d1d5db',
-  margin: '0',
-  textAlign: 'center' as const,
-}
+const main = { backgroundColor: '#ffffff', fontFamily: "'Inter', Arial, sans-serif" }
+const container = { padding: '40px 25px', maxWidth: '560px', margin: '0 auto' }
+const logo = { marginBottom: '24px' }
+const h1 = { fontSize: '22px', fontWeight: 'bold' as const, color: '#1e293b', margin: '0 0 20px' }
+const text = { fontSize: '15px', color: '#64748b', lineHeight: '1.6', margin: '0 0 25px' }
+const button = { backgroundColor: 'hsl(38, 92%, 50%)', color: '#1a1a2e', fontSize: '15px', fontWeight: '600' as const, borderRadius: '8px', padding: '12px 28px', textDecoration: 'none' }
+const footer = { fontSize: '13px', color: '#94a3b8', margin: '30px 0 0' }
