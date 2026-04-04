@@ -1,25 +1,22 @@
 
 
-## Fix: Chat Panel Overlap + Post-Answer Follow-Up
+## Fix Article Rendering: Tables + First Section Open
 
-### Problem 1: Overlap with top icons
-The `SheetContent` has `p-0` but the default Sheet close button (X) from shadcn overlaps with the header content. The chat panel's `SheetHeader` needs top padding or the sheet's built-in close button needs to be accounted for. The fixed help button at `bottom-6 right-6 z-50` may also overlap other UI elements.
-
-### Problem 2: Post-answer UX
-Rather than a full "anything else?" prompt with yes/no, a lighter approach works better: after the assistant finishes responding, show a subtle "follow-up suggestions" area with the quick action buttons again (minus the welcome text). This lets users either type freely or tap a quick action without an extra confirmation step.
+### Problems
+1. **Markdown tables render as raw text** — `react-markdown` requires the `remark-gfm` plugin to parse GitHub Flavored Markdown (tables, strikethrough, autolinks). It is not installed.
+2. **Everything is collapsed** — The first `##` section should be expanded by default so readers see content immediately. Only subsequent sections should collapse.
 
 ### Plan
 
-**1. Fix overlap (HelpChatPanel.tsx)**
-- Add proper spacing to the `SheetContent` so the built-in close button doesn't overlap the header. Adjust `SheetHeader` padding-right to account for the X button.
-- Ensure the floating help button doesn't overlap other fixed UI elements by adjusting z-index if needed.
+**1. Install `remark-gfm`**
+- Add `remark-gfm` as a dependency.
 
-**2. Add follow-up quick actions after assistant response**
-- After the assistant finishes streaming (when `isLoading` becomes false and the last message is from the assistant), show a condensed set of quick action chips below the last message.
-- These will be smaller, inline buttons (not the full welcome card layout) — just the labels like "Browse Help Articles", "Submit Feedback", "Ask another question".
-- Tapping one triggers the same `handleQuickAction` logic already in place.
-- This avoids the awkward "anything else?" yes/no flow while still guiding users.
+**2. Update `ArticleRenderer.tsx`**
+- Import `remarkGfm` and pass it to all `<ReactMarkdown>` instances via `remarkPlugins={[remarkGfm]}`.
+- Change `defaultOpen` logic: the first section (`i === 0`) is always open by default, not just when there's only one section.
+- Add custom table component overrides to ensure proper styling (bordered cells, alternating rows) since the prose classes alone may not be sufficient in dark mode.
 
-### Files to modify
-- `src/components/HelpChatPanel.tsx` — fix padding/overlap, add follow-up quick actions after assistant response
+**3. Files changed**
+- `package.json` — add `remark-gfm`
+- `src/components/ArticleRenderer.tsx` — add remarkGfm plugin, fix first-section-open logic, improve table rendering
 
