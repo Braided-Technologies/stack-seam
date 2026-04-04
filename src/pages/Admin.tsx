@@ -282,7 +282,7 @@ export default function Admin() {
   const [fbSortAsc, setFbSortAsc] = useState(false);
   const [expandedFb, setExpandedFb] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
-
+  const [adminAppSearch, setAdminAppSearch] = useState('');
   const adminAction = async (userId: string, action: 'reset_password' | 'reset_mfa') => {
     setActionLoading(prev => ({ ...prev, [`${userId}_${action}`]: true }));
     try {
