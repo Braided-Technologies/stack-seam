@@ -86,6 +86,13 @@ export default function OrgSetup() {
 
     setSubmitting(true);
     const { error } = await createOrg(name.trim(), domain);
+    // Also save the website_url after org is created
+    if (!error) {
+      const { data: orgIdData } = await supabase.rpc('get_user_org_id');
+      if (orgIdData) {
+        await supabase.from('organizations').update({ website_url: website.trim() } as any).eq('id', orgIdData);
+      }
+    }
     setSubmitting(false);
     if (error) {
       if (error.message?.includes('idx_organizations_domain')) {
