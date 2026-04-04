@@ -69,7 +69,15 @@ export default function MfaVerify() {
               inputMode="numeric"
               maxLength={6}
               value={code}
-              onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onChange={e => {
+                const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                setCode(val);
+                if (val.length === 6 && factorId) {
+                  setTimeout(() => {
+                    document.getElementById('mfa-verify-btn')?.click();
+                  }, 0);
+                }
+              }}
               className="flex h-14 w-full rounded-md border border-input bg-background px-3 py-2 text-center text-3xl font-mono tracking-[0.5em] ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               placeholder="000000"
               autoFocus
