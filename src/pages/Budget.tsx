@@ -310,6 +310,21 @@ export default function Budget() {
                     <TableCell className="capitalize">{app.billing_cycle || '—'}</TableCell>
                     <TableCell>{app.license_count ?? '—'}</TableCell>
                     <TableCell>{app.renewal_date ? new Date(app.renewal_date).toLocaleDateString() : '—'}</TableCell>
+                    <TableCell>
+                      {app.hasContract ? (
+                        <div className="flex items-center gap-1">
+                          <Badge variant="default" className="text-xs">Yes</Badge>
+                          {app.contracts.map((c: any) => (
+                            <Button key={c.id} size="icon" variant="ghost" className="h-6 w-6" title={`Download ${c.file_name}`}
+                              onClick={(e) => { e.stopPropagation(); handleDownloadContract(c.file_path, c.file_name); }}>
+                              <Download className="h-3 w-3" />
+                            </Button>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No</span>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
