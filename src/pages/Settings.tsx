@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,11 +6,12 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings as SettingsIcon, Key, Cpu, Building2, UserPlus, Users, Mail, Shield, User, X, Link2, RefreshCw, KeyRound, ShieldOff } from 'lucide-react';
+import { Settings as SettingsIcon, Key, Cpu, Building2, UserPlus, Users, Mail, Shield, User, X, Link2, RefreshCw, KeyRound, ShieldOff, Search, ArrowUpDown } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const PROVIDERS = [
@@ -246,6 +247,9 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
   const [inviteFirstName, setInviteFirstName] = useState('');
   const [inviteLastName, setInviteLastName] = useState('');
   const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
+  const [teamSearch, setTeamSearch] = useState('');
+  const [sortCol, setSortCol] = useState<'name' | 'email' | 'role'>('name');
+  const [sortAsc, setSortAsc] = useState(true);
 
   const { data: members = [] } = useQuery({
     queryKey: ['team-members', orgId],
@@ -273,6 +277,39 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
       return map;
     },
   });
+
+  // Fetch accepted invitations to get first/last name for active members
+  const { data: allInvitations = [] } = useQuery({
+    queryKey: ['all-invitations-names', orgId],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .rpc('get_org_invitations', { _org_id: orgId });
+      if (error) return [];
+      return data || [];
+    },
+  });
+
+  // Map email -> first/last name from invitations
+  const nameByEmail = useMemo(() => {
+    const map: Record<string, { first: string; last: string }> = {};
+    (allInvitations as any[]).forEach((inv: any) => {
+      if (inv.email && (inv.first_name || inv.last_name)) {
+        map[inv.email.toLowerCase()] = { first: inv.first_name || '', last: inv.last_name || '' };
+      }
+    });
+    return map;
+  }, [allInvitations]);
+
+  const getMemberName = (userId: string) => {
+    const email = (memberEmails as Record<string, string>)[userId];
+    if (email) {
+      const inv = nameByEmail[email.toLowerCase()];
+      if (inv && (inv.first || inv.last)) return `${inv.first} ${inv.last}`.trim();
+      return email.split('@')[0];
+    }
+    return userId.slice(0, 8) + '…';
+  };
 
   const { data: invitations = [] } = useQuery({
     queryKey: ['invitations', orgId],
@@ -305,7 +342,6 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
         if (error.code === '23505') throw new Error('An invitation for this email already exists');
         throw error;
       }
-      // Send invitation email
       await supabase.functions.invoke('send-transactional-email', {
         body: {
           templateName: 'team-invitation',
@@ -328,6 +364,7 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
       setInviteFirstName('');
       setInviteLastName('');
       queryClient.invalidateQueries({ queryKey: ['invitations'] });
+      queryClient.invalidateQueries({ queryKey: ['all-invitations-names'] });
     },
     onError: (e: any) => {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
@@ -403,6 +440,53 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
     }
     setActionLoading(prev => ({ ...prev, [`${userId}_${action}`]: false }));
   };
+
+  const toggleSort = (col: 'name' | 'email' | 'role') => {
+    if (sortCol === col) setSortAsc(!sortAsc);
+    else { setSortCol(col); setSortAsc(true); }
+  };
+
+  // Build combined rows for sorting/filtering
+  const allRows = useMemo(() => {
+    const emailMap = memberEmails as Record<string, string>;
+    const memberRows = members.map(m => ({
+      type: 'member' as const,
+      id: m.id,
+      userId: m.user_id,
+      name: getMemberName(m.user_id),
+      email: emailMap[m.user_id] || '—',
+      role: m.role,
+      status: 'Active',
+      createdAt: m.created_at,
+      expiresAt: '',
+    }));
+    const invRows = (invitations as any[]).map((inv: any) => ({
+      type: 'invitation' as const,
+      id: inv.id,
+      userId: '',
+      name: inv.first_name && inv.last_name ? `${inv.first_name} ${inv.last_name}` : '—',
+      email: inv.email,
+      role: inv.role,
+      status: 'Pending',
+      createdAt: inv.created_at,
+      expiresAt: inv.expires_at,
+    }));
+    let rows = [...memberRows, ...invRows];
+    // Filter
+    if (teamSearch) {
+      const q = teamSearch.toLowerCase();
+      rows = rows.filter(r => r.name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q));
+    }
+    // Sort
+    rows.sort((a, b) => {
+      let cmp = 0;
+      if (sortCol === 'name') cmp = a.name.localeCompare(b.name);
+      else if (sortCol === 'email') cmp = a.email.localeCompare(b.email);
+      else if (sortCol === 'role') cmp = a.role.localeCompare(b.role);
+      return sortAsc ? cmp : -cmp;
+    });
+    return rows;
+  }, [members, invitations, memberEmails, nameByEmail, teamSearch, sortCol, sortAsc]);
 
   return (
     <div className="space-y-6">
@@ -482,147 +566,169 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
             Members ({members.length + invitations.length})
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          {/* Column headers */}
-          <div className="grid grid-cols-[2fr_2fr_1fr_1fr_auto] gap-3 px-3 pb-2 border-b mb-2">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</span>
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</span>
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</span>
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Role</span>
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider w-20"></span>
+        <CardContent className="space-y-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by name or email..."
+              value={teamSearch}
+              onChange={e => setTeamSearch(e.target.value)}
+              className="pl-9"
+            />
           </div>
-          <div className="space-y-2">
-            {members.map(member => (
-              <div key={member.id} className="grid grid-cols-[2fr_2fr_1fr_1fr_auto] gap-3 items-center rounded-lg border p-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 flex-shrink-0">
-                    {member.role === 'admin' || member.role === 'platform_admin' ? <Shield className="h-3.5 w-3.5 text-primary" /> : <User className="h-3.5 w-3.5 text-muted-foreground" />}
-                  </div>
-                  <span className="text-sm font-medium truncate">
-                    {(memberEmails as Record<string, string>)[member.user_id]?.split('@')[0] || member.user_id.slice(0, 8) + '…'}
-                  </span>
-                </div>
-                <span className="text-sm text-muted-foreground truncate">{(memberEmails as Record<string, string>)[member.user_id] || '—'}</span>
-                <div>
-                  <Badge variant="secondary" className="text-xs">Active</Badge>
-                  <p className="text-xs text-muted-foreground mt-0.5">Joined {new Date(member.created_at).toLocaleDateString()}</p>
-                </div>
-                <div>
-                  {member.role === 'platform_admin' ? (
-                    <Badge variant="outline" className="opacity-60 cursor-not-allowed">Platform Admin</Badge>
-                  ) : isAdmin ? (
-                    <Select value={member.role} onValueChange={(v) => changeRole.mutate({ roleId: member.id, newRole: v })}>
-                      <SelectTrigger className="w-[110px] h-8">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="member">Member</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge variant={member.role === 'admin' ? 'default' : 'secondary'}>{member.role}</Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-1">
-                  {isAdmin && (
-                    <>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Reset Password">
-                            <KeyRound className="h-3.5 w-3.5" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Reset Password?</AlertDialogTitle>
-                            <AlertDialogDescription>This will send a password reset email to the user.</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              disabled={actionLoading[`${member.user_id}_reset_password`]}
-                              onClick={() => adminAction(member.user_id, 'reset_password')}
-                            >
-                              {actionLoading[`${member.user_id}_reset_password`] ? 'Sending...' : 'Send Reset Email'}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Reset 2FA">
-                            <ShieldOff className="h-3.5 w-3.5" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Reset Two-Factor Authentication?</AlertDialogTitle>
-                            <AlertDialogDescription>This will remove all MFA factors for this user. They will need to set up 2FA again on their next login.</AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              disabled={actionLoading[`${member.user_id}_reset_mfa`]}
-                              onClick={() => adminAction(member.user_id, 'reset_mfa')}
-                            >
-                              {actionLoading[`${member.user_id}_reset_mfa`] ? 'Resetting...' : 'Reset 2FA'}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </>
-                  )}
-                  {isAdmin && member.role !== 'admin' && member.role !== 'platform_admin' && (
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeMember.mutate(member.id)}>
-                      <X className="h-3.5 w-3.5" />
+          <div className="rounded-md border overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[25%]">
+                    <Button variant="ghost" size="sm" className="gap-1 -ml-3" onClick={() => toggleSort('name')}>
+                      Name <ArrowUpDown className="h-3 w-3" />
                     </Button>
-                  )}
-                </div>
-              </div>
-            ))}
-            {/* Pending invitations */}
-            {invitations.map((inv: any) => (
-              <div key={inv.id} className="grid grid-cols-[2fr_2fr_1fr_1fr_auto] gap-3 items-center rounded-lg border border-dashed p-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-muted flex-shrink-0">
-                    <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                  <span className="text-sm font-medium truncate">
-                    {inv.first_name && inv.last_name ? `${inv.first_name} ${inv.last_name}` : '—'}
-                  </span>
-                </div>
-                <span className="text-sm text-muted-foreground truncate">{inv.email}</span>
-                <div>
-                  <Badge variant="outline" className="text-xs">Pending</Badge>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Expires {new Date(inv.expires_at).toLocaleDateString()}
-                  </p>
-                </div>
-                <div>
-                  {isAdmin ? (
-                    <Select value={inv.role} onValueChange={(v) => changeInviteRole.mutate({ invId: inv.id, newRole: v })}>
-                      <SelectTrigger className="w-[110px] h-8">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="member">Member</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge variant="outline">{inv.role}</Badge>
-                  )}
-                </div>
-                <div>
-                  {isAdmin && (
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => cancelInvite.mutate(inv.id)}>
-                      <X className="h-3.5 w-3.5" />
+                  </TableHead>
+                  <TableHead className="w-[30%]">
+                    <Button variant="ghost" size="sm" className="gap-1 -ml-3" onClick={() => toggleSort('email')}>
+                      Email <ArrowUpDown className="h-3 w-3" />
                     </Button>
-                  )}
-                </div>
-              </div>
-            ))}
+                  </TableHead>
+                  <TableHead className="w-[12%]">Status</TableHead>
+                  <TableHead className="w-[15%]">
+                    <Button variant="ghost" size="sm" className="gap-1 -ml-3" onClick={() => toggleSort('role')}>
+                      Role <ArrowUpDown className="h-3 w-3" />
+                    </Button>
+                  </TableHead>
+                  <TableHead className="w-[18%]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {allRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                      {teamSearch ? 'No members match your search.' : 'No team members yet.'}
+                    </TableCell>
+                  </TableRow>
+                ) : allRows.map(row => (
+                  <TableRow key={row.id} className={row.type === 'invitation' ? 'border-dashed' : ''}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 flex-shrink-0">
+                          {row.type === 'invitation' ? (
+                            <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                          ) : row.role === 'admin' || row.role === 'platform_admin' ? (
+                            <Shield className="h-3.5 w-3.5 text-primary" />
+                          ) : (
+                            <User className="h-3.5 w-3.5 text-muted-foreground" />
+                          )}
+                        </div>
+                        <span className="text-sm font-medium truncate">{row.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground truncate">{row.email}</span>
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <Badge variant={row.status === 'Active' ? 'secondary' : 'outline'} className="text-xs">{row.status}</Badge>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {row.status === 'Active'
+                            ? `Joined ${new Date(row.createdAt).toLocaleDateString()}`
+                            : `Expires ${new Date(row.expiresAt).toLocaleDateString()}`
+                          }
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {row.role === 'platform_admin' ? (
+                        <Badge variant="outline" className="opacity-60 cursor-not-allowed">Platform Admin</Badge>
+                      ) : row.type === 'member' && isAdmin ? (
+                        <Select value={row.role} onValueChange={(v) => changeRole.mutate({ roleId: row.id, newRole: v })}>
+                          <SelectTrigger className="w-[110px] h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="member">Member</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : row.type === 'invitation' && isAdmin ? (
+                        <Select value={row.role} onValueChange={(v) => changeInviteRole.mutate({ invId: row.id, newRole: v })}>
+                          <SelectTrigger className="w-[110px] h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="member">Member</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Badge variant={row.role === 'admin' ? 'default' : 'secondary'}>{row.role}</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        {isAdmin && row.type === 'member' && row.role !== 'platform_admin' && (
+                          <>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" title="Reset Password">
+                                  <KeyRound className="h-3.5 w-3.5" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Reset Password?</AlertDialogTitle>
+                                  <AlertDialogDescription>This will send a password reset email to the user.</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    disabled={actionLoading[`${row.userId}_reset_password`]}
+                                    onClick={() => adminAction(row.userId, 'reset_password')}
+                                  >
+                                    {actionLoading[`${row.userId}_reset_password`] ? 'Sending...' : 'Send Reset Email'}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7" title="Reset 2FA">
+                                  <ShieldOff className="h-3.5 w-3.5" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Reset Two-Factor Authentication?</AlertDialogTitle>
+                                  <AlertDialogDescription>This will remove all MFA factors for this user. They will need to set up 2FA again on their next login.</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    disabled={actionLoading[`${row.userId}_reset_mfa`]}
+                                    onClick={() => adminAction(row.userId, 'reset_mfa')}
+                                  >
+                                    {actionLoading[`${row.userId}_reset_mfa`] ? 'Resetting...' : 'Reset 2FA'}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </>
+                        )}
+                        {isAdmin && row.type === 'member' && row.role !== 'admin' && row.role !== 'platform_admin' && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeMember.mutate(row.id)}>
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {isAdmin && row.type === 'invitation' && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => cancelInvite.mutate(row.id)}>
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>

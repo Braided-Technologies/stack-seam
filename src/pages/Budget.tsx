@@ -11,7 +11,7 @@ import { useUserApplications, useUpdateUserApplication } from '@/hooks/useStackD
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { DollarSign, TrendingUp, CalendarClock, FileText, ArrowUpDown, Download } from 'lucide-react';
+import { DollarSign, TrendingUp, FileText, ArrowUpDown, Download, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -37,6 +37,8 @@ export default function Budget() {
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortAsc, setSortAsc] = useState(true);
   const [editingApp, setEditingApp] = useState<any>(null);
+  const [appSearch, setAppSearch] = useState('');
+
 
   const { data: allContracts = [] } = useQuery({
     queryKey: ['all_contract_files', orgId],
@@ -111,6 +113,12 @@ export default function Budget() {
     });
     return items;
   }, [userApps, sortKey, sortAsc]);
+
+  const filteredApps = useMemo(() => {
+    if (!appSearch) return sortedApps;
+    const q = appSearch.toLowerCase();
+    return sortedApps.filter(a => a.name.toLowerCase().includes(q) || a.category.toLowerCase().includes(q));
+  }, [sortedApps, appSearch]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc(!sortAsc);
@@ -234,7 +242,16 @@ export default function Budget() {
             Application Spend
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search applications..."
+              value={appSearch}
+              onChange={e => setAppSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
           <div className="rounded-md border overflow-auto">
             <Table>
               <TableHeader>
@@ -265,13 +282,13 @@ export default function Budget() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedApps.length === 0 ? (
+                {filteredApps.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                      No applications with cost data yet. Add costs in My Stack.
+                      {appSearch ? 'No applications match your search.' : 'No applications with cost data yet. Add costs in My Stack.'}
                     </TableCell>
                   </TableRow>
-                ) : sortedApps.map(app => (
+                ) : filteredApps.map(app => (
                   <TableRow key={app.id} className="cursor-pointer hover:bg-accent/50" onClick={() => openAppEdit(app)}>
                     <TableCell className="font-medium">{app.name}</TableCell>
                     <TableCell><Badge variant="secondary" className="text-xs">{app.category}</Badge></TableCell>

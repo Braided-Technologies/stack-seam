@@ -21,14 +21,21 @@ interface AppIntegrationsPanelProps {
   appName: string;
   appId: string;
   integrations: Integration[];
+  userAppIds?: string[];
 }
 
-export default function AppIntegrationsPanel({ open, onClose, appName, appId, integrations }: AppIntegrationsPanelProps) {
+export default function AppIntegrationsPanel({ open, onClose, appName, appId, integrations, userAppIds }: AppIntegrationsPanelProps) {
   const navigate = useNavigate();
 
-  const appIntegrations = integrations.filter(
-    i => i.source?.id === appId || i.target?.id === appId
-  );
+  const appIntegrations = integrations.filter(i => {
+    const matches = i.source?.id === appId || i.target?.id === appId;
+    if (!matches) return false;
+    // If userAppIds provided, only show integrations where both apps are in stack
+    if (userAppIds) {
+      return userAppIds.includes(i.source?.id || '') && userAppIds.includes(i.target?.id || '');
+    }
+    return true;
+  });
 
   const grouped = appIntegrations.map(i => {
     const otherApp = i.source?.id === appId ? i.target : i.source;
