@@ -62,7 +62,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         )}
       >
         <div className={cn('flex items-center gap-2 border-b px-4 py-4', !isExpanded && 'justify-center px-2')}>
-          <img src={stackseamLogo} alt="StackSeam" className={cn('flex-shrink-0 object-contain', isExpanded ? 'h-8' : 'h-8 w-8')} style={isExpanded ? {} : { objectPosition: 'left' }} />
+          <img src={stackseamIcon} alt="StackSeam" className="flex-shrink-0 h-8 w-8" />
           {isExpanded && <span className="font-display font-bold whitespace-nowrap">StackSeam</span>}
         </div>
 
