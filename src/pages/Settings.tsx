@@ -242,6 +242,8 @@ function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteFirstName, setInviteFirstName] = useState('');
+  const [inviteLastName, setInviteLastName] = useState('');
   const [inviteRole, setInviteRole] = useState<'admin' | 'member'>('member');
 
   const { data: members = [] } = useQuery({
@@ -273,21 +275,27 @@ function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
     mutationFn: async () => {
       const trimmed = inviteEmail.trim().toLowerCase();
       if (!trimmed) throw new Error('Email is required');
+      if (!inviteFirstName.trim()) throw new Error('First name is required');
+      if (!inviteLastName.trim()) throw new Error('Last name is required');
       const { data: { user } } = await supabase.auth.getUser();
       const { error } = await supabase.from('invitations').insert({
         organization_id: orgId,
         email: trimmed,
         role: inviteRole,
         invited_by: user!.id,
-      });
+        first_name: inviteFirstName.trim(),
+        last_name: inviteLastName.trim(),
+      } as any);
       if (error) {
         if (error.code === '23505') throw new Error('An invitation for this email already exists');
         throw error;
       }
     },
     onSuccess: () => {
-      toast({ title: 'Invitation sent', description: `Invited ${inviteEmail} as ${inviteRole}` });
+      toast({ title: 'Invitation sent', description: `Invited ${inviteFirstName} ${inviteLastName} (${inviteEmail}) as ${inviteRole}` });
       setInviteEmail('');
+      setInviteFirstName('');
+      setInviteLastName('');
       queryClient.invalidateQueries({ queryKey: ['invitations'] });
     },
     onError: (e: any) => {
@@ -334,6 +342,20 @@ function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
     },
   });
 
+  const changeInviteRole = useMutation({
+    mutationFn: async ({ invId, newRole }: { invId: string; newRole: string }) => {
+      const { error } = await supabase.from('invitations').update({ role: newRole } as any).eq('id', invId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: 'Invitation role updated' });
+      queryClient.invalidateQueries({ queryKey: ['invitations'] });
+    },
+    onError: (e: any) => {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    },
+  });
+
   return (
     <div className="space-y-6">
       {isAdmin && (
@@ -348,31 +370,58 @@ function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="invite-email" className="sr-only">Email</Label>
-                <Input
-                  id="invite-email"
-                  type="email"
-                  placeholder="colleague@company.com"
-                  value={inviteEmail}
-                  onChange={e => setInviteEmail(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && sendInvite.mutate()}
-                />
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="invite-first">First Name</Label>
+                  <Input
+                    id="invite-first"
+                    placeholder="John"
+                    value={inviteFirstName}
+                    onChange={e => setInviteFirstName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="invite-last">Last Name</Label>
+                  <Input
+                    id="invite-last"
+                    placeholder="Doe"
+                    value={inviteLastName}
+                    onChange={e => setInviteLastName(e.target.value)}
+                  />
+                </div>
               </div>
-              <Select value={inviteRole} onValueChange={(v: 'admin' | 'member') => setInviteRole(v)}>
-                <SelectTrigger className="w-full sm:w-[130px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="member">Member</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button onClick={() => sendInvite.mutate()} disabled={sendInvite.isPending}>
-                <Mail className="h-4 w-4 mr-1" />
-                Invite
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="invite-email">Email</Label>
+                  <Input
+                    id="invite-email"
+                    type="email"
+                    placeholder="colleague@company.com"
+                    value={inviteEmail}
+                    onChange={e => setInviteEmail(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && sendInvite.mutate()}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Role</Label>
+                  <Select value={inviteRole} onValueChange={(v: 'admin' | 'member') => setInviteRole(v)}>
+                    <SelectTrigger className="w-full sm:w-[130px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-end">
+                  <Button onClick={() => sendInvite.mutate()} disabled={sendInvite.isPending || !inviteFirstName.trim() || !inviteLastName.trim() || !inviteEmail.trim()}>
+                    <Mail className="h-4 w-4 mr-1" />
+                    Invite
+                  </Button>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -385,65 +434,96 @@ function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
             Members ({members.length + invitations.length})
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {members.map(member => (
-            <div key={member.id} className="flex items-center justify-between rounded-lg border p-3">
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                  {member.role === 'admin' ? <Shield className="h-4 w-4 text-primary" /> : <User className="h-4 w-4 text-muted-foreground" />}
+        <CardContent>
+          {/* Column headers */}
+          <div className="grid grid-cols-[1fr_1fr_1fr_auto_auto] gap-3 px-3 pb-2 border-b mb-2">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Role</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider w-8"></span>
+          </div>
+          <div className="space-y-2">
+            {members.map(member => (
+              <div key={member.id} className="grid grid-cols-[1fr_1fr_1fr_auto_auto] gap-3 items-center rounded-lg border p-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 flex-shrink-0">
+                    {member.role === 'admin' ? <Shield className="h-3.5 w-3.5 text-primary" /> : <User className="h-3.5 w-3.5 text-muted-foreground" />}
+                  </div>
+                  <span className="text-sm font-medium truncate">{member.user_id.slice(0, 8)}…</span>
+                </div>
+                <span className="text-sm text-muted-foreground truncate">—</span>
+                <div>
+                  <Badge variant="secondary" className="text-xs">Active</Badge>
+                  <p className="text-xs text-muted-foreground mt-0.5">Joined {new Date(member.created_at).toLocaleDateString()}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium">{member.user_id.slice(0, 8)}…</p>
-                  <p className="text-xs text-muted-foreground">Joined {new Date(member.created_at).toLocaleDateString()}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {isAdmin ? (
-                  <Select value={member.role} onValueChange={(v) => changeRole.mutate({ roleId: member.id, newRole: v })}>
-                    <SelectTrigger className="w-[110px] h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="member">Member</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Badge variant={member.role === 'admin' ? 'default' : 'secondary'}>{member.role}</Badge>
-                )}
-                {isAdmin && member.role !== 'admin' && (
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeMember.mutate(member.id)}>
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
-          {/* Pending invitations inline */}
-          {invitations.map(inv => (
-            <div key={inv.id} className="flex items-center justify-between rounded-lg border border-dashed p-3">
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  {isAdmin ? (
+                    <Select value={member.role} onValueChange={(v) => changeRole.mutate({ roleId: member.id, newRole: v })}>
+                      <SelectTrigger className="w-[110px] h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="member">Member</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge variant={member.role === 'admin' ? 'default' : 'secondary'}>{member.role}</Badge>
+                  )}
                 </div>
                 <div>
-                  <p className="text-sm font-medium">{inv.email}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Invited {new Date(inv.created_at).toLocaleDateString()} · Expires {new Date(inv.expires_at).toLocaleDateString()}
+                  {isAdmin && member.role !== 'admin' && (
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeMember.mutate(member.id)}>
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {/* Pending invitations */}
+            {invitations.map((inv: any) => (
+              <div key={inv.id} className="grid grid-cols-[1fr_1fr_1fr_auto_auto] gap-3 items-center rounded-lg border border-dashed p-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-muted flex-shrink-0">
+                    <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
+                  <span className="text-sm font-medium truncate">
+                    {inv.first_name && inv.last_name ? `${inv.first_name} ${inv.last_name}` : '—'}
+                  </span>
+                </div>
+                <span className="text-sm text-muted-foreground truncate">{inv.email}</span>
+                <div>
+                  <Badge variant="outline" className="text-xs">Pending</Badge>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Expires {new Date(inv.expires_at).toLocaleDateString()}
                   </p>
                 </div>
+                <div>
+                  {isAdmin ? (
+                    <Select value={inv.role} onValueChange={(v) => changeInviteRole.mutate({ invId: inv.id, newRole: v })}>
+                      <SelectTrigger className="w-[110px] h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="member">Member</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge variant="outline">{inv.role}</Badge>
+                  )}
+                </div>
+                <div>
+                  {isAdmin && (
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => cancelInvite.mutate(inv.id)}>
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">{inv.role}</Badge>
-                <Badge variant="secondary" className="text-xs">Pending</Badge>
-                {isAdmin && (
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => cancelInvite.mutate(inv.id)}>
-                    <X className="h-3.5 w-3.5" />
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </CardContent>
       </Card>
     </div>
