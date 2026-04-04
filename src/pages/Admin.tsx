@@ -45,6 +45,8 @@ type FeedbackItem = {
 type OrgItem = {
   id: string;
   name: string;
+  domain: string | null;
+  website_url: string | null;
   created_at: string;
   user_count: number;
 };
