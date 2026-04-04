@@ -778,7 +778,7 @@ export default function Settings() {
       const { error } = await supabase.from('organizations').update({ name: companyName.trim() }).eq('id', orgId);
       if (error) throw error;
       await refreshOrg();
-      toast({ title: 'Company name updated' });
+      toast({ title: 'Organization name updated' });
     } catch (e: any) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
     }

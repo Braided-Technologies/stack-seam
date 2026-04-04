@@ -5,12 +5,16 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUserApplications } from '@/hooks/useStackData';
-import { Send, Bot, User, Sparkles } from 'lucide-react';
+import { Send, Bot, User, Sparkles, RotateCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { supabase } from '@/integrations/supabase/client';
 
 type Msg = { role: 'user' | 'assistant'; content: string };
+
+const SESSION_KEY = 'research-chat-messages';
+const SESSION_MODEL_KEY = 'research-chat-model';
 
 const SUGGESTED_PROMPTS = [
   "Compare top RMM tools for a 20-person MSP",
@@ -27,11 +31,23 @@ const AI_MODELS = [
   { value: 'openai/gpt-5', label: 'GPT-5', description: 'Most capable, best accuracy' },
 ];
 
+function loadSessionMessages(): Msg[] {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [];
+}
+
+function saveSessionMessages(msgs: Msg[]) {
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(msgs)); } catch {}
+}
+
 export default function Research() {
-  const [messages, setMessages] = useState<Msg[]>([]);
+  const [messages, setMessages] = useState<Msg[]>(loadSessionMessages);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('google/gemini-3-flash-preview');
+  const [selectedModel, setSelectedModel] = useState(() => sessionStorage.getItem(SESSION_MODEL_KEY) || 'google/gemini-3-flash-preview');
   const scrollRef = useRef<HTMLDivElement>(null);
   const { data: userApps } = useUserApplications();
   const { toast } = useToast();
@@ -43,6 +59,22 @@ export default function Research() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Persist messages to sessionStorage
+  useEffect(() => {
+    saveSessionMessages(messages);
+  }, [messages]);
+
+  // Persist model selection
+  useEffect(() => {
+    sessionStorage.setItem(SESSION_MODEL_KEY, selectedModel);
+  }, [selectedModel]);
+
+  const resetChat = () => {
+    setMessages([]);
+    setInput('');
+    sessionStorage.removeItem(SESSION_KEY);
+  };
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
@@ -135,6 +167,12 @@ export default function Research() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {messages.length > 0 && (
+              <Button variant="outline" size="sm" onClick={resetChat} className="gap-1">
+                <RotateCcw className="h-3.5 w-3.5" />
+                New Chat
+              </Button>
+            )}
             <span className="text-xs text-muted-foreground">Model:</span>
             <Select value={selectedModel} onValueChange={setSelectedModel}>
               <SelectTrigger className="w-48 h-8 text-xs">
@@ -189,8 +227,8 @@ export default function Research() {
                     : 'bg-muted'
                 }`}>
                   {msg.role === 'assistant' ? (
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <div className="prose prose-sm dark:prose-invert max-w-none [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:px-3 [&_th]:py-1.5 [&_th]:bg-muted [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-1.5">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                     </div>
                   ) : (
                     <p className="text-sm">{msg.content}</p>

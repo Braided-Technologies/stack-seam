@@ -98,11 +98,11 @@ Deno.serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a contract data extraction assistant. Extract structured data from contract text. Return ONLY the tool call, no other text.`,
+            content: `You are a contract data extraction assistant. Extract structured data from contract/invoice text. The document may contain multiple line items or products from the same vendor. Extract each line item separately. Return ONLY the tool call, no other text.`,
           },
           {
             role: "user",
-            content: `Extract the following fields from this contract document. If a field is not found, use null.\n\nDocument text:\n${truncatedText}`,
+            content: `Extract the following fields from this contract/invoice document. If a field is not found, use null. Also extract individual line items if the document contains multiple products or services.\n\nDocument text:\n${truncatedText}`,
           },
         ],
         tools: [
@@ -110,18 +110,32 @@ Deno.serve(async (req) => {
             type: "function",
             function: {
               name: "extract_contract_data",
-              description: "Extract structured contract data",
+              description: "Extract structured contract data including individual line items",
               parameters: {
                 type: "object",
                 properties: {
                   vendor_name: { type: "string", description: "The vendor or provider company name" },
-                  cost_monthly: { type: "number", description: "Monthly cost in USD, or null" },
-                  cost_annual: { type: "number", description: "Annual cost in USD, or null" },
+                  cost_monthly: { type: "number", description: "Total monthly cost in USD, or null" },
+                  cost_annual: { type: "number", description: "Total annual cost in USD, or null" },
                   renewal_date: { type: "string", description: "Renewal or expiration date in YYYY-MM-DD format, or null" },
                   term_months: { type: "integer", description: "Contract term in months, or null" },
                   billing_cycle: { type: "string", enum: ["monthly", "annual", "quarterly", "multi-year"], description: "Billing cycle" },
-                  license_count: { type: "integer", description: "Number of licenses/seats, or null" },
+                  license_count: { type: "integer", description: "Total number of licenses/seats, or null" },
                   notes: { type: "string", description: "Brief summary of key contract terms" },
+                  line_items: {
+                    type: "array",
+                    description: "Individual products or services listed in the document",
+                    items: {
+                      type: "object",
+                      properties: {
+                        name: { type: "string", description: "Product or service name" },
+                        monthly_cost: { type: "number", description: "Monthly cost for this item, or null" },
+                        annual_cost: { type: "number", description: "Annual cost for this item, or null" },
+                        description: { type: "string", description: "Brief description of this line item" },
+                      },
+                      required: ["name"],
+                    },
+                  },
                 },
                 required: ["vendor_name"],
                 additionalProperties: false,
