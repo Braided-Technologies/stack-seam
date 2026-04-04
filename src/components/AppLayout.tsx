@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { LayoutDashboard, Layers, Map, LogOut, Building2, Moon, Sun, Sparkles, Settings, Link2, ChevronsLeft, ChevronsRight, ShieldCheck, DollarSign, LifeBuoy } from 'lucide-react';
 import HelpChatPanel from '@/components/HelpChatPanel';
-import stackseamLogo from '@/assets/stackseam-logo.png';
+import stackseamIcon from '@/assets/stackseam-icon.svg';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
