@@ -3,8 +3,9 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Layers, Map, LogOut, Building2, Moon, Sun, Sparkles, Settings, Link2, ChevronsLeft, ChevronsRight, ShieldCheck, DollarSign } from 'lucide-react';
+import { LayoutDashboard, Layers, Map, LogOut, Building2, Moon, Sun, Sparkles, Settings, Link2, ChevronsLeft, ChevronsRight, ShieldCheck, DollarSign, HelpCircle } from 'lucide-react';
 import FeedbackDialog from '@/components/FeedbackDialog';
+import HelpChatPanel from '@/components/HelpChatPanel';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -13,6 +14,7 @@ const navItems = [
   { to: '/integrations', icon: Link2, label: 'Integrations' },
   { to: '/budget', icon: DollarSign, label: 'Budget' },
   { to: '/research', icon: Sparkles, label: 'Research' },
+  { to: '/help', icon: HelpCircle, label: 'Help Center' },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -165,6 +167,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <main className="flex-1 overflow-auto">
         {children}
       </main>
+      <HelpChatPanel />
     </div>
   );
 }
