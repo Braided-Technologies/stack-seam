@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { useIntegrations, useUserApplications } from '@/hooks/useStackData';
+import { useIntegrations, useUserApplications, useDiscoverIntegrations } from '@/hooks/useStackData';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from '@/hooks/use-toast';
 import { CATEGORY_GROUPS } from '@/lib/categoryGroups';
-import { Search, ExternalLink, Filter, Link2, CheckCircle2, Circle, Map as MapIcon, ChevronDown, ChevronRight, EyeOff, SkipForward, ChevronsDownUp, ChevronsUpDown, Plus } from 'lucide-react';
+import { Search, ExternalLink, Filter, Link2, CheckCircle2, Circle, Map as MapIcon, ChevronDown, ChevronRight, EyeOff, SkipForward, ChevronsDownUp, ChevronsUpDown, Plus, Zap, Loader2 } from 'lucide-react';
 
 type StatusFilter = 'all' | 'configured' | 'pending' | 'skipped' | 'hidden';
 
