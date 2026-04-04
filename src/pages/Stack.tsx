@@ -118,6 +118,8 @@ export default function Stack() {
         notes: editingApp.notes || null,
       });
       toast({ title: 'Details saved' });
+      setInfoApp(null);
+      setEditingApp(null);
     } catch (e: any) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
     }
@@ -492,7 +494,7 @@ export default function Stack() {
                             }
                             try {
                               const result = await discoverIntegrations.mutateAsync(allNames);
-                              toast({ title: `Found ${result.discovered || 0} integrations` });
+                              toast({ title: `Found ${result.saved || 0} new integrations`, description: result.discovered > result.saved ? `${result.discovered - result.saved} already existed or were filtered.` : undefined });
                             } catch (e: any) {
                               toast({ title: 'Discovery failed', description: e.message, variant: 'destructive' });
                             }
@@ -560,7 +562,7 @@ export default function Stack() {
                             : [infoApp.name, ...stackNames];
                           try {
                             const result = await discoverIntegrations.mutateAsync(allNames);
-                            toast({ title: `Found ${result.discovered || 0} integrations` });
+                            toast({ title: `Found ${result.saved || 0} new integrations`, description: result.discovered > result.saved ? `${result.discovered - result.saved} already existed or were filtered.` : undefined });
                           } catch (e: any) {
                             toast({ title: 'Discovery failed', description: e.message, variant: 'destructive' });
                           }

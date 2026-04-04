@@ -73,18 +73,20 @@ export default function Budget() {
     }).length;
   }, [userApps]);
 
+  const [spendView, setSpendView] = useState<'monthly' | 'annual'>('monthly');
+
   const categorySpend = useMemo(() => {
     const map = new Map<string, number>();
     for (const ua of userApps) {
       const cat = (ua.applications as any)?.categories?.name || 'Uncategorized';
-      const cost = Number(ua.cost_monthly) || 0;
+      const cost = spendView === 'monthly' ? (Number(ua.cost_monthly) || 0) : (Number(ua.cost_annual) || 0);
       map.set(cat, (map.get(cat) || 0) + cost);
     }
     return Array.from(map.entries())
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
-  }, [userApps]);
+  }, [userApps, spendView]);
 
   // Map user_application_id -> has contract
   const contractByUaId = useMemo(() => {
@@ -151,6 +153,7 @@ export default function Budget() {
         notes: editingApp.notes || null,
       });
       toast({ title: 'Details saved' });
+      setEditingApp(null);
     } catch (e: any) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
     }
@@ -223,10 +226,30 @@ export default function Budget() {
       {categorySpend.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <TrendingUp className="h-5 w-5" />
-              Monthly Spend by Category
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <TrendingUp className="h-5 w-5" />
+                {spendView === 'monthly' ? 'Monthly' : 'Annual'} Spend by Category
+              </CardTitle>
+              <div className="flex items-center gap-1 rounded-lg border p-0.5">
+                <Button
+                  size="sm"
+                  variant={spendView === 'monthly' ? 'default' : 'ghost'}
+                  className="h-7 text-xs px-3"
+                  onClick={() => setSpendView('monthly')}
+                >
+                  Monthly
+                </Button>
+                <Button
+                  size="sm"
+                  variant={spendView === 'annual' ? 'default' : 'ghost'}
+                  className="h-7 text-xs px-3"
+                  onClick={() => setSpendView('annual')}
+                >
+                  Annual
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -234,7 +257,17 @@ export default function Budget() {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis type="number" tickFormatter={v => fmt(v)} className="text-xs" />
                 <YAxis type="category" dataKey="name" width={140} className="text-xs" />
-                <Tooltip formatter={(v: number) => fmt(v)} />
+                <Tooltip
+                  formatter={(v: number) => fmt(v)}
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--card))',
+                    borderColor: 'hsl(var(--border))',
+                    color: 'hsl(var(--foreground))',
+                    borderRadius: '8px',
+                  }}
+                  labelStyle={{ color: 'hsl(var(--foreground))' }}
+                  itemStyle={{ color: 'hsl(var(--foreground))' }}
+                />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                   {categorySpend.map((_, i) => (
                     <Cell key={i} fill={COLORS[i % COLORS.length]} />
