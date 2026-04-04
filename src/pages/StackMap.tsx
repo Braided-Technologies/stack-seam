@@ -21,8 +21,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from '@/hooks/use-toast';
-import { ExternalLink, Sparkles, RefreshCw, LayoutGrid, Eye } from 'lucide-react';
+import { ExternalLink, Sparkles, RefreshCw, LayoutGrid, Eye, ChevronDown, ChevronRight } from 'lucide-react';
 import AppIntegrationsPanel from '@/components/AppIntegrationsPanel';
 
 // Map each category to its group
