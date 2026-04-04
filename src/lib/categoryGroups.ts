@@ -18,7 +18,7 @@ export const CATEGORY_GROUPS: { label: string; categories: string[] }[] = [
   },
   {
     label: 'Productivity & Communication',
-    categories: ['Email & Collaboration', 'Communication', 'Client Portal', 'AI & LLMs', 'Social Media'],
+    categories: ['Email & Collaboration', 'Communication', 'Client Portal', 'AI & LLMs', 'Social Media', 'Design & Creative'],
   },
   {
     label: 'Strategy',
