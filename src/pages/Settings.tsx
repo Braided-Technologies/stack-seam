@@ -557,7 +557,7 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
                       </AlertDialog>
                     </>
                   )}
-                  {isAdmin && member.role !== 'admin' && (
+                  {isAdmin && member.role !== 'admin' && member.role !== 'platform_admin' && (
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeMember.mutate(member.id)}>
                       <X className="h-3.5 w-3.5" />
                     </Button>
