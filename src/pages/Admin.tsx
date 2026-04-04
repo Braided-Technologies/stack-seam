@@ -111,9 +111,19 @@ export default function Admin() {
     const orgNameMap: Record<string, string> = {};
     orgData.forEach(o => { orgNameMap[o.id] = o.name; });
 
+    // Fetch user emails for feedback submitters
+    const feedbackUserIds = [...new Set(fb.map(f => f.user_id))];
+    let emailMap: Record<string, string> = {};
+    if (feedbackUserIds.length > 0) {
+      const { data: emailData } = await supabase.rpc('get_feedback_user_emails' as any, { _user_ids: feedbackUserIds });
+      if (Array.isArray(emailData)) {
+        emailData.forEach((e: any) => { emailMap[e.user_id] = e.email; });
+      }
+    }
+
     setFeedback(fb.map(f => ({
       ...f,
-      user_email: f.user_id.substring(0, 8) + '...',
+      user_email: emailMap[f.user_id] || f.user_id.substring(0, 8) + '...',
       org_name: f.organization_id ? orgNameMap[f.organization_id] || 'Unknown' : undefined,
     })));
 
