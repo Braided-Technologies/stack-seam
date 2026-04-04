@@ -18,6 +18,7 @@ import Budget from "./pages/Budget";
 import Admin from "./pages/Admin";
 import Support from "./pages/Support";
 import AppLayout from "./components/AppLayout";
+import Unsubscribe from "./pages/Unsubscribe";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -51,6 +52,7 @@ const AppRoutes = () => (
     <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
     <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
     <Route path="/help" element={<Navigate to="/support" replace />} />
+    <Route path="/unsubscribe" element={<Unsubscribe />} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );

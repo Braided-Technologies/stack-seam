@@ -239,7 +239,7 @@ function ConnectorsSection() {
   );
 }
 
-function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
+function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: boolean; orgName?: string }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [inviteEmail, setInviteEmail] = useState('');
@@ -291,6 +291,22 @@ function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
         if (error.code === '23505') throw new Error('An invitation for this email already exists');
         throw error;
       }
+      // Send invitation email
+      await supabase.functions.invoke('send-transactional-email', {
+        body: {
+          templateName: 'team-invitation',
+          recipientEmail: trimmed,
+          idempotencyKey: `invite-${trimmed}-${orgId}-${Date.now()}`,
+          templateData: {
+            firstName: inviteFirstName.trim(),
+            lastName: inviteLastName.trim(),
+            orgName: orgName || 'your organization',
+            role: inviteRole,
+            invitedByEmail: user!.email,
+            signupUrl: `${window.location.origin}/auth`,
+          },
+        },
+      });
     },
     onSuccess: () => {
       toast({ title: 'Invitation sent', description: `Invited ${inviteFirstName} ${inviteLastName} (${inviteEmail}) as ${inviteRole}` });
@@ -764,7 +780,7 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="team" className="mt-4">
-          {orgId && <TeamSection orgId={orgId} isAdmin={isAdmin} />}
+          {orgId && <TeamSection orgId={orgId} isAdmin={isAdmin} orgName={orgName} />}
         </TabsContent>
       </Tabs>
     </div>
