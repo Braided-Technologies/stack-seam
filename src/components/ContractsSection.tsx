@@ -3,6 +3,8 @@ import { useContractFiles, useUploadContract, useDeleteContractFile } from '@/ho
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { Upload, FileText, Trash2, Download, ScanSearch, Loader2, Check } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
