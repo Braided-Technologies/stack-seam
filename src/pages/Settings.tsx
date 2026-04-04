@@ -843,7 +843,7 @@ export default function Settings() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Company Name</Label>
+                <Label>Organization Name</Label>
                 <Input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="e.g. Acme MSP" maxLength={100} />
               </div>
               <Button onClick={handleSaveOrg} disabled={savingOrg || !companyName.trim() || companyName.trim() === orgName}>
