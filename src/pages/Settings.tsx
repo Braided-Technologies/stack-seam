@@ -583,7 +583,7 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
             ))}
             {/* Pending invitations */}
             {invitations.map((inv: any) => (
-              <div key={inv.id} className="grid grid-cols-[1fr_1fr_1fr_auto_auto] gap-3 items-center rounded-lg border border-dashed p-3">
+              <div key={inv.id} className="grid grid-cols-[2fr_2fr_1fr_1fr_auto] gap-3 items-center rounded-lg border border-dashed p-3">
                 <div className="flex items-center gap-2">
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-muted flex-shrink-0">
                     <Mail className="h-3.5 w-3.5 text-muted-foreground" />
