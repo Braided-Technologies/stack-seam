@@ -874,14 +874,34 @@ export default function Settings() {
                 <Label>Website URL</Label>
                 <Input value={orgUrl} onChange={e => setOrgUrl(e.target.value)} placeholder="e.g. https://acme.com" />
               </div>
-              {orgDomain && (
-                <div className="space-y-2">
-                  <Label>Domain</Label>
-                  <Input value={orgDomain} disabled className="opacity-60" />
-                  <p className="text-xs text-muted-foreground">Domain is set during organization creation and used to prevent duplicates.</p>
+              {orgUrl && (
+                <div className="flex items-start gap-2 rounded-md border p-3">
+                  <Checkbox
+                    id="enforce-domain"
+                    checked={enforceDomain}
+                    onCheckedChange={(checked) => setEnforceDomain(!!checked)}
+                  />
+                  <div className="space-y-1">
+                    <label htmlFor="enforce-domain" className="text-sm font-medium cursor-pointer flex items-center gap-1.5">
+                      <Globe className="h-3.5 w-3.5" />
+                      Require company domain email
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      When enabled, team invitations will only be accepted from emails matching your company domain
+                      ({(() => { try { return new URL(orgUrl).hostname.replace(/^www\./, ''); } catch { return 'your domain'; } })()}).
+                    </p>
+                  </div>
                 </div>
               )}
-              <Button onClick={handleSaveOrg} disabled={savingOrg || !companyName.trim()}>
+              <Button onClick={async () => {
+                await handleSaveOrg();
+                if (orgId) {
+                  await supabase.from('org_settings').upsert(
+                    { organization_id: orgId, setting_key: 'enforce_email_domain', setting_value: enforceDomain ? 'true' : 'false' },
+                    { onConflict: 'organization_id,setting_key' }
+                  );
+                }
+              }} disabled={savingOrg || !companyName.trim()}>
                 {savingOrg ? 'Saving...' : 'Update Organization'}
               </Button>
             </CardContent>
