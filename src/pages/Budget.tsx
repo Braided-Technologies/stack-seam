@@ -354,7 +354,16 @@ export default function Budget() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Monthly Cost ($)</Label>
-                        <Input type="number" value={editingApp.cost_monthly || ''} onChange={e => setEditingApp({ ...editingApp, cost_monthly: e.target.value })} disabled={!isAdmin} />
+                        <Input
+                          type="number"
+                          value={editingApp.cost_monthly || ''}
+                          onChange={e => setEditingApp({ ...editingApp, cost_monthly: e.target.value })}
+                          disabled={!isAdmin || editingApp.billing_cycle === 'annual'}
+                          className={editingApp.billing_cycle === 'annual' ? 'opacity-50' : ''}
+                        />
+                        {editingApp.billing_cycle === 'annual' && (
+                          <p className="text-xs text-muted-foreground">Not applicable for annual billing</p>
+                        )}
                       </div>
                       <div className="space-y-2">
                         <Label>Annual Cost ($)</Label>
