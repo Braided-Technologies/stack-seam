@@ -7,10 +7,15 @@ import {
   Container,
   Head,
   Heading,
+  Hr,
   Html,
+  Img,
   Preview,
+  Section,
   Text,
 } from 'npm:@react-email/components@0.0.22'
+
+const LOGO_URL = 'https://ivmbbnmmioeufmxtvsgs.supabase.co/storage/v1/object/public/email-assets/stackseam-logo.png'
 
 interface ReauthenticationEmailProps {
   token: string
@@ -19,15 +24,26 @@ interface ReauthenticationEmailProps {
 export const ReauthenticationEmail = ({ token }: ReauthenticationEmailProps) => (
   <Html lang="en" dir="ltr">
     <Head />
-    <Preview>Your verification code</Preview>
+    <Preview>Your StackSeam verification code</Preview>
     <Body style={main}>
-      <Container style={container}>
-        <Heading style={h1}>Confirm reauthentication</Heading>
-        <Text style={text}>Use the code below to confirm your identity:</Text>
-        <Text style={codeStyle}>{token}</Text>
-        <Text style={footer}>
-          This code will expire shortly. If you didn't request this, you can
-          safely ignore this email.
+      <Container style={card}>
+        <Section style={logoSection}>
+          <Img src={LOGO_URL} alt="StackSeam" width="140" height="auto" style={logo} />
+        </Section>
+        <Hr style={divider} />
+        <Heading style={h1}>Verification Code</Heading>
+        <Text style={text}>
+          Use the code below to confirm your identity on StackSeam:
+        </Text>
+        <Section style={codeContainer}>
+          <Text style={codeStyle}>{token}</Text>
+        </Section>
+        <Text style={textSmall}>
+          This code will expire shortly. If you didn't request this, you can safely ignore this email.
+        </Text>
+        <Hr style={divider} />
+        <Text style={footerBrand}>
+          © StackSeam — IT Stack Intelligence for MSPs
         </Text>
       </Container>
     </Body>
@@ -36,25 +52,62 @@ export const ReauthenticationEmail = ({ token }: ReauthenticationEmailProps) => 
 
 export default ReauthenticationEmail
 
-const main = { backgroundColor: '#ffffff', fontFamily: 'Outfit, system-ui, sans-serif' }
-const container = { padding: '20px 25px' }
+const main = {
+  backgroundColor: '#f4f4f5',
+  fontFamily: 'Outfit, system-ui, sans-serif',
+  padding: '40px 0',
+}
+const card = {
+  backgroundColor: '#ffffff',
+  borderRadius: '12px',
+  padding: '40px 32px',
+  maxWidth: '480px',
+  margin: '0 auto',
+  border: '1px solid #e4e4e7',
+}
+const logoSection = { textAlign: 'center' as const, marginBottom: '8px' }
+const logo = { margin: '0 auto' }
+const divider = { borderColor: '#e4e4e7', margin: '20px 0' }
 const h1 = {
-  fontSize: '22px',
+  fontSize: '24px',
   fontWeight: 'bold' as const,
-  color: 'hsl(225, 20%, 15%)',
-  margin: '0 0 20px',
+  color: '#1a1f36',
+  margin: '0 0 12px',
+  textAlign: 'center' as const,
 }
 const text = {
-  fontSize: '14px',
-  color: 'hsl(215, 16%, 47%)',
+  fontSize: '15px',
+  color: '#6b7280',
+  lineHeight: '1.6',
+  margin: '0 0 20px',
+  textAlign: 'center' as const,
+}
+const textSmall = {
+  fontSize: '13px',
+  color: '#9ca3af',
   lineHeight: '1.5',
-  margin: '0 0 25px',
+  margin: '0 0 16px',
+  textAlign: 'center' as const,
+}
+const codeContainer = {
+  textAlign: 'center' as const,
+  backgroundColor: '#f9fafb',
+  borderRadius: '8px',
+  padding: '16px',
+  margin: '0 0 20px',
+  border: '1px solid #e4e4e7',
 }
 const codeStyle = {
   fontFamily: 'DM Mono, Courier, monospace',
-  fontSize: '22px',
+  fontSize: '28px',
   fontWeight: 'bold' as const,
-  color: 'hsl(225, 20%, 15%)',
-  margin: '0 0 30px',
+  color: '#1a1f36',
+  letterSpacing: '4px',
+  margin: '0',
 }
-const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
+const footerBrand = {
+  fontSize: '11px',
+  color: '#d1d5db',
+  margin: '0',
+  textAlign: 'center' as const,
+}
