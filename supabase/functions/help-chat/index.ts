@@ -57,7 +57,7 @@ serve(async (req) => {
     const { data: roleData } = await supabase
       .from("user_roles")
       .select("organization_id")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .limit(1)
       .single();
 
