@@ -405,7 +405,7 @@ export default function Stack() {
 
       {/* App info dialog */}
       <Dialog open={!!infoApp} onOpenChange={open => !open && setInfoApp(null)}>
-        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {infoApp?.name}
@@ -467,7 +467,7 @@ export default function Stack() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="integrations" className="pt-2">
+                <TabsContent value="integrations" className="pt-2 flex-1 overflow-hidden">
                   {infoAppIntegrations.length === 0 ? (
                     <div className="py-4 space-y-3">
                       <p className="text-sm text-muted-foreground">
@@ -511,7 +511,7 @@ export default function Stack() {
                       )}
                     </div>
                   ) : (
-                    <ScrollArea className="max-h-[50vh]">
+                    <ScrollArea className="max-h-[calc(85vh-200px)]">
                       <div className="space-y-2 pr-2">
                         {infoAppIntegrations.map((integ: any) => (
                           <div key={integ.id} className="rounded-lg border p-3 space-y-1.5">
