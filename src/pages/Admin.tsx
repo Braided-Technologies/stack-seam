@@ -407,14 +407,18 @@ export default function Admin() {
                     <Card key={fb.id} className="border">
                       <CardContent className="p-4 space-y-3">
                         <div className="flex items-start justify-between gap-4">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
+                          <div className="space-y-1 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <Badge variant={typeColor(fb.type) as any}>{fb.type}</Badge>
                               <Badge variant={statusColor(fb.status) as any}>{fb.status.replace('_', ' ')}</Badge>
                               <span className="text-xs text-muted-foreground">{new Date(fb.created_at).toLocaleDateString()}</span>
                             </div>
                             <h4 className="font-medium">{fb.title}</h4>
-                            {fb.description && <p className="text-sm text-muted-foreground">{fb.description}</p>}
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              <span>User: {fb.user_email}</span>
+                              {fb.org_name && <span>Org: <span className="text-foreground font-medium">{fb.org_name}</span></span>}
+                            </div>
+                            {fb.description && <p className="text-sm text-muted-foreground mt-1">{fb.description}</p>}
                           </div>
                           <Select value={fb.status} onValueChange={(v) => updateFeedbackStatus(fb.id, v)}>
                             <SelectTrigger className="w-32">
@@ -428,6 +432,17 @@ export default function Admin() {
                             </SelectContent>
                           </Select>
                         </div>
+                        {/* Screenshots */}
+                        {fb.screenshot_urls && fb.screenshot_urls.length > 0 && (
+                          <div className="space-y-1">
+                            <span className="text-xs font-medium text-muted-foreground">Attachments ({fb.screenshot_urls.length})</span>
+                            <div className="flex gap-2 flex-wrap">
+                              {fb.screenshot_urls.map((path, i) => (
+                                <AdminScreenshot key={i} path={path} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         {fb.admin_response && (
                           <div className="bg-muted rounded-md p-3 text-sm">
                             <span className="font-medium text-xs text-muted-foreground">Admin Response:</span>
