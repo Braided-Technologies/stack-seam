@@ -637,8 +637,14 @@ export default function Stack() {
                         {/* Contacts */}
                         <ContactsSection userApplicationId={userApp!.id} isAdmin={isAdmin} />
 
-                        {/* Contracts */}
-                        <ContractsSection userApplicationId={userApp!.id} isAdmin={isAdmin} />
+                        {/* Contracts redirect */}
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">Contracts</p>
+                          <Button variant="outline" size="sm" className="gap-2 w-full" onClick={() => { setInfoApp(null); navigate('/budget'); }}>
+                            <FolderOpen className="h-3.5 w-3.5" />
+                            Manage Contracts in Budget & Spend
+                          </Button>
+                        </div>
                       </div>
                     </ScrollArea>
                   </TabsContent>
