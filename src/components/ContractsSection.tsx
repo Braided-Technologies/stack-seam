@@ -183,7 +183,23 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
   };
 
   const toggleLineItem = (index: number) => {
-    setCheckedLineItems(prev => ({ ...prev, [index]: !prev[index] }));
+    setCheckedLineItems(prev => {
+      const next = { ...prev, [index]: !prev[index] };
+      // Auto-sum checked line items into cost fields
+      const selectedItems = editableLineItems.filter((_, i) => next[i]);
+      if (selectedItems.length > 0) {
+        const sumMonthly = selectedItems.reduce((sum, li) => sum + (Number(li.monthly_cost) || 0), 0);
+        const sumAnnual = selectedItems.reduce((sum, li) => sum + (Number(li.annual_cost) || 0), 0);
+        setEditableFields(ef => ({
+          ...ef,
+          ...(sumMonthly > 0 ? { cost_monthly: sumMonthly } : {}),
+          ...(sumAnnual > 0 ? { cost_annual: sumAnnual } : {}),
+        }));
+        if (sumMonthly > 0) setCheckedFields(cf => ({ ...cf, cost_monthly: true }));
+        if (sumAnnual > 0) setCheckedFields(cf => ({ ...cf, cost_annual: true }));
+      }
+      return next;
+    });
   };
 
   const updateField = (key: string, value: any) => {
