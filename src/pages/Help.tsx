@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 import { Separator } from '@/components/ui/separator';
 import { toast } from '@/hooks/use-toast';
-import { Search, BookOpen, Plus, ArrowLeft, Pencil, Trash2, FolderPlus, Tag } from 'lucide-react';
+import { Search, BookOpen, Plus, ArrowLeft, Pencil, Trash2, FolderPlus } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 export default function Help() {
