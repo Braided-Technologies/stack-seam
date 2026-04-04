@@ -1,75 +1,78 @@
-
-
 # Multi-Issue Fix Plan
 
-## Issues Summary
+## Issues (10 items)
 
-1. **Admin Support tab**: Hide closed tickets by default
-2. **Admin Users tab**: Show user first/last name, reorder tabs to Users | Orgs | Apps | Support
-3. **Settings tab**: Rename "Company" to "Organization"
-4. **Contract scanning**: Add checkboxes + confirm/import button for extracted data; support multi-line-item invoices
-5. **Integration dead links**: Flag that AI-generated documentation URLs are unreliable — need verification approach
-6. **Research tab**: Fix markdown table rendering, add reset button, persist chat across tab switches
-7. **My Stack contacts**: Contact form cut off — open as popup dialog instead of inline
-8. **Email DKIM/DMARC/SPF**: Set up email domain for mail delivery
+### 1. Admin Support Tab — Add Detail Columns
 
----
+Currently shows badges + title in a single row. Add proper columns: Type, Status, Title, User, Organization, Date.
 
-## Plan
+- Convert the collapsible list to a Table with those columns
+- Keep the expandable detail below each row
 
-### 1. Admin Page — Support Tab & Users Tab (Admin.tsx)
+### 2. Organization URL & Domain Enforcement
 
-**Support tab**: Add a toggle/filter to hide closed/resolved tickets (default: hidden). Add a "Show Closed" checkbox or filter option.
+- **Migration**: Add `website_url` column to `organizations` table (already has `domain` column)
+- **OrgSetup**: Already requires company URL — ensure it saves to `website_url`
+- **Settings > Organization**: Show and allow editing of organization URL; add checkbox for "Enforce email domain matching"
+- **Admin > Orgs tab**: Show URL column
 
-**Users tab**: 
-- Fetch user emails via the existing `get_feedback_user_emails` RPC, then derive names from invitation records (same pattern as Settings team page)
-- Add "Name" and "Email" columns to the users table
-- Reorder tab triggers to: `users` | `orgs` | `moderation` (Apps) | `feedback` (Support)
+### 3. Contract Scan — Fix PDF Text Extraction (Critical)
 
-### 2. Settings — Rename "Company" to "Organization" (Settings.tsx)
+The edge function does `fileData.text()` on PDFs which returns binary garbage. The AI hallucinates because it gets no real text.
 
-- Change `TabsTrigger value="company"` label from "Company" to "Organization"
-- Update the card title and description text inside that tab
+- **Fix**: Use `pdf-parse` or send the PDF as base64 to a multimodal model (Gemini supports PDF input). Best approach: use Gemini's multimodal capability — send the PDF bytes as a base64 `inline_data` part instead of extracting text.
+- This fixes both the "missing line items" and "making up information" issues
 
-### 3. Contract Scan — Selectable Extracted Fields (ContractsSection.tsx)
+### 4. Contract Scan — Editable Extracted Fields
 
-- After scan, display each extracted field with a checkbox (default checked)
-- Add line_items support: update the AI prompt in `scan-contract` edge function to also extract an array of `line_items` (each with name, cost, description)
-- Display line items as a selectable list so users can pick which are relevant to this app
-- Add "Import Selected" button that calls `onExtractedData` with only the checked fields
-- Remove the current auto-call to `onExtractedData` on scan — user confirms first
+Currently extracted fields are display-only with checkboxes. Make each field value editable (inline Input) so users can correct values (e.g., "N-able" → "N-Able") before importing.
 
-### 4. Integration Dead Links
+### 5. Contract Import Not Working in Budget
 
-This is a data quality issue — the AI-generated integration documentation URLs are guesses. Two approaches:
-- **Quick fix**: Add a "Report broken link" button next to documentation links that flags them in the database
-- **Better fix**: Add a `link_verified` boolean column to integrations table; display an unverified warning badge on links. Over time, verify links via a background check or user reports.
+`ContractsSection` in Budget.tsx is rendered without `onExtractedData` prop, so clicking "Import Selected" does nothing.
 
-I recommend the quick approach for now: add a small flag/report button and mark unverified links with a subtle warning.
+- Pass `onExtractedData` handler that updates `editingApp` state with the extracted values
 
-### 5. Research Tab Improvements (Research.tsx)
+### 6. Contract Auto-Rename After Scan
 
-- **Table rendering**: Add `remarkGfm` plugin to ReactMarkdown for proper GitHub Flavored Markdown table support (already in dependencies or add `remark-gfm`)
-- **Reset button**: Add a refresh/reset button in the header to clear messages
-- **Session persistence**: Lift messages state up to a ref or use `sessionStorage` so navigating away and back preserves the chat
+After successful scan, rename the file in storage based on extracted vendor name + date (e.g., "N-Able_2026-04-01.pdf").
 
-### 6. My Stack — Contact Form Fix (Stack.tsx)
+### 7. Budget Page — Remove Separate Contracts Section
 
-- Replace inline `ContactsSection` in the settings tab with a button that opens a separate Dialog for adding/managing contacts
-- Or: make the existing dialog scrollable properly so the contact form isn't cut off (the dialog already has `max-h-[85vh]` and `ScrollArea` — verify the scroll area covers the contacts section fully)
+Replace the standalone "All Contracts" card with a "Contract" column in the Application Spend table showing Yes/No with view/download buttons inline.
 
-The simpler fix: ensure `ScrollArea` in the settings tab wraps everything including contacts properly. The `max-h-[55vh]` on the settings ScrollArea may be too restrictive. Increase it or make the contact "Add" form open as its own sub-dialog.
+### 8. Integration Dead Links — Recursive Verification
 
-### 7. Email Domain Setup
+- Create an edge function `verify-integration-links` that checks all `documentation_url` values in the `integrations` table
+- Mark links as verified/dead in the database (`last_verified` column exists already)
+- Remove or flag integrations with dead/no documentation
+- Add "Report broken link" button in the UI
 
-Use the email domain tools to configure DKIM, DMARC, and SPF. This requires:
-- Opening the email setup dialog for the user to configure their domain
-- DNS records (DKIM, SPF, DMARC) are automatically provided during domain setup
+### 9. Stack Map Button 404 on Integrations Page
 
-### Technical Details
+Link points to `/stack-map` but route is `/map`. Fix: change `<Link to="/stack-map">` to `<Link to="/map">`.
 
-- **remark-gfm**: `npm install remark-gfm`, then `<ReactMarkdown remarkPlugins={[remarkGfm]}>`
-- **scan-contract prompt update**: Add `line_items` array to the tool schema with `{name, monthly_cost, annual_cost, description}` per item
-- **Admin user names**: Reuse `get_feedback_user_emails` RPC + query invitations table for first/last name by email
-- **Session persistence for Research**: Store messages in `sessionStorage` keyed by a constant; restore on mount
+### 10. Research Chat Overflow & Help Bot Overlap
 
+- The assistant message `max-w-[80%]` plus table content overflows. Add `overflow-x-auto` to the message container.
+- Move the send button to the left side of the input area, or adjust the help bot z-index/position so it doesn't overlap.
+
+## Implementation Order
+
+1. **Migration**: Add `website_url` to `organizations` table
+2. **scan-contract edge function**: Switch to multimodal PDF input via Gemini; add editable fields support
+3. **ContractsSection.tsx**: Make extracted values editable with Inputs
+4. **Budget.tsx**: Wire `onExtractedData`, remove separate contracts card, add contract column to table, auto-rename
+5. **Admin.tsx**: Support tab columns, Orgs tab URL column
+6. **Integrations.tsx**: Fix stack map link `/stack-map` → `/map`
+7. **Research.tsx**: Fix overflow, reposition send button
+8. **Settings.tsx**: Organization URL display + domain enforcement checkbox
+9. **OrgSetup.tsx**: Ensure website_url is saved
+10. **verify-integration-links**: Edge function for recursive link checking
+
+## Technical Details
+
+- **PDF multimodal**: Gemini supports `inline_data` with `application/pdf` mime type. Convert the downloaded blob to base64 and send as a content part. This gives the AI actual document content including tables.
+- **Editable fields**: Change each field row from `<span>` to `<Input>` with the extracted value, so users can modify before importing. Store editable state in a new `editableFields` state object.
+- **Contract column**: In the app spend table, join `allContracts` by `user_application_id` to show Yes/No and a download button.
+- **Link verification**: Use `fetch` with `HEAD` method + follow redirects. Store results in `last_verified` timestamp + a new `link_status` column (`verified` | `dead` | `unchecked`).
