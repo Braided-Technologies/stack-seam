@@ -144,7 +144,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <HelpCircle className="h-4 w-4 flex-shrink-0" />
             {isExpanded && 'Help Center'}
           </Link>
-          <FeedbackDialog isExpanded={isExpanded} />
+          <FeedbackDialog isExpanded={isExpanded} externalOpen={feedbackOpen} onExternalOpenChange={setFeedbackOpen} />
           <Button
             variant="ghost"
             size="sm"
