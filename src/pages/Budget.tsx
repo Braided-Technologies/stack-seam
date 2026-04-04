@@ -11,7 +11,7 @@ import { useUserApplications, useUpdateUserApplication } from '@/hooks/useStackD
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import { DollarSign, TrendingUp, CalendarClock, FileText, ArrowUpDown, Download } from 'lucide-react';
+import { DollarSign, TrendingUp, FileText, ArrowUpDown, Download, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
