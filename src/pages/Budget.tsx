@@ -37,6 +37,13 @@ export default function Budget() {
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortAsc, setSortAsc] = useState(true);
   const [editingApp, setEditingApp] = useState<any>(null);
+  const [appSearch, setAppSearch] = useState('');
+
+  const filteredApps = useMemo(() => {
+    if (!appSearch) return sortedApps;
+    const q = appSearch.toLowerCase();
+    return sortedApps.filter(a => a.name.toLowerCase().includes(q) || a.category.toLowerCase().includes(q));
+  }, [sortedApps, appSearch]);
 
   const { data: allContracts = [] } = useQuery({
     queryKey: ['all_contract_files', orgId],
