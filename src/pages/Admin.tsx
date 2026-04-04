@@ -506,7 +506,11 @@ export default function Admin() {
                   <CardTitle>User Feedback & Support</CardTitle>
                   <CardDescription>Bug reports, feature ideas, and questions from all users</CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer select-none">
+                    <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)} className="rounded" />
+                    Show Closed
+                  </label>
                   <Select value={fbTypeFilter} onValueChange={(v: any) => setFbTypeFilter(v)}>
                     <SelectTrigger className="w-[130px] h-8">
                       <SelectValue />
