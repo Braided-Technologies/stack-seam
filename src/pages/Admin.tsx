@@ -487,7 +487,7 @@ export default function Admin() {
     }
   };
 
-  const _filteredApps = appFilter === 'all' ? allApps : allApps.filter(a => a.status === appFilter);
+  
 
   // Feedback filtering & sorting (hide closed/resolved by default)
   const filteredFeedback = (fbTypeFilter === 'all' ? feedback : feedback.filter(f => f.type === fbTypeFilter))
