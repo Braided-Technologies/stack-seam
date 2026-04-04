@@ -291,6 +291,7 @@ export default function Budget() {
                       Renewal <ArrowUpDown className="h-3 w-3" />
                     </Button>
                   </TableHead>
+                  <TableHead>Contract</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
