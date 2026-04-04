@@ -7,6 +7,53 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from '@/hooks/use-toast';
 import { ShieldCheck, Loader2 } from 'lucide-react';
 
+type PendingEnrollment = {
+  qrCode: string;
+  secret: string;
+  factorId: string;
+};
+
+let pendingEnrollmentPromise: Promise<PendingEnrollment | null> | null = null;
+let pendingEnrollmentCache: PendingEnrollment | null = null;
+
+const getOrCreatePendingEnrollment = async (): Promise<PendingEnrollment | null> => {
+  if (pendingEnrollmentCache) return pendingEnrollmentCache;
+
+  if (!pendingEnrollmentPromise) {
+    pendingEnrollmentPromise = (async () => {
+      const { data: factors } = await supabase.auth.mfa.listFactors();
+      const verifiedFactor = factors?.totp?.find((factor) => factor.status === 'verified');
+      if (verifiedFactor) return null;
+
+      const unverifiedFactors = factors?.totp?.filter((factor) => factor.status !== 'verified') || [];
+      for (const factor of unverifiedFactors) {
+        await supabase.auth.mfa.unenroll({ factorId: factor.id });
+      }
+
+      const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp' });
+      if (error) throw error;
+
+      const enrollment = {
+        qrCode: data.totp.qr_code,
+        secret: data.totp.secret,
+        factorId: data.id,
+      };
+
+      pendingEnrollmentCache = enrollment;
+      return enrollment;
+    })().finally(() => {
+      pendingEnrollmentPromise = null;
+    });
+  }
+
+  return pendingEnrollmentPromise;
+};
+
+const clearPendingEnrollment = () => {
+  pendingEnrollmentCache = null;
+  pendingEnrollmentPromise = null;
+};
+
 export default function MfaSetup() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
@@ -19,33 +66,38 @@ export default function MfaSetup() {
 
   useEffect(() => {
     if (!user) return;
+
+    let cancelled = false;
+
     (async () => {
-      // Check if already enrolled
-      const { data: factors } = await supabase.auth.mfa.listFactors();
-      const totp = factors?.totp?.find(f => f.status === 'verified');
-      if (totp) {
-        navigate('/', { replace: true });
-        return;
-      }
+      try {
+        const enrollment = await getOrCreatePendingEnrollment();
+        if (cancelled) return;
 
-      // Unenroll any unverified factors first
-      const unverified = factors?.totp?.filter(f => f.status !== 'verified') || [];
-      for (const f of unverified) {
-        await supabase.auth.mfa.unenroll({ factorId: f.id });
-      }
+        if (!enrollment) {
+          navigate('/', { replace: true });
+          return;
+        }
 
-      // Enroll new factor (no friendlyName to avoid name conflict errors)
-      const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp' });
-      if (error) {
-        toast({ title: 'Error', description: error.message, variant: 'destructive' });
-        setEnrolling(false);
-        return;
+        setQrCode(enrollment.qrCode);
+        setSecret(enrollment.secret);
+        setFactorId(enrollment.factorId);
+      } catch (error) {
+        if (!cancelled) {
+          toast({
+            title: 'Error',
+            description: error instanceof Error ? error.message : 'Unable to start MFA setup.',
+            variant: 'destructive',
+          });
+        }
+      } finally {
+        if (!cancelled) setEnrolling(false);
       }
-      setQrCode(data.totp.qr_code);
-      setSecret(data.totp.secret);
-      setFactorId(data.id);
-      setEnrolling(false);
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user, navigate]);
 
   if (loading) return null;
@@ -66,6 +118,7 @@ export default function MfaSetup() {
       setVerifying(false);
       return;
     }
+    clearPendingEnrollment();
     toast({ title: 'MFA Enabled', description: 'Your account is now protected with two-factor authentication.' });
     navigate('/', { replace: true });
   };
@@ -97,7 +150,7 @@ export default function MfaSetup() {
               {secret && (
                 <div className="space-y-1 text-center">
                   <p className="text-xs text-muted-foreground">Can't scan? Enter this key manually:</p>
-                  <code className="text-sm font-mono bg-muted px-3 py-1 rounded select-all">{secret}</code>
+                  <code className="rounded bg-muted px-3 py-1 text-sm font-mono select-all">{secret}</code>
                 </div>
               )}
               <div className="space-y-2">
@@ -123,3 +176,4 @@ export default function MfaSetup() {
     </div>
   );
 }
+
