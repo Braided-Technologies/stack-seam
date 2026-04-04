@@ -847,7 +847,7 @@ export default function Settings() {
                 <Input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="e.g. Acme MSP" maxLength={100} />
               </div>
               <Button onClick={handleSaveOrg} disabled={savingOrg || !companyName.trim() || companyName.trim() === orgName}>
-                {savingOrg ? 'Saving...' : 'Update Company Name'}
+                {savingOrg ? 'Saving...' : 'Update Organization Name'}
               </Button>
             </CardContent>
           </Card>
