@@ -81,20 +81,30 @@ type FeedbackSortKey = 'date' | 'type' | 'status';
 
 function IntegrationsModeration() {
   const [pendingIntegrations, setPendingIntegrations] = useState<any[]>([]);
+  const [allIntegrations, setAllIntegrations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    loadPendingIntegrations();
+    loadIntegrations();
   }, []);
 
-  const loadPendingIntegrations = async () => {
+  const loadIntegrations = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('integrations')
-      .select('*, source:applications!integrations_source_app_id_fkey(name), target:applications!integrations_target_app_id_fkey(name)')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false });
-    if (!error) setPendingIntegrations(data || []);
+    const [pendingRes, allRes] = await Promise.all([
+      supabase
+        .from('integrations')
+        .select('*, source:applications!integrations_source_app_id_fkey(name), target:applications!integrations_target_app_id_fkey(name)')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('integrations')
+        .select('*, source:applications!integrations_source_app_id_fkey(name), target:applications!integrations_target_app_id_fkey(name)')
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false }),
+    ]);
+    if (!pendingRes.error) setPendingIntegrations(pendingRes.data || []);
+    if (!allRes.error) setAllIntegrations(allRes.data || []);
     setLoading(false);
   };
 
@@ -102,69 +112,152 @@ function IntegrationsModeration() {
     const { error } = await supabase.from('integrations').update({ status: 'approved' } as any).eq('id', id);
     if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
     toast({ title: 'Integration approved' });
-    loadPendingIntegrations();
+    loadIntegrations();
   };
 
   const rejectIntegration = async (id: string) => {
     const { error } = await supabase.from('integrations').delete().eq('id', id);
     if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
     toast({ title: 'Integration rejected and removed' });
-    loadPendingIntegrations();
+    loadIntegrations();
   };
 
+  const deleteIntegration = async (id: string) => {
+    const { error } = await supabase.from('integrations').delete().eq('id', id);
+    if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: 'Integration deleted' });
+    loadIntegrations();
+  };
+
+  const filteredAll = searchQuery
+    ? allIntegrations.filter(i => {
+        const q = searchQuery.toLowerCase();
+        return (i as any).source?.name?.toLowerCase().includes(q) || (i as any).target?.name?.toLowerCase().includes(q);
+      })
+    : allIntegrations;
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Link2 className="h-5 w-5" />
-          Pending Integration Submissions
-        </CardTitle>
-        <CardDescription>Review user-submitted integrations</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">Loading...</p>
-        ) : pendingIntegrations.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">No pending integrations</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Source App</TableHead>
-                <TableHead>Target App</TableHead>
-                <TableHead>Documentation</TableHead>
-                <TableHead>Submitted</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pendingIntegrations.map(i => (
-                <TableRow key={i.id}>
-                  <TableCell className="font-medium">{(i as any).source?.name || '—'}</TableCell>
-                  <TableCell className="font-medium">{(i as any).target?.name || '—'}</TableCell>
-                  <TableCell>
-                    {i.documentation_url ? (
-                      <a href={i.documentation_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm truncate block max-w-xs">
-                        {i.documentation_url}
-                      </a>
-                    ) : '—'}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{new Date(i.created_at).toLocaleDateString()}</TableCell>
-                  <TableCell className="text-right space-x-1">
-                    <Button size="sm" variant="outline" onClick={() => approveIntegration(i.id)}>
-                      <Check className="h-3 w-3 mr-1" /> Approve
-                    </Button>
-                    <Button size="sm" variant="ghost" className="text-destructive" onClick={() => rejectIntegration(i.id)}>
-                      <X className="h-3 w-3 mr-1" /> Reject
-                    </Button>
-                  </TableCell>
+    <div className="space-y-4">
+      {/* Pending Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Link2 className="h-5 w-5" />
+            Pending Integration Submissions
+          </CardTitle>
+          <CardDescription>Review user-submitted integrations</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">Loading...</p>
+          ) : pendingIntegrations.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">No pending integrations</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Source App</TableHead>
+                  <TableHead>Target App</TableHead>
+                  <TableHead>Documentation</TableHead>
+                  <TableHead>Submitted</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-    </Card>
+              </TableHeader>
+              <TableBody>
+                {pendingIntegrations.map(i => (
+                  <TableRow key={i.id}>
+                    <TableCell className="font-medium">{(i as any).source?.name || '—'}</TableCell>
+                    <TableCell className="font-medium">{(i as any).target?.name || '—'}</TableCell>
+                    <TableCell>
+                      {i.documentation_url ? (
+                        <a href={i.documentation_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm truncate block max-w-xs">
+                          {i.documentation_url}
+                        </a>
+                      ) : '—'}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{new Date(i.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-right space-x-1">
+                      <Button size="sm" variant="outline" onClick={() => approveIntegration(i.id)}>
+                        <Check className="h-3 w-3 mr-1" /> Approve
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-destructive" onClick={() => rejectIntegration(i.id)}>
+                        <X className="h-3 w-3 mr-1" /> Reject
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Full Catalog */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>All Integrations ({allIntegrations.length})</CardTitle>
+              <CardDescription>Full catalog of approved integrations</CardDescription>
+            </div>
+            <Input
+              placeholder="Search integrations..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-64 h-8"
+            />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[500px]">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Source App</TableHead>
+                  <TableHead>Target App</TableHead>
+                  <TableHead>Documentation</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredAll.map(i => (
+                  <TableRow key={i.id}>
+                    <TableCell className="font-medium">{(i as any).source?.name || '—'}</TableCell>
+                    <TableCell className="font-medium">{(i as any).target?.name || '—'}</TableCell>
+                    <TableCell>
+                      {i.documentation_url ? (
+                        <a href={i.documentation_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm truncate block max-w-xs">
+                          {i.documentation_url}
+                        </a>
+                      ) : '—'}
+                    </TableCell>
+                    <TableCell><Badge variant="default">{i.link_status || 'approved'}</Badge></TableCell>
+                    <TableCell className="text-right">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="ghost" className="text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete this integration?</AlertDialogTitle>
+                            <AlertDialogDescription>This will permanently remove this integration from the catalog.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deleteIntegration(i.id)}>Delete</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -737,7 +830,6 @@ export default function Admin() {
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Website</TableHead>
-                    <TableHead>Domain</TableHead>
                     <TableHead>Users</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -758,9 +850,6 @@ export default function Admin() {
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{org.website_url || '—'}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {org.website_url ? (() => { try { return new URL(org.website_url).hostname.replace(/^www\./, ''); } catch { return org.domain || '—'; } })() : (org.domain || '—')}
-                      </TableCell>
                       <TableCell>{org.user_count}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{new Date(org.created_at).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right space-x-1">

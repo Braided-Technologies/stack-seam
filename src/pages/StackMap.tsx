@@ -354,7 +354,7 @@ export default function StackMap() {
           </div>
         </Panel>
 
-        <Panel position="top-right" className="bg-card/90 backdrop-blur rounded-lg border shadow-sm max-w-[220px]">
+        <Panel position="top-right" className="bg-card/90 backdrop-blur rounded-lg border shadow-sm max-w-[260px]">
           <button
             onClick={() => setLegendOpen(!legendOpen)}
             className="flex items-center gap-2 px-3 py-2 w-full text-left text-sm font-medium"
