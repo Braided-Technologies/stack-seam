@@ -90,8 +90,25 @@ export default function Admin() {
     const orgData = orgRes.data || [];
     const roleData = roleRes.data || [];
 
-    setAllApps(apps);
-    setFeedback(fb);
+    // Enrich feedback with org names and user emails
+    const orgNameMap: Record<string, string> = {};
+    orgData.forEach(o => { orgNameMap[o.id] = o.name; });
+
+    // Get user emails for feedback submitters
+    const feedbackUserIds = [...new Set(fb.map(f => f.user_id))];
+    let emailMap: Record<string, string> = {};
+    if (feedbackUserIds.length > 0) {
+      const { data: emailData } = await supabase.rpc('get_user_emails_for_admin', { user_ids: feedbackUserIds });
+      if (emailData) {
+        emailData.forEach((e: any) => { emailMap[e.user_id] = e.email; });
+      }
+    }
+
+    setFeedback(fb.map(f => ({
+      ...f,
+      user_email: emailMap[f.user_id] || f.user_id.substring(0, 8) + '...',
+      org_name: f.organization_id ? orgNameMap[f.organization_id] || 'Unknown' : undefined,
+    })));
     setCategories(catRes.data || []);
 
     const countMap: Record<string, number> = {};
