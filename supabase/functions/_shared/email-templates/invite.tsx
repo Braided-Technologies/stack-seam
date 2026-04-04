@@ -38,7 +38,7 @@ export const InviteEmail = ({
           <Img src={LOGO_URL} alt="StackSeam" width="140" height="auto" style={logo} />
         </Section>
         <Hr style={divider} />
-        <Heading style={h1}>You're Invited! 🚀</Heading>
+        <Heading style={h1}>You've Been Invited</Heading>
         <Text style={text}>
           Your team is using StackSeam to manage their IT stack. Click below to accept the invitation and join your organization.
         </Text>

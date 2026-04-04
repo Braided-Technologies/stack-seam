@@ -41,7 +41,7 @@ export const SignupEmail = ({
           <Img src={LOGO_URL} alt="StackSeam" width="140" height="auto" style={logo} />
         </Section>
         <Hr style={divider} />
-        <Heading style={h1}>Welcome to StackSeam! 🎉</Heading>
+        <Heading style={h1}>Welcome to StackSeam</Heading>
         <Text style={text}>
           You're one step away from managing your IT stack like a pro. Confirm your email address to activate your account.
         </Text>
