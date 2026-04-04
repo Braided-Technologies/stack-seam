@@ -15,6 +15,21 @@ function isValidDocUrl(url: string | undefined | null): boolean {
   return true;
 }
 
+function extractDomain(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function isDomainMatch(docUrl: string, appDomains: string[]): boolean {
+  const docDomain = extractDomain(docUrl);
+  if (!docDomain) return false;
+  return appDomains.some(d => docDomain === d || docDomain.endsWith('.' + d));
+}
+
 async function verifyUrl(url: string): Promise<boolean> {
   try {
     const controller = new AbortController();
@@ -27,10 +42,8 @@ async function verifyUrl(url: string): Promise<boolean> {
     });
     clearTimeout(timeout);
 
-    // Accept 200-399 as valid
     if (res.status >= 200 && res.status < 400) return true;
 
-    // Some servers don't support HEAD, try GET
     if (res.status === 405 || res.status === 403) {
       const controller2 = new AbortController();
       const timeout2 = setTimeout(() => controller2.abort(), 8000);
@@ -41,7 +54,6 @@ async function verifyUrl(url: string): Promise<boolean> {
         redirect: 'follow',
       });
       clearTimeout(timeout2);
-      // Read body to avoid resource leak
       await res2.text();
       return res2.status >= 200 && res2.status < 400;
     }
@@ -65,10 +77,11 @@ List ALL known integrations between ANY pair of these tools. Be thorough — inc
 
 CRITICAL RULES:
 1. Only include integrations where you can provide a REAL documentation URL from the vendor's actual website or knowledge base.
-2. The documentation_url must be an actual existing page — not a guessed or constructed URL.
-3. If you are not 100% certain a URL exists, do NOT include the integration.
-4. Prefer URLs from official knowledge bases, help centers, and marketplace listings.
-5. Do NOT include MCP or community integrations unless the GitHub repo URL is verified.`;
+2. The documentation_url MUST be from one of the two integration partners' official domains (e.g. for a HaloPSA↔ScalePad integration, the URL must be from halopsa.com, usehalo.com, scalepad.com, or similar official domains).
+3. Do NOT use third-party blog posts, review sites, or generic URLs.
+4. If you are not 100% certain a URL exists on the vendor's domain, do NOT include the integration.
+5. Prefer URLs from official knowledge bases, help centers, and marketplace listings.
+6. Do NOT include MCP or community integrations unless the GitHub repo URL is verified.`;
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -79,14 +92,14 @@ CRITICAL RULES:
     body: JSON.stringify({
       model: "google/gemini-2.5-flash",
       messages: [
-        { role: "system", content: "You are an MSP/IT integration expert. Only report integrations with documentation URLs you are confident are real and accessible. Never guess or construct URLs." },
+        { role: "system", content: "You are an MSP/IT integration expert. Only report integrations with documentation URLs you are confident are real and accessible. The documentation URL must come from one of the two platforms' official domains." },
         { role: "user", content: prompt },
       ],
       tools: [{
         type: "function",
         function: {
           name: "report_integrations",
-          description: "Report discovered integrations between IT tools. Every integration MUST have a real documentation_url.",
+          description: "Report discovered integrations between IT tools. Every integration MUST have a real documentation_url from one of the two platforms' domains.",
           parameters: {
             type: "object",
             properties: {
@@ -100,7 +113,7 @@ CRITICAL RULES:
                     description: { type: "string" },
                     integration_type: { type: "string", enum: ["native", "api", "zapier", "webhook", "other"] },
                     data_shared: { type: "string" },
-                    documentation_url: { type: "string", description: "REQUIRED. A real, verifiable URL to the integration documentation page." },
+                    documentation_url: { type: "string", description: "REQUIRED. A real URL from one of the two platforms' official domains." },
                   },
                   required: ["source", "target", "description", "integration_type", "data_shared", "documentation_url"],
                   additionalProperties: false,
@@ -132,14 +145,11 @@ CRITICAL RULES:
   const parsed = JSON.parse(toolCall.function.arguments);
   const integrations = parsed.integrations || [];
 
-  // Filter by basic URL format first
   const candidates = integrations.filter((i: any) => isValidDocUrl(i.documentation_url));
 
-  // Verify each URL actually returns 200
   console.log(`Verifying ${candidates.length} candidate URLs...`);
   const verified: any[] = [];
   
-  // Verify in parallel batches of 5
   for (let i = 0; i < candidates.length; i += 5) {
     const batch = candidates.slice(i, i + 5);
     const results = await Promise.all(
@@ -175,7 +185,6 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Scheduled mode: iterate all orgs
     if (scheduled) {
       const { data: orgs } = await supabaseAdmin.from("organizations").select("id");
       let totalDiscovered = 0;
@@ -184,14 +193,15 @@ serve(async (req) => {
       for (const org of orgs || []) {
         const { data: orgApps } = await supabaseAdmin
           .from("user_applications")
-          .select("application_id, applications(name)")
+          .select("application_id, applications(name, vendor_url)")
           .eq("organization_id", org.id);
 
         const names = (orgApps || []).map((a: any) => a.applications?.name).filter(Boolean);
         if (names.length < 2) continue;
 
         try {
-          const result = await processDiscovery(names, LOVABLE_API_KEY, supabaseAdmin);
+          const appVendorMap = buildVendorMap(orgApps || [], supabaseAdmin);
+          const result = await processDiscovery(names, LOVABLE_API_KEY, supabaseAdmin, await appVendorMap);
           totalDiscovered += result.discovered;
           totalSaved += result.saved;
         } catch (e) {
@@ -206,14 +216,28 @@ serve(async (req) => {
       });
     }
 
-    // Manual mode
     if (!app_names || !Array.isArray(app_names) || app_names.length < 2) {
       return new Response(JSON.stringify({ error: "At least 2 app names required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const result = await processDiscovery(app_names, LOVABLE_API_KEY, supabaseAdmin);
+    // Build vendor domain map from all apps
+    const { data: allApps } = await supabaseAdmin.from("applications").select("id, name, vendor_url");
+    const vendorMap = new Map<string, string[]>();
+    for (const app of allApps || []) {
+      const domains: string[] = [];
+      if (app.vendor_url) {
+        const d = extractDomain(app.vendor_url);
+        if (d) domains.push(d);
+      }
+      // Also add common known domains for the app name
+      const nameKey = app.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      domains.push(nameKey + '.com');
+      vendorMap.set(app.name.toLowerCase(), domains);
+    }
+
+    const result = await processDiscovery(app_names, LOVABLE_API_KEY, supabaseAdmin, vendorMap);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -231,7 +255,23 @@ serve(async (req) => {
   }
 });
 
-async function processDiscovery(appNames: string[], apiKey: string, supabase: any) {
+async function buildVendorMap(orgApps: any[], supabase: any): Promise<Map<string, string[]>> {
+  const vendorMap = new Map<string, string[]>();
+  const { data: allApps } = await supabase.from("applications").select("id, name, vendor_url");
+  for (const app of allApps || []) {
+    const domains: string[] = [];
+    if (app.vendor_url) {
+      const d = extractDomain(app.vendor_url);
+      if (d) domains.push(d);
+    }
+    const nameKey = app.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    domains.push(nameKey + '.com');
+    vendorMap.set(app.name.toLowerCase(), domains);
+  }
+  return vendorMap;
+}
+
+async function processDiscovery(appNames: string[], apiKey: string, supabase: any, vendorMap: Map<string, string[]>) {
   const BATCH_SIZE = 15;
   const allIntegrations: any[] = [];
 
@@ -271,17 +311,31 @@ async function processDiscovery(appNames: string[], apiKey: string, supabase: an
     return true;
   });
 
+  // Domain validation: doc URL must be from one of the two apps' domains
+  const domainValidated = unique.filter(integ => {
+    const sourceDomains = vendorMap.get(integ.source?.toLowerCase()) || [];
+    const targetDomains = vendorMap.get(integ.target?.toLowerCase()) || [];
+    const allDomains = [...sourceDomains, ...targetDomains];
+    if (allDomains.length === 0) return true; // no vendor data, allow
+    const passes = isDomainMatch(integ.documentation_url, allDomains);
+    if (!passes) {
+      console.log(`DOMAIN_REJECT: ${integ.source} -> ${integ.target}: ${integ.documentation_url} not from ${allDomains.join(', ')}`);
+    }
+    return passes;
+  });
+
+  console.log(`${domainValidated.length}/${unique.length} passed domain validation`);
+
   // Store
   const { data: allApps } = await supabase.from("applications").select("id, name");
   const appMap = new Map((allApps || []).map((a: any) => [a.name.toLowerCase(), a.id]));
 
   let newCount = 0;
-  for (const integ of unique) {
+  for (const integ of domainValidated) {
     const sourceId = appMap.get(integ.source?.toLowerCase());
     const targetId = appMap.get(integ.target?.toLowerCase());
     if (!sourceId || !targetId || sourceId === targetId) continue;
 
-    // Check for reverse duplicate
     const { data: reverseExists } = await supabase
       .from("integrations")
       .select("id")
@@ -307,5 +361,5 @@ async function processDiscovery(appNames: string[], apiKey: string, supabase: an
     if (!error) newCount++;
   }
 
-  return { discovered: unique.length, saved: newCount, integrations: unique };
+  return { discovered: domainValidated.length, saved: newCount, integrations: domainValidated };
 }

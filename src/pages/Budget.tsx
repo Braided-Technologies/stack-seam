@@ -153,6 +153,7 @@ export default function Budget() {
         notes: editingApp.notes || null,
       });
       toast({ title: 'Details saved' });
+      setEditingApp(null);
     } catch (e: any) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
     }
