@@ -181,6 +181,7 @@ export type Database = {
           description: string | null
           id: string
           organization_id: string | null
+          screenshot_urls: string[] | null
           status: string
           title: string
           type: string
@@ -193,6 +194,7 @@ export type Database = {
           description?: string | null
           id?: string
           organization_id?: string | null
+          screenshot_urls?: string[] | null
           status?: string
           title: string
           type?: string
@@ -205,6 +207,7 @@ export type Database = {
           description?: string | null
           id?: string
           organization_id?: string | null
+          screenshot_urls?: string[] | null
           status?: string
           title?: string
           type?: string
