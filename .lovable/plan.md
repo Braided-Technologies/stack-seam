@@ -1,35 +1,54 @@
 
-## Add MFA, Google OAuth & Email Cleanup
 
-### 1. Remove emojis from auth emails
-Quick fix — remove 🎉 from signup and 🚀 from invite templates.
+# Multi-Issue Fix Plan
 
-### 2. Enable Google OAuth
-Lovable Cloud has managed Google OAuth built in — no API keys needed. We'll:
-- Configure the Google provider
-- Add a "Sign in with Google" button to the Auth page
-- This satisfies the "formal auth" requirement immediately
+## Issues Identified
 
-### 3. Add TOTP-based MFA (Authenticator App)
-Supabase natively supports TOTP MFA (Google Authenticator, Authy, etc.). We'll:
-- Create an MFA setup page that shows a QR code for enrolling an authenticator app
-- Create an MFA verification page for entering the 6-digit code on login
-- Update the auth flow: after login, check if MFA is enrolled → if yes, require verification; if no, redirect to setup
+1. **Team table columns uneven** — Grid column fractions don't align between header, member rows, and invitation rows
+2. **Team: add sorting & search** — No way to filter or sort members
+3. **Team: show first/last name for users** — Currently shows email prefix; invitations store first/last names but active members don't have this data
+4. **Integrations panel shows non-stack connections** — `AppIntegrationsPanel` filters by app but doesn't limit to stack-only integrations
+5. **Stack Map: animated edges cause lag** — `animated: true` on every edge creates performance issues at 30+ apps
+6. **Stack Map: categories don't match groupings** — Legend shows individual categories; should use CATEGORY_GROUPS with collapsible groups (start collapsed)
+7. **My Stack: contracts in settings** — Decide: redirect to Budget page when user clicks contracts tab
+8. **Budget: contract upload RLS error** — Storage bucket policy only allows `is_org_admin()`, missing `is_platform_admin()` for uploads
+9. **Budget: no search on app table** — Must scroll through entire list
 
-### 4. Enforce MFA setup on first login / invitation acceptance
-- After accepting an invitation and landing in the app for the first time, redirect users to the MFA setup page
-- Users must complete MFA enrollment before accessing the main app
-- Store MFA enrollment status check via Supabase's built-in `auth.mfa.listFactors()`
+## Plan
 
-### Platform notes
-- **Microsoft OAuth** is not currently available on Lovable Cloud — only Google and Apple are supported. We can add it when it becomes available.
-- **Phone/SMS MFA** requires SMS provider configuration. We can set this up later if needed, but TOTP (authenticator app) is more secure and works immediately.
-- **Email-based MFA** isn't a standard option — the authenticator app approach is the industry standard.
+### 1. Fix Team Table (Settings.tsx)
+- Replace `grid-cols-[2fr_2fr_1fr_1fr_auto]` with a proper HTML `<Table>` component for consistent column alignment
+- Add a search input above the members list (filters by name/email)
+- Add sortable column headers (Name, Email, Status, Role)
+- For active members: query invitation records to get first/last name (fallback to email prefix if no invitation found)
 
-### Files to create/modify
-- `src/pages/Auth.tsx` — add Google sign-in button
-- `src/pages/MfaSetup.tsx` — new page for QR code enrollment
-- `src/pages/MfaVerify.tsx` — new page for code entry on login
-- `src/contexts/AuthContext.tsx` — add MFA state checks
-- `src/App.tsx` — add MFA routes and enforcement logic
-- 6 email template files — remove emojis
+### 2. Fix Integrations Panel (AppIntegrationsPanel.tsx)
+- Filter `appIntegrations` to only include integrations where BOTH source and target are in the user's stack
+- Accept `userAppIds` as a prop from parent components
+
+### 3. Stack Map Performance (StackMap.tsx)
+- Remove `animated: true` from edges — use static solid/dashed lines instead
+- Optionally use a thinner stroke for less visual clutter
+
+### 4. Stack Map Category Grouping (StackMap.tsx)
+- Replace flat category list in the legend with CATEGORY_GROUPS collapsible sections
+- Start all groups collapsed by default
+- Each group expands to show individual category toggles
+- Toggle/untoggle at group level affects all categories within
+
+### 5. My Stack Contracts Redirect (Stack.tsx)
+- In the app settings dialog, when "Contracts" tab is clicked, navigate to `/budget` page instead of showing inline contracts
+
+### 6. Fix Contract Upload RLS (Migration)
+- Add storage policy: allow `is_platform_admin()` to upload to contracts bucket
+- Update existing upload policy to include `OR is_platform_admin()`
+
+### 7. Budget Search (Budget.tsx)
+- Add search input above the Application Spend table
+- Filter `sortedApps` by name/category match
+
+### Technical Details
+- **Storage policy migration**: `CREATE POLICY "Platform admins can upload contracts" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'contracts' AND is_platform_admin());`
+- **Team name resolution**: Use `get_org_invitations` or query invitations table to match `user_id` → `invited_by` → first/last name from the invitation record for that email. Alternatively, add a `profiles` table (better long-term), but for now the invitation-based approach works for invited users.
+- **Edge animation removal**: Change `animated: true` to `animated: false` and optionally adjust `strokeDasharray` for a subtle static dashed look.
+
