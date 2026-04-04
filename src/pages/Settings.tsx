@@ -837,9 +837,9 @@ export default function Settings() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Building2 className="h-5 w-5" />
-                Company
+                Organization
               </CardTitle>
-              <CardDescription>Manage your company name and organization details.</CardDescription>
+              <CardDescription>Manage your organization name and details.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
