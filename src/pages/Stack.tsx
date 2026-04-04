@@ -467,7 +467,7 @@ export default function Stack() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="integrations" className="pt-2">
+                <TabsContent value="integrations" className="pt-2 flex-1 overflow-hidden">
                   {infoAppIntegrations.length === 0 ? (
                     <div className="py-4 space-y-3">
                       <p className="text-sm text-muted-foreground">
