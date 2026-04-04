@@ -79,7 +79,8 @@ type FeedbackSortKey = 'date' | 'type' | 'status';
 
 export default function Admin() {
   const { userRole, loading } = useAuth();
-  const [activeTab, setActiveTab] = useState('moderation');
+  const [activeTab, setActiveTab] = useState('users');
+  const [showClosed, setShowClosed] = useState(false);
   const [allApps, setAllApps] = useState<PendingApp[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
