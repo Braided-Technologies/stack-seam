@@ -45,7 +45,7 @@ const TeamInvitationEmail = ({
         <Text style={text}>
           To accept this invitation, create your account using the email address this invitation was sent to.
         </Text>
-        <Button style={button} href={signupUrl || 'https://stack-map-nexus.lovable.app/auth'}>
+        <Button style={button} href={signupUrl || 'https://stackseam.tech/auth'}>
           Create Your Account
         </Button>
         <Hr style={hr} />
