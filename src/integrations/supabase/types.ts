@@ -640,8 +640,10 @@ export type Database = {
           created_at: string
           email: string
           expires_at: string
+          first_name: string
           id: string
           invited_by: string
+          last_name: string
           role: Database["public"]["Enums"]["app_role"]
           status: string
         }[]
