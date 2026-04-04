@@ -2,53 +2,74 @@
 
 # Multi-Issue Fix Plan
 
-## Issues Identified
+## Issues Summary
 
-1. **Team table columns uneven** — Grid column fractions don't align between header, member rows, and invitation rows
-2. **Team: add sorting & search** — No way to filter or sort members
-3. **Team: show first/last name for users** — Currently shows email prefix; invitations store first/last names but active members don't have this data
-4. **Integrations panel shows non-stack connections** — `AppIntegrationsPanel` filters by app but doesn't limit to stack-only integrations
-5. **Stack Map: animated edges cause lag** — `animated: true` on every edge creates performance issues at 30+ apps
-6. **Stack Map: categories don't match groupings** — Legend shows individual categories; should use CATEGORY_GROUPS with collapsible groups (start collapsed)
-7. **My Stack: contracts in settings** — Decide: redirect to Budget page when user clicks contracts tab
-8. **Budget: contract upload RLS error** — Storage bucket policy only allows `is_org_admin()`, missing `is_platform_admin()` for uploads
-9. **Budget: no search on app table** — Must scroll through entire list
+1. **Admin Support tab**: Hide closed tickets by default
+2. **Admin Users tab**: Show user first/last name, reorder tabs to Users | Orgs | Apps | Support
+3. **Settings tab**: Rename "Company" to "Organization"
+4. **Contract scanning**: Add checkboxes + confirm/import button for extracted data; support multi-line-item invoices
+5. **Integration dead links**: Flag that AI-generated documentation URLs are unreliable — need verification approach
+6. **Research tab**: Fix markdown table rendering, add reset button, persist chat across tab switches
+7. **My Stack contacts**: Contact form cut off — open as popup dialog instead of inline
+8. **Email DKIM/DMARC/SPF**: Set up email domain for mail delivery
+
+---
 
 ## Plan
 
-### 1. Fix Team Table (Settings.tsx)
-- Replace `grid-cols-[2fr_2fr_1fr_1fr_auto]` with a proper HTML `<Table>` component for consistent column alignment
-- Add a search input above the members list (filters by name/email)
-- Add sortable column headers (Name, Email, Status, Role)
-- For active members: query invitation records to get first/last name (fallback to email prefix if no invitation found)
+### 1. Admin Page — Support Tab & Users Tab (Admin.tsx)
 
-### 2. Fix Integrations Panel (AppIntegrationsPanel.tsx)
-- Filter `appIntegrations` to only include integrations where BOTH source and target are in the user's stack
-- Accept `userAppIds` as a prop from parent components
+**Support tab**: Add a toggle/filter to hide closed/resolved tickets (default: hidden). Add a "Show Closed" checkbox or filter option.
 
-### 3. Stack Map Performance (StackMap.tsx)
-- Remove `animated: true` from edges — use static solid/dashed lines instead
-- Optionally use a thinner stroke for less visual clutter
+**Users tab**: 
+- Fetch user emails via the existing `get_feedback_user_emails` RPC, then derive names from invitation records (same pattern as Settings team page)
+- Add "Name" and "Email" columns to the users table
+- Reorder tab triggers to: `users` | `orgs` | `moderation` (Apps) | `feedback` (Support)
 
-### 4. Stack Map Category Grouping (StackMap.tsx)
-- Replace flat category list in the legend with CATEGORY_GROUPS collapsible sections
-- Start all groups collapsed by default
-- Each group expands to show individual category toggles
-- Toggle/untoggle at group level affects all categories within
+### 2. Settings — Rename "Company" to "Organization" (Settings.tsx)
 
-### 5. My Stack Contracts Redirect (Stack.tsx)
-- In the app settings dialog, when "Contracts" tab is clicked, navigate to `/budget` page instead of showing inline contracts
+- Change `TabsTrigger value="company"` label from "Company" to "Organization"
+- Update the card title and description text inside that tab
 
-### 6. Fix Contract Upload RLS (Migration)
-- Add storage policy: allow `is_platform_admin()` to upload to contracts bucket
-- Update existing upload policy to include `OR is_platform_admin()`
+### 3. Contract Scan — Selectable Extracted Fields (ContractsSection.tsx)
 
-### 7. Budget Search (Budget.tsx)
-- Add search input above the Application Spend table
-- Filter `sortedApps` by name/category match
+- After scan, display each extracted field with a checkbox (default checked)
+- Add line_items support: update the AI prompt in `scan-contract` edge function to also extract an array of `line_items` (each with name, cost, description)
+- Display line items as a selectable list so users can pick which are relevant to this app
+- Add "Import Selected" button that calls `onExtractedData` with only the checked fields
+- Remove the current auto-call to `onExtractedData` on scan — user confirms first
+
+### 4. Integration Dead Links
+
+This is a data quality issue — the AI-generated integration documentation URLs are guesses. Two approaches:
+- **Quick fix**: Add a "Report broken link" button next to documentation links that flags them in the database
+- **Better fix**: Add a `link_verified` boolean column to integrations table; display an unverified warning badge on links. Over time, verify links via a background check or user reports.
+
+I recommend the quick approach for now: add a small flag/report button and mark unverified links with a subtle warning.
+
+### 5. Research Tab Improvements (Research.tsx)
+
+- **Table rendering**: Add `remarkGfm` plugin to ReactMarkdown for proper GitHub Flavored Markdown table support (already in dependencies or add `remark-gfm`)
+- **Reset button**: Add a refresh/reset button in the header to clear messages
+- **Session persistence**: Lift messages state up to a ref or use `sessionStorage` so navigating away and back preserves the chat
+
+### 6. My Stack — Contact Form Fix (Stack.tsx)
+
+- Replace inline `ContactsSection` in the settings tab with a button that opens a separate Dialog for adding/managing contacts
+- Or: make the existing dialog scrollable properly so the contact form isn't cut off (the dialog already has `max-h-[85vh]` and `ScrollArea` — verify the scroll area covers the contacts section fully)
+
+The simpler fix: ensure `ScrollArea` in the settings tab wraps everything including contacts properly. The `max-h-[55vh]` on the settings ScrollArea may be too restrictive. Increase it or make the contact "Add" form open as its own sub-dialog.
+
+### 7. Email Domain Setup
+
+Use the email domain tools to configure DKIM, DMARC, and SPF. This requires:
+- Opening the email setup dialog for the user to configure their domain
+- DNS records (DKIM, SPF, DMARC) are automatically provided during domain setup
 
 ### Technical Details
-- **Storage policy migration**: `CREATE POLICY "Platform admins can upload contracts" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'contracts' AND is_platform_admin());`
-- **Team name resolution**: Use `get_org_invitations` or query invitations table to match `user_id` → `invited_by` → first/last name from the invitation record for that email. Alternatively, add a `profiles` table (better long-term), but for now the invitation-based approach works for invited users.
-- **Edge animation removal**: Change `animated: true` to `animated: false` and optionally adjust `strokeDasharray` for a subtle static dashed look.
+
+- **remark-gfm**: `npm install remark-gfm`, then `<ReactMarkdown remarkPlugins={[remarkGfm]}>`
+- **scan-contract prompt update**: Add `line_items` array to the tool schema with `{name, monthly_cost, annual_cost, description}` per item
+- **Admin user names**: Reuse `get_feedback_user_emails` RPC + query invitations table for first/last name by email
+- **Session persistence for Research**: Store messages in `sessionStorage` keyed by a constant; restore on mount
 
