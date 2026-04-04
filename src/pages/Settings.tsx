@@ -260,6 +260,20 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
     },
   });
 
+  const { data: memberEmails = {} } = useQuery({
+    queryKey: ['member-emails', members.map(m => m.user_id)],
+    enabled: members.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_feedback_user_emails', {
+        _user_ids: members.map(m => m.user_id),
+      });
+      if (error) return {};
+      const map: Record<string, string> = {};
+      (data || []).forEach((r: any) => { map[r.user_id] = r.email; });
+      return map;
+    },
+  });
+
   const { data: invitations = [] } = useQuery({
     queryKey: ['invitations', orgId],
     enabled: !!orgId && isAdmin,
@@ -470,23 +484,25 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
         </CardHeader>
         <CardContent>
           {/* Column headers */}
-          <div className="grid grid-cols-[1fr_1fr_1fr_auto_auto] gap-3 px-3 pb-2 border-b mb-2">
+          <div className="grid grid-cols-[2fr_2fr_1fr_1fr_auto] gap-3 px-3 pb-2 border-b mb-2">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</span>
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</span>
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</span>
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Role</span>
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider w-8"></span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider w-20"></span>
           </div>
           <div className="space-y-2">
             {members.map(member => (
-              <div key={member.id} className="grid grid-cols-[1fr_1fr_1fr_auto_auto] gap-3 items-center rounded-lg border p-3">
+              <div key={member.id} className="grid grid-cols-[2fr_2fr_1fr_1fr_auto] gap-3 items-center rounded-lg border p-3">
                 <div className="flex items-center gap-2">
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 flex-shrink-0">
-                    {member.role === 'admin' ? <Shield className="h-3.5 w-3.5 text-primary" /> : <User className="h-3.5 w-3.5 text-muted-foreground" />}
+                    {member.role === 'admin' || member.role === 'platform_admin' ? <Shield className="h-3.5 w-3.5 text-primary" /> : <User className="h-3.5 w-3.5 text-muted-foreground" />}
                   </div>
-                  <span className="text-sm font-medium truncate">{member.user_id.slice(0, 8)}…</span>
+                  <span className="text-sm font-medium truncate">
+                    {(memberEmails as Record<string, string>)[member.user_id]?.split('@')[0] || member.user_id.slice(0, 8) + '…'}
+                  </span>
                 </div>
-                <span className="text-sm text-muted-foreground truncate">—</span>
+                <span className="text-sm text-muted-foreground truncate">{(memberEmails as Record<string, string>)[member.user_id] || '—'}</span>
                 <div>
                   <Badge variant="secondary" className="text-xs">Active</Badge>
                   <p className="text-xs text-muted-foreground mt-0.5">Joined {new Date(member.created_at).toLocaleDateString()}</p>
@@ -567,7 +583,7 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
             ))}
             {/* Pending invitations */}
             {invitations.map((inv: any) => (
-              <div key={inv.id} className="grid grid-cols-[1fr_1fr_1fr_auto_auto] gap-3 items-center rounded-lg border border-dashed p-3">
+              <div key={inv.id} className="grid grid-cols-[2fr_2fr_1fr_1fr_auto] gap-3 items-center rounded-lg border border-dashed p-3">
                 <div className="flex items-center gap-2">
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-muted flex-shrink-0">
                     <Mail className="h-3.5 w-3.5 text-muted-foreground" />
