@@ -90,33 +90,22 @@ export default function Admin() {
     const orgData = orgRes.data || [];
     const roleData = roleRes.data || [];
 
-    // Enrich feedback with org names and user emails
+    setAllApps(apps);
+    setCategories(catRes.data || []);
+
     const orgNameMap: Record<string, string> = {};
     orgData.forEach(o => { orgNameMap[o.id] = o.name; });
 
-    // Get user emails for feedback submitters
-    const feedbackUserIds = [...new Set(fb.map(f => f.user_id))];
-    let emailMap: Record<string, string> = {};
-    if (feedbackUserIds.length > 0) {
-      const { data: emailData } = await supabase.rpc('get_user_emails_for_admin', { user_ids: feedbackUserIds });
-      if (emailData) {
-        emailData.forEach((e: any) => { emailMap[e.user_id] = e.email; });
-      }
-    }
-
     setFeedback(fb.map(f => ({
       ...f,
-      user_email: emailMap[f.user_id] || f.user_id.substring(0, 8) + '...',
+      user_email: f.user_id.substring(0, 8) + '...',
       org_name: f.organization_id ? orgNameMap[f.organization_id] || 'Unknown' : undefined,
     })));
-    setCategories(catRes.data || []);
 
     const countMap: Record<string, number> = {};
     roleData.forEach(r => { countMap[r.organization_id] = (countMap[r.organization_id] || 0) + 1; });
     setOrgs(orgData.map(o => ({ ...o, user_count: countMap[o.id] || 0 })));
 
-    const orgNameMap: Record<string, string> = {};
-    orgData.forEach(o => { orgNameMap[o.id] = o.name; });
     setUsers(roleData.map(r => ({
       id: r.id,
       user_id: r.user_id,
