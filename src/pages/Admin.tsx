@@ -154,14 +154,44 @@ export default function Admin() {
     roleData.forEach(r => { countMap[r.organization_id] = (countMap[r.organization_id] || 0) + 1; });
     setOrgs(orgData.map(o => ({ ...o, user_count: countMap[o.id] || 0 })));
 
-    setUsers(roleData.map(r => ({
-      id: r.id,
-      user_id: r.user_id,
-      organization_id: r.organization_id,
-      org_name: orgNameMap[r.organization_id] || 'Unknown',
-      role: r.role,
-      created_at: r.created_at,
-    })));
+    // Fetch user emails and names for users tab
+    const allUserIds = [...new Set(roleData.map(r => r.user_id))];
+    let userEmailMap: Record<string, string> = {};
+    if (allUserIds.length > 0) {
+      const { data: ueData } = await supabase.rpc('get_feedback_user_emails' as any, { _user_ids: allUserIds });
+      if (Array.isArray(ueData)) {
+        ueData.forEach((e: any) => { userEmailMap[e.user_id] = e.email; });
+      }
+    }
+
+    // Get all invitations to derive names
+    const allInvitations: any[] = [];
+    for (const org of orgData) {
+      const { data: invData } = await supabase.rpc('get_org_invitations', { _org_id: org.id });
+      if (invData) allInvitations.push(...invData);
+    }
+    const nameByEmail: Record<string, { first: string; last: string }> = {};
+    allInvitations.forEach((inv: any) => {
+      if (inv.email && (inv.first_name || inv.last_name)) {
+        nameByEmail[inv.email.toLowerCase()] = { first: inv.first_name || '', last: inv.last_name || '' };
+      }
+    });
+
+    setUsers(roleData.map(r => {
+      const email = userEmailMap[r.user_id] || '';
+      const invName = email ? nameByEmail[email.toLowerCase()] : undefined;
+      const name = invName && (invName.first || invName.last) ? `${invName.first} ${invName.last}`.trim() : (email ? email.split('@')[0] : r.user_id.slice(0, 8) + '…');
+      return {
+        id: r.id,
+        user_id: r.user_id,
+        organization_id: r.organization_id,
+        org_name: orgNameMap[r.organization_id] || 'Unknown',
+        role: r.role,
+        created_at: r.created_at,
+        email,
+        name,
+      };
+    }));
 
     const pendingCount = apps.filter(a => a.status === 'org_only').length;
     const openTickets = fb.filter(f => f.status === 'open').length;
