@@ -54,6 +54,7 @@ const AppRoutes = () => (
     <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
     <Route path="/help" element={<Navigate to="/support" replace />} />
     <Route path="/unsubscribe" element={<Unsubscribe />} />
+    <Route path="/reset-password" element={<ResetPassword />} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );
