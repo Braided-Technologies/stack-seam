@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { toast } from '@/hooks/use-toast';
-import stackseamLogo from '@/assets/stackseam-logo.png';
+import stackseamIcon from '@/assets/stackseam-icon.svg';
 import { lovable } from '@/integrations/lovable/index';
 
 export default function Auth() {
