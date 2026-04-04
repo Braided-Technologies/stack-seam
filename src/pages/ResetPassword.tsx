@@ -71,7 +71,7 @@ export default function ResetPassword() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <img src={stackseamLogo} alt="StackSeam" className="mx-auto mb-2 h-10 object-contain" />
+          <img src={stackseamIcon} alt="StackSeam" className="mx-auto mb-2 h-12 w-12" />
           <CardTitle className="text-2xl font-display">Reset Password</CardTitle>
           <CardDescription>Enter your new password below.</CardDescription>
         </CardHeader>
