@@ -129,6 +129,20 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <Building2 className="h-4 w-4 text-muted-foreground" />
             </div>
           )}
+          <Link
+            to="/help"
+            title={!isExpanded ? 'Help Center' : undefined}
+            className={cn(
+              'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors w-full',
+              !isExpanded && 'justify-center px-0',
+              location.pathname === '/help'
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+            )}
+          >
+            <HelpCircle className="h-4 w-4 flex-shrink-0" />
+            {isExpanded && 'Help Center'}
+          </Link>
           <FeedbackDialog isExpanded={isExpanded} />
           <Button
             variant="ghost"
