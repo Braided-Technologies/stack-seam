@@ -11,17 +11,39 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
 import { Separator } from '@/components/ui/separator';
 import { toast } from '@/hooks/use-toast';
-import { Search, BookOpen, Plus, ArrowLeft, Pencil, Trash2, FolderPlus } from 'lucide-react';
+import {
+  Search, BookOpen, Plus, ArrowLeft, Pencil, Trash2, FolderPlus,
+  Rocket, LayoutGrid, DollarSign, Link2, Settings, Sparkles,
+  ChevronRight, FileText
+} from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+
+const CATEGORY_ICONS: Record<string, any> = {
+  'Getting Started': Rocket,
+  'Stack Management': LayoutGrid,
+  'Budget & Spend': DollarSign,
+  'Integrations & Stack Map': Link2,
+  'Settings & Team': Settings,
+  'AI & Research': Sparkles,
+};
+
+const CATEGORY_DESCRIPTIONS: Record<string, string> = {
+  'Getting Started': 'New to StackSeam? Start here with setup guides and orientation.',
+  'Stack Management': 'Add apps, manage contacts, upload contracts, and export data.',
+  'Budget & Spend': 'Track costs, view spend charts, and manage renewals.',
+  'Integrations & Stack Map': 'Configure integrations and explore the visual Stack Map.',
+  'Settings & Team': 'Invite teammates, manage roles, and connect external services.',
+  'AI & Research': 'Use the AI Research Assistant and Help Center chatbot.',
+};
 
 export default function Help() {
   const { userRole } = useAuth();
   const isPlatformAdmin = userRole === 'platform_admin';
   const [searchParams, setSearchParams] = useSearchParams();
   const articleSlug = searchParams.get('article');
+  const categoryView = searchParams.get('category');
 
   const { data: categories = [] } = useKBCategories();
   const { data: articles = [] } = useKBArticles();
@@ -34,25 +56,40 @@ export default function Help() {
   const deleteCategory = useDeleteKBCategory();
 
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingArticle, setEditingArticle] = useState<any>(null);
   const [newCatOpen, setNewCatOpen] = useState(false);
   const [newCatName, setNewCatName] = useState('');
 
-  const filteredArticles = useMemo(() => {
-    let filtered = articles.filter((a: any) => a.is_published || isPlatformAdmin);
-    if (selectedCategory) filtered = filtered.filter((a: any) => a.category_id === selectedCategory);
-    if (search) {
-      const q = search.toLowerCase();
-      filtered = filtered.filter((a: any) =>
-        a.title.toLowerCase().includes(q) ||
-        a.content?.toLowerCase().includes(q) ||
-        a.tags?.some((t: string) => t.toLowerCase().includes(q))
-      );
-    }
-    return filtered;
-  }, [articles, search, selectedCategory, isPlatformAdmin]);
+  const publishedArticles = useMemo(
+    () => articles.filter((a: any) => a.is_published || isPlatformAdmin),
+    [articles, isPlatformAdmin]
+  );
+
+  const searchResults = useMemo(() => {
+    if (!search) return [];
+    const q = search.toLowerCase();
+    return publishedArticles.filter((a: any) =>
+      a.title.toLowerCase().includes(q) ||
+      a.content?.toLowerCase().includes(q) ||
+      a.tags?.some((t: string) => t.toLowerCase().includes(q))
+    );
+  }, [publishedArticles, search]);
+
+  const categoryArticles = useMemo(() => {
+    if (!categoryView) return [];
+    return publishedArticles.filter((a: any) => a.category_id === categoryView);
+  }, [publishedArticles, categoryView]);
+
+  const articlesByCategory = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    publishedArticles.forEach((a: any) => {
+      const catName = a.kb_categories?.name || 'Uncategorized';
+      if (!map[catName]) map[catName] = [];
+      map[catName].push(a);
+    });
+    return map;
+  }, [publishedArticles]);
 
   const openEditor = (article?: any) => {
     setEditingArticle(article ? { ...article } : {
@@ -69,22 +106,15 @@ export default function Help() {
     try {
       if (editingArticle.id) {
         await updateArticle.mutateAsync({
-          id: editingArticle.id,
-          title: editingArticle.title,
-          slug: editingArticle.slug,
-          content: editingArticle.content,
-          category_id: editingArticle.category_id || null,
-          tags: editingArticle.tags || [],
-          is_published: editingArticle.is_published,
+          id: editingArticle.id, title: editingArticle.title, slug: editingArticle.slug,
+          content: editingArticle.content, category_id: editingArticle.category_id || null,
+          tags: editingArticle.tags || [], is_published: editingArticle.is_published,
         });
       } else {
         await createArticle.mutateAsync({
-          title: editingArticle.title,
-          slug: editingArticle.slug,
-          content: editingArticle.content,
-          category_id: editingArticle.category_id || undefined,
-          tags: editingArticle.tags || [],
-          is_published: editingArticle.is_published,
+          title: editingArticle.title, slug: editingArticle.slug,
+          content: editingArticle.content, category_id: editingArticle.category_id || undefined,
+          tags: editingArticle.tags || [], is_published: editingArticle.is_published,
         });
       }
       setEditorOpen(false);
@@ -117,14 +147,26 @@ export default function Help() {
     }
   };
 
-  // Article detail view
+  // ─── Article Detail View ───
   if (articleSlug && activeArticle) {
+    const sameCategoryArticles = publishedArticles.filter(
+      (a: any) => a.category_id === activeArticle.category_id && a.id !== activeArticle.id
+    );
+
     return (
       <div className="max-w-4xl mx-auto p-6">
-        <Button variant="ghost" className="mb-4 gap-2" onClick={() => setSearchParams({})}>
-          <ArrowLeft className="h-4 w-4" /> Back to Help Center
+        <Button variant="ghost" className="mb-4 gap-2 text-muted-foreground hover:text-foreground" onClick={() => {
+          if (activeArticle.category_id) {
+            setSearchParams({ category: activeArticle.category_id });
+          } else {
+            setSearchParams({});
+          }
+        }}>
+          <ArrowLeft className="h-4 w-4" />
+          {(activeArticle as any).kb_categories?.name || 'Help Center'}
         </Button>
-        <div className="flex items-start justify-between mb-6">
+
+        <div className="flex items-start justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold">{activeArticle.title}</h1>
             <div className="flex items-center gap-2 mt-2">
@@ -132,9 +174,6 @@ export default function Help() {
                 <Badge variant="secondary">{(activeArticle as any).kb_categories.name}</Badge>
               )}
               {!activeArticle.is_published && <Badge variant="outline" className="text-yellow-500">Draft</Badge>}
-              {activeArticle.tags?.map((t: string) => (
-                <Badge key={t} variant="outline" className="text-xs">{t}</Badge>
-              ))}
             </div>
           </div>
           {isPlatformAdmin && (
@@ -149,114 +188,228 @@ export default function Help() {
           )}
         </div>
         <Separator className="mb-6" />
-        <div className="prose prose-sm dark:prose-invert max-w-none">
+
+        <div className="prose prose-sm dark:prose-invert max-w-none 
+          prose-headings:scroll-mt-4 
+          prose-h2:text-lg prose-h2:font-semibold prose-h2:mt-8 prose-h2:mb-3 prose-h2:border-b prose-h2:pb-2 prose-h2:border-border
+          prose-h3:text-base prose-h3:font-medium prose-h3:mt-6 prose-h3:mb-2
+          prose-table:border prose-table:border-border prose-table:rounded-md
+          prose-th:bg-muted/50 prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:text-xs prose-th:font-medium
+          prose-td:px-3 prose-td:py-2 prose-td:text-sm prose-td:border-t prose-td:border-border
+          prose-blockquote:border-l-primary prose-blockquote:bg-primary/5 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-md prose-blockquote:not-italic
+          prose-li:marker:text-primary
+          prose-strong:text-foreground
+          prose-code:bg-muted prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-xs
+        ">
           <ReactMarkdown>{activeArticle.content}</ReactMarkdown>
         </div>
+
+        {/* Related articles in same category */}
+        {sameCategoryArticles.length > 0 && (
+          <div className="mt-12 pt-6 border-t border-border">
+            <h3 className="text-sm font-semibold text-muted-foreground mb-3">Related articles</h3>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {sameCategoryArticles.map((a: any) => (
+                <Card
+                  key={a.id}
+                  className="p-3 cursor-pointer hover:border-primary/50 transition-colors"
+                  onClick={() => setSearchParams({ article: a.slug })}
+                >
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-sm font-medium truncate">{a.title}</span>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground ml-auto flex-shrink-0" />
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
-  // List view
-  return (
-    <div className="max-w-5xl mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Help Center</h1>
-          <p className="text-muted-foreground text-sm mt-1">Browse articles and guides to get the most out of StackSeam</p>
-        </div>
-        {isPlatformAdmin && (
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setNewCatOpen(true)}>
-              <FolderPlus className="h-3.5 w-3.5 mr-1" /> Category
-            </Button>
-            <Button size="sm" onClick={() => openEditor()}>
-              <Plus className="h-3.5 w-3.5 mr-1" /> New Article
-            </Button>
+  // ─── Category Detail View ───
+  if (categoryView) {
+    const cat = categories.find((c: any) => c.id === categoryView);
+    const catName = cat?.name || 'Category';
+    const CatIcon = CATEGORY_ICONS[catName] || BookOpen;
+
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <Button variant="ghost" className="mb-4 gap-2 text-muted-foreground hover:text-foreground" onClick={() => setSearchParams({})}>
+          <ArrowLeft className="h-4 w-4" /> Help Center
+        </Button>
+
+        <div className="flex items-center gap-3 mb-6">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+            <CatIcon className="h-5 w-5 text-primary" />
           </div>
-        )}
-      </div>
+          <div>
+            <h1 className="text-xl font-bold">{catName}</h1>
+            <p className="text-sm text-muted-foreground">{CATEGORY_DESCRIPTIONS[catName] || `${categoryArticles.length} articles`}</p>
+          </div>
+        </div>
 
-      <div className="flex items-center gap-3 mb-6">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search articles..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <div className="flex gap-1.5 flex-wrap">
-          <Badge
-            variant={selectedCategory === null ? 'default' : 'outline'}
-            className="cursor-pointer"
-            onClick={() => setSelectedCategory(null)}
-          >
-            All
-          </Badge>
-          {categories.map((cat: any) => (
-            <Badge
-              key={cat.id}
-              variant={selectedCategory === cat.id ? 'default' : 'outline'}
-              className="cursor-pointer"
-              onClick={() => setSelectedCategory(cat.id)}
-            >
-              {cat.name}
-              {isPlatformAdmin && (
-                <button
-                  className="ml-1 hover:text-destructive"
-                  onClick={(e) => { e.stopPropagation(); deleteCategory.mutate(cat.id); }}
-                >
-                  ×
-                </button>
-              )}
-            </Badge>
-          ))}
-        </div>
-      </div>
-
-      {filteredArticles.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <BookOpen className="h-10 w-10 mx-auto mb-3 opacity-50" />
-          <p className="font-medium">No articles found</p>
-          <p className="text-sm mt-1">
-            {isPlatformAdmin ? 'Create your first knowledge base article to get started.' : 'Check back later for new content.'}
-          </p>
-        </div>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {filteredArticles.map((article: any) => (
+        <div className="space-y-2">
+          {categoryArticles.map((article: any) => (
             <Card
               key={article.id}
               className="p-4 cursor-pointer hover:border-primary/50 transition-colors"
               onClick={() => setSearchParams({ article: article.slug })}
             >
-              <div className="flex items-start justify-between">
+              <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-sm truncate">{article.title}</h3>
-                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                    {article.content?.substring(0, 120)}...
-                  </p>
-                  <div className="flex items-center gap-1.5 mt-2">
-                    {article.kb_categories?.name && (
-                      <Badge variant="secondary" className="text-[10px]">{article.kb_categories.name}</Badge>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <h3 className="font-medium text-sm">{article.title}</h3>
                     {!article.is_published && <Badge variant="outline" className="text-[10px] text-yellow-500">Draft</Badge>}
                   </div>
+                  <p className="text-xs text-muted-foreground mt-1 ml-6 line-clamp-2">
+                    {article.content?.replace(/^#.*\n+/, '').substring(0, 150)}
+                  </p>
                 </div>
-                {isPlatformAdmin && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 flex-shrink-0"
-                    onClick={(e) => { e.stopPropagation(); openEditor(article); }}
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </Button>
-                )}
+                <div className="flex items-center gap-1">
+                  {isPlatformAdmin && (
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); openEditor(article); }}>
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  )}
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
               </div>
             </Card>
           ))}
+          {categoryArticles.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              <BookOpen className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No articles in this category yet.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Home / Browse View ───
+  return (
+    <div className="max-w-5xl mx-auto p-6">
+      {/* Hero Section */}
+      <div className="rounded-xl bg-primary/5 border border-primary/10 p-8 mb-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold mb-1">How can we help?</h1>
+            <p className="text-muted-foreground text-sm">Search our knowledge base or browse topics below</p>
+          </div>
+          {isPlatformAdmin && (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setNewCatOpen(true)}>
+                <FolderPlus className="h-3.5 w-3.5 mr-1" /> Category
+              </Button>
+              <Button size="sm" onClick={() => openEditor()}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> New Article
+              </Button>
+            </div>
+          )}
+        </div>
+        <div className="relative mt-5 max-w-xl">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search for answers..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 bg-background"
+          />
+        </div>
+      </div>
+
+      {/* Search Results */}
+      {search ? (
+        <div>
+          <p className="text-sm text-muted-foreground mb-4">
+            {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{search}"
+          </p>
+          <div className="space-y-2">
+            {searchResults.map((article: any) => (
+              <Card
+                key={article.id}
+                className="p-4 cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => { setSearch(''); setSearchParams({ article: article.slug }); }}
+              >
+                <div className="flex items-center gap-3">
+                  <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-sm">{article.title}</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                      {article.kb_categories?.name}
+                    </p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </Card>
+            ))}
+            {searchResults.length === 0 && (
+              <div className="text-center py-12 text-muted-foreground">
+                <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm font-medium">No results found</p>
+                <p className="text-xs mt-1">Try different keywords or browse by topic</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* Category Cards Grid */
+        <div>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Browse by topic</h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {categories.map((cat: any) => {
+              const CatIcon = CATEGORY_ICONS[cat.name] || BookOpen;
+              const catArticles = articlesByCategory[cat.name] || [];
+              return (
+                <Card
+                  key={cat.id}
+                  className="p-5 cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all group"
+                  onClick={() => setSearchParams({ category: cat.id })}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
+                      <CatIcon className="h-4.5 w-4.5 text-primary" />
+                    </div>
+                    {isPlatformAdmin && (
+                      <button
+                        className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                        onClick={(e) => { e.stopPropagation(); deleteCategory.mutate(cat.id); }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  <h3 className="font-semibold text-sm mb-1">{cat.name}</h3>
+                  <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
+                    {CATEGORY_DESCRIPTIONS[cat.name] || `${catArticles.length} articles`}
+                  </p>
+                  {/* Top articles preview */}
+                  <div className="space-y-1">
+                    {catArticles.slice(0, 3).map((a: any) => (
+                      <div
+                        key={a.id}
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+                        onClick={(e) => { e.stopPropagation(); setSearchParams({ article: a.slug }); }}
+                      >
+                        <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{a.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {catArticles.length > 3 && (
+                    <p className="text-xs text-primary mt-2 font-medium">
+                      View all {catArticles.length} articles →
+                    </p>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -276,11 +429,7 @@ export default function Help() {
                 </div>
                 <div className="space-y-2">
                   <Label>Slug</Label>
-                  <Input
-                    value={editingArticle.slug}
-                    onChange={(e) => setEditingArticle({ ...editingArticle, slug: e.target.value })}
-                    placeholder="getting-started"
-                  />
+                  <Input value={editingArticle.slug} onChange={(e) => setEditingArticle({ ...editingArticle, slug: e.target.value })} placeholder="getting-started" />
                 </div>
               </div>
               <div className="space-y-2">
@@ -299,17 +448,12 @@ export default function Help() {
                 <Input
                   value={(editingArticle.tags || []).join(', ')}
                   onChange={(e) => setEditingArticle({ ...editingArticle, tags: e.target.value.split(',').map((t: string) => t.trim()).filter(Boolean) })}
-                  placeholder="setup, integrations, rMM"
+                  placeholder="setup, integrations, rmm"
                 />
               </div>
               <div className="space-y-2">
                 <Label>Content (Markdown)</Label>
-                <Textarea
-                  value={editingArticle.content}
-                  onChange={(e) => setEditingArticle({ ...editingArticle, content: e.target.value })}
-                  rows={12}
-                  className="font-mono text-xs"
-                />
+                <Textarea value={editingArticle.content} onChange={(e) => setEditingArticle({ ...editingArticle, content: e.target.value })} rows={12} className="font-mono text-xs" />
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
