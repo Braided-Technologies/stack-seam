@@ -21,7 +21,6 @@ import {
   Rocket, LayoutGrid, DollarSign, Link2, Settings, Sparkles,
   ChevronRight, FileText, MessageSquare, Send, ImageIcon
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
 import ArticleRenderer from '@/components/ArticleRenderer';
 
 
