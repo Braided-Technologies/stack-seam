@@ -22,7 +22,7 @@ import {
   ChevronRight, FileText, MessageSquare, Send
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { cn } from '@/lib/utils';
+
 
 const CATEGORY_ICONS: Record<string, any> = {
   'Getting Started': Rocket,
