@@ -76,9 +76,7 @@ export default function Auth() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-            <Layers className="h-6 w-6 text-primary-foreground" />
-          </div>
+          <img src={stackseamLogo} alt="StackSeam" className="mx-auto mb-2 h-10 object-contain" />
           <CardTitle className="text-2xl font-display">StackSeam</CardTitle>
           <CardDescription>Every connection. Every cost.</CardDescription>
         </CardHeader>
