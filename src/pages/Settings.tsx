@@ -786,10 +786,13 @@ export default function Settings() {
     if (!orgId || !companyName.trim()) return;
     setSavingOrg(true);
     try {
-      const { error } = await supabase.from('organizations').update({ name: companyName.trim() }).eq('id', orgId);
+      const { error } = await supabase.from('organizations').update({
+        name: companyName.trim(),
+        website_url: orgUrl.trim() || null,
+      } as any).eq('id', orgId);
       if (error) throw error;
       await refreshOrg();
-      toast({ title: 'Organization name updated' });
+      toast({ title: 'Organization updated' });
     } catch (e: any) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
     }
