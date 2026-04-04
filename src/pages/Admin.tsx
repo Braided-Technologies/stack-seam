@@ -632,11 +632,8 @@ export default function Admin() {
                 </div>
                 <Input
                   placeholder="Search apps..."
-                  value={appFilter === 'all' ? '' : ''}
-                  onChange={e => {
-                    // Use appSearch state for admin app search
-                    setAdminAppSearch(e.target.value);
-                  }}
+                  value={adminAppSearch}
+                  onChange={e => setAdminAppSearch(e.target.value)}
                   className="w-64 h-8"
                 />
               </div>
