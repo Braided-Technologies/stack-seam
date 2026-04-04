@@ -82,7 +82,10 @@ export default function HelpChatPanel({ onOpenFeedback }: { onOpenFeedback?: () 
     try {
       const allMessages = [...messages, userMsg];
       const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      if (!session?.access_token) {
+        throw new Error('Please sign in to use the support chat.');
+      }
+      const token = session.access_token;
       const resp = await fetch(CHAT_URL, {
         method: 'POST',
         headers: {
