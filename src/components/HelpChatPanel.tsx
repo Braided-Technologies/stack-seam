@@ -272,6 +272,25 @@ export default function HelpChatPanel({ onOpenFeedback }: { onOpenFeedback?: () 
               </div>
             </div>
           )}
+
+          {/* Follow-up quick actions after assistant response */}
+          {!isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'assistant' && (
+            <div className="pl-8 space-y-1.5">
+              <p className="text-xs text-muted-foreground">Anything else I can help with?</p>
+              <div className="flex flex-wrap gap-1.5">
+                {QUICK_ACTIONS.map((action, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleQuickAction(action)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs hover:border-primary/50 hover:bg-accent/50 transition-colors"
+                  >
+                    <action.icon className="h-3 w-3 text-primary" />
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="border-t px-4 py-3">
