@@ -61,10 +61,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           isExpanded ? 'w-64' : 'w-16'
         )}
       >
-        <div className={cn('flex items-center gap-2 border-b px-4 py-4', !isExpanded && 'justify-center px-2')}>
+        <Link to="/" className={cn('flex items-center gap-2 border-b px-4 py-4 hover:bg-accent/50 transition-colors', !isExpanded && 'justify-center px-2')}>
           <img src={stackseamIcon} alt="StackSeam" className="flex-shrink-0 h-8 w-8" />
           {isExpanded && <span className="font-display font-bold whitespace-nowrap">StackSeam</span>}
-        </div>
+        </Link>
 
         <nav className="flex-1 space-y-1 p-3">
           {navItems.map(item => (
