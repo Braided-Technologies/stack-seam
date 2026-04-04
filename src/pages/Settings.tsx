@@ -741,6 +741,8 @@ export default function Settings() {
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
 
   const [companyName, setCompanyName] = useState('');
+  const [orgUrl, setOrgUrl] = useState('');
+  const [orgDomain, setOrgDomain] = useState('');
   const [savingOrg, setSavingOrg] = useState(false);
   const [provider, setProvider] = useState('lovable');
   const [apiKey, setApiKey] = useState('');
