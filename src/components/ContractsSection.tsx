@@ -3,6 +3,8 @@ import { useContractFiles, useUploadContract, useDeleteContractFile } from '@/ho
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { Upload, FileText, Trash2, Download, ScanSearch, Loader2, Check } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -161,13 +163,13 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
     if (checkedFields.license_count && editableFields.license_count != null) data.license_count = Number(editableFields.license_count);
     if (checkedFields.notes && editableFields.notes) data.notes = editableFields.notes;
 
-    // Aggregate costs from selected line items
+    // If line items are selected, use their costs INSTEAD of (not in addition to) base costs
     const selectedItems = editableLineItems.filter((_, i) => checkedLineItems[i]);
     if (selectedItems.length > 0) {
       const liMonthly = selectedItems.reduce((sum, li) => sum + (Number(li.monthly_cost) || 0), 0);
       const liAnnual = selectedItems.reduce((sum, li) => sum + (Number(li.annual_cost) || 0), 0);
-      if (liMonthly > 0) data.cost_monthly = (data.cost_monthly || 0) + liMonthly;
-      if (liAnnual > 0) data.cost_annual = (data.cost_annual || 0) + liAnnual;
+      if (liMonthly > 0) data.cost_monthly = liMonthly;
+      if (liAnnual > 0) data.cost_annual = liAnnual;
       data.selected_line_items = selectedItems;
     }
 
@@ -276,91 +278,107 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
 
       {/* Extracted data with editable fields and checkboxes */}
       {scanResult && (
-        <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-3">
-          <p className="font-medium text-xs uppercase tracking-wider text-muted-foreground">Extracted Data — Edit & select fields to import</p>
-          
-          {/* Standard fields */}
-          <div className="space-y-2">
-            {Object.entries(FIELD_LABELS).map(([key, label]) => {
-              if (editableFields[key] == null && !checkedFields[key]) return null;
-              return (
-                <div key={key} className="flex items-center gap-2">
-                  <Checkbox
-                    checked={!!checkedFields[key]}
-                    onCheckedChange={() => toggleField(key)}
-                  />
-                  <span className="font-medium text-xs w-24 shrink-0">{label}:</span>
-                  <Input
-                    type={FIELD_TYPES[key] || 'text'}
-                    value={editableFields[key] ?? ''}
-                    onChange={e => updateField(key, e.target.value)}
-                    className="h-7 text-xs flex-1"
-                  />
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Line items */}
-          {editableLineItems.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="font-medium text-xs uppercase tracking-wider text-muted-foreground mt-2">
-                Line Items ({editableLineItems.length}) — Select items relevant to this app
-              </p>
-              {editableLineItems.map((item, i) => (
-                <div key={i} className="flex items-start gap-2 rounded px-1 py-1 border border-border/50 bg-background/50">
-                  <Checkbox
-                    checked={!!checkedLineItems[i]}
-                    onCheckedChange={() => toggleLineItem(i)}
-                    className="mt-1.5"
-                  />
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <Input
-                      value={item.name}
-                      onChange={e => updateLineItem(i, 'name', e.target.value)}
-                      className="h-7 text-xs font-medium"
-                      placeholder="Product name"
+        <ScrollArea className="max-h-[400px] rounded-lg border bg-muted/30">
+          <div className="p-3 text-sm space-y-3">
+            <p className="font-medium text-xs uppercase tracking-wider text-muted-foreground">Extracted Data — Edit & select fields to import</p>
+            
+            {/* Standard fields */}
+            <div className="space-y-2">
+              {Object.entries(FIELD_LABELS).map(([key, label]) => {
+                if (editableFields[key] == null && !checkedFields[key]) return null;
+                return (
+                  <div key={key} className="flex items-center gap-2">
+                    <Checkbox
+                      checked={!!checkedFields[key]}
+                      onCheckedChange={() => toggleField(key)}
                     />
-                    <div className="grid grid-cols-3 gap-1">
+                    <span className="font-medium text-xs w-24 shrink-0">{label}:</span>
+                    {key === 'billing_cycle' ? (
+                      <Select value={editableFields[key] || ''} onValueChange={v => updateField(key, v)}>
+                        <SelectTrigger className="h-7 text-xs flex-1">
+                          <SelectValue placeholder="Select..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="monthly">Monthly</SelectItem>
+                          <SelectItem value="annual">Annual</SelectItem>
+                          <SelectItem value="quarterly">Quarterly</SelectItem>
+                          <SelectItem value="multi-year">Multi-Year</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
                       <Input
-                        type="number"
-                        value={item.monthly_cost ?? ''}
-                        onChange={e => updateLineItem(i, 'monthly_cost', e.target.value ? Number(e.target.value) : null)}
-                        className="h-6 text-xs"
-                        placeholder="$/mo"
+                        type={FIELD_TYPES[key] || 'text'}
+                        value={editableFields[key] ?? ''}
+                        onChange={e => updateField(key, e.target.value)}
+                        className="h-7 text-xs flex-1"
                       />
-                      <Input
-                        type="number"
-                        value={item.annual_cost ?? ''}
-                        onChange={e => updateLineItem(i, 'annual_cost', e.target.value ? Number(e.target.value) : null)}
-                        className="h-6 text-xs"
-                        placeholder="$/yr"
-                      />
-                      <Input
-                        type="number"
-                        value={item.quantity ?? ''}
-                        onChange={e => updateLineItem(i, 'quantity', e.target.value ? Number(e.target.value) : null)}
-                        className="h-6 text-xs"
-                        placeholder="Qty"
-                      />
-                    </div>
-                    {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-          )}
 
-          <div className="flex gap-2 pt-1">
-            <Button size="sm" className="gap-1" onClick={handleImport}>
-              <Check className="h-3.5 w-3.5" />
-              Import Selected
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setScanResult(null)}>
-              Dismiss
-            </Button>
+            {/* Line items */}
+            {editableLineItems.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="font-medium text-xs uppercase tracking-wider text-muted-foreground mt-2">
+                  Line Items ({editableLineItems.length}) — Select items relevant to this app
+                </p>
+                {editableLineItems.map((item, i) => (
+                  <div key={i} className="flex items-start gap-2 rounded px-1 py-1 border border-border/50 bg-background/50">
+                    <Checkbox
+                      checked={!!checkedLineItems[i]}
+                      onCheckedChange={() => toggleLineItem(i)}
+                      className="mt-1.5"
+                    />
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <Input
+                        value={item.name}
+                        onChange={e => updateLineItem(i, 'name', e.target.value)}
+                        className="h-7 text-xs font-medium"
+                        placeholder="Product name"
+                      />
+                      <div className="grid grid-cols-3 gap-1">
+                        <Input
+                          type="number"
+                          value={item.monthly_cost ?? ''}
+                          onChange={e => updateLineItem(i, 'monthly_cost', e.target.value ? Number(e.target.value) : null)}
+                          className="h-6 text-xs"
+                          placeholder="$/mo"
+                        />
+                        <Input
+                          type="number"
+                          value={item.annual_cost ?? ''}
+                          onChange={e => updateLineItem(i, 'annual_cost', e.target.value ? Number(e.target.value) : null)}
+                          className="h-6 text-xs"
+                          placeholder="$/yr"
+                        />
+                        <Input
+                          type="number"
+                          value={item.quantity ?? ''}
+                          onChange={e => updateLineItem(i, 'quantity', e.target.value ? Number(e.target.value) : null)}
+                          className="h-6 text-xs"
+                          placeholder="Qty"
+                        />
+                      </div>
+                      {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <Button size="sm" className="gap-1" onClick={handleImport}>
+                <Check className="h-3.5 w-3.5" />
+                Import Selected
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setScanResult(null)}>
+                Dismiss
+              </Button>
+            </div>
           </div>
-        </div>
+        </ScrollArea>
       )}
 
       {/* Storage choice dialog */}

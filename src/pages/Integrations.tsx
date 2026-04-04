@@ -6,14 +6,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from '@/hooks/use-toast';
 import { CATEGORY_GROUPS } from '@/lib/categoryGroups';
-import { Search, ExternalLink, Filter, Link2, CheckCircle2, Circle, Map as MapIcon, ChevronDown, ChevronRight, EyeOff, SkipForward, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { Search, ExternalLink, Filter, Link2, CheckCircle2, Circle, Map as MapIcon, ChevronDown, ChevronRight, EyeOff, SkipForward, ChevronsDownUp, ChevronsUpDown, Plus } from 'lucide-react';
 
 type StatusFilter = 'all' | 'configured' | 'pending' | 'skipped' | 'hidden';
 
@@ -26,12 +28,54 @@ export default function Integrations() {
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(CATEGORY_GROUPS.map(g => g.label)));
   const [openApps, setOpenApps] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(true);
+  const [showSubmitDialog, setShowSubmitDialog] = useState(false);
+  const [submitSourceApp, setSubmitSourceApp] = useState('');
+  const [submitTargetApp, setSubmitTargetApp] = useState('');
+  const [submitDocUrl, setSubmitDocUrl] = useState('');
 
   const { orgId, userRole, user } = useAuth();
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
   const { data: allIntegrations = [] } = useIntegrations();
   const { data: userApps = [] } = useUserApplications();
   const queryClient = useQueryClient();
+
+  // Fetch all approved apps for submit integration dialog
+  const { data: allApps = [] } = useQuery({
+    queryKey: ['all_applications'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('applications').select('id, name').eq('status', 'approved').order('name');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const submitIntegration = useMutation({
+    mutationFn: async () => {
+      if (!submitSourceApp || !submitTargetApp || !submitDocUrl.trim()) throw new Error('All fields are required');
+      if (submitSourceApp === submitTargetApp) throw new Error('Source and target apps must be different');
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase.from('integrations').insert({
+        source_app_id: submitSourceApp,
+        target_app_id: submitTargetApp,
+        documentation_url: submitDocUrl.trim(),
+        status: 'pending',
+        submitted_by_org: orgId,
+        submitted_by_user: user!.id,
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: 'Integration submitted', description: 'Your submission will be reviewed by an administrator.' });
+      setShowSubmitDialog(false);
+      setSubmitSourceApp('');
+      setSubmitTargetApp('');
+      setSubmitDocUrl('');
+      queryClient.invalidateQueries({ queryKey: ['integrations'] });
+    },
+    onError: (e: any) => {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    },
+  });
 
   const userAppIds = useMemo(() => new Set(userApps.map(ua => ua.application_id)), [userApps]);
 
@@ -234,12 +278,20 @@ export default function Integrations() {
             Manage and track integrations between your stack tools
           </p>
         </div>
-        <Link to="/map">
-          <Button variant="outline" size="sm" className="gap-2">
-            <MapIcon className="h-4 w-4" />
-            Stack Map
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link to="/map">
+            <Button variant="outline" size="sm" className="gap-2">
+              <MapIcon className="h-4 w-4" />
+              Stack Map
+            </Button>
+          </Link>
+          {isAdmin && (
+            <Button size="sm" className="gap-2" onClick={() => setShowSubmitDialog(true)}>
+              <Plus className="h-4 w-4" />
+              Add Integration
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Summary */}
@@ -425,6 +477,47 @@ export default function Integrations() {
           })}
         </div>
       )}
+
+      {/* Submit Integration Dialog */}
+      <Dialog open={showSubmitDialog} onOpenChange={setShowSubmitDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Submit an Integration</DialogTitle>
+            <DialogDescription>Select two apps and provide the documentation URL. Your submission will be reviewed by an administrator.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>Source App</Label>
+              <Select value={submitSourceApp} onValueChange={setSubmitSourceApp}>
+                <SelectTrigger><SelectValue placeholder="Select source app..." /></SelectTrigger>
+                <SelectContent>
+                  {allApps.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Target App</Label>
+              <Select value={submitTargetApp} onValueChange={setSubmitTargetApp}>
+                <SelectTrigger><SelectValue placeholder="Select target app..." /></SelectTrigger>
+                <SelectContent>
+                  {allApps.filter(a => a.id !== submitSourceApp).map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Documentation URL</Label>
+              <Input value={submitDocUrl} onChange={e => setSubmitDocUrl(e.target.value)} placeholder="https://docs.example.com/integration-guide" />
+            </div>
+            <Button
+              className="w-full"
+              onClick={() => submitIntegration.mutate()}
+              disabled={submitIntegration.isPending || !submitSourceApp || !submitTargetApp || !submitDocUrl.trim()}
+            >
+              {submitIntegration.isPending ? 'Submitting...' : 'Submit for Review'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

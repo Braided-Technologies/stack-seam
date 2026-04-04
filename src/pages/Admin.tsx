@@ -11,9 +11,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+
 import { toast } from '@/hooks/use-toast';
-import { Check, X, Building2, Users, Layers, MessageSquare, BarChart3, Pencil, Trash2, Save, ChevronDown, ArrowUpDown, KeyRound, ShieldOff } from 'lucide-react';
+import { Check, X, Building2, Users, Layers, MessageSquare, BarChart3, Pencil, Trash2, Save, ArrowUpDown, KeyRound, ShieldOff, Link2 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 type PendingApp = {
@@ -78,6 +78,95 @@ function AdminScreenshot({ path }: { path: string }) {
 }
 
 type FeedbackSortKey = 'date' | 'type' | 'status';
+
+function IntegrationsModeration() {
+  const [pendingIntegrations, setPendingIntegrations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadPendingIntegrations();
+  }, []);
+
+  const loadPendingIntegrations = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('integrations')
+      .select('*, source:applications!integrations_source_app_id_fkey(name), target:applications!integrations_target_app_id_fkey(name)')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+    if (!error) setPendingIntegrations(data || []);
+    setLoading(false);
+  };
+
+  const approveIntegration = async (id: string) => {
+    const { error } = await supabase.from('integrations').update({ status: 'approved' } as any).eq('id', id);
+    if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: 'Integration approved' });
+    loadPendingIntegrations();
+  };
+
+  const rejectIntegration = async (id: string) => {
+    const { error } = await supabase.from('integrations').delete().eq('id', id);
+    if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: 'Integration rejected and removed' });
+    loadPendingIntegrations();
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Link2 className="h-5 w-5" />
+          Pending Integration Submissions
+        </CardTitle>
+        <CardDescription>Review user-submitted integrations</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">Loading...</p>
+        ) : pendingIntegrations.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">No pending integrations</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Source App</TableHead>
+                <TableHead>Target App</TableHead>
+                <TableHead>Documentation</TableHead>
+                <TableHead>Submitted</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pendingIntegrations.map(i => (
+                <TableRow key={i.id}>
+                  <TableCell className="font-medium">{(i as any).source?.name || '—'}</TableCell>
+                  <TableCell className="font-medium">{(i as any).target?.name || '—'}</TableCell>
+                  <TableCell>
+                    {i.documentation_url ? (
+                      <a href={i.documentation_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm truncate block max-w-xs">
+                        {i.documentation_url}
+                      </a>
+                    ) : '—'}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{new Date(i.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell className="text-right space-x-1">
+                    <Button size="sm" variant="outline" onClick={() => approveIntegration(i.id)}>
+                      <Check className="h-3 w-3 mr-1" /> Approve
+                    </Button>
+                    <Button size="sm" variant="ghost" className="text-destructive" onClick={() => rejectIntegration(i.id)}>
+                      <X className="h-3 w-3 mr-1" /> Reject
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Admin() {
   const { userRole, loading } = useAuth();
@@ -374,6 +463,7 @@ export default function Admin() {
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="orgs">Organizations</TabsTrigger>
           <TabsTrigger value="moderation">Apps {stats.pending > 0 && `(${stats.pending})`}</TabsTrigger>
+          <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="feedback">Support {stats.openTickets > 0 && `(${stats.openTickets})`}</TabsTrigger>
         </TabsList>
 
@@ -499,7 +589,11 @@ export default function Admin() {
           </Card>
         </TabsContent>
 
-        {/* FEEDBACK TAB — table with detail columns */}
+        {/* INTEGRATIONS TAB */}
+        <TabsContent value="integrations" className="space-y-4">
+          <IntegrationsModeration />
+        </TabsContent>
+
         <TabsContent value="feedback" className="space-y-4">
           <Card>
             <CardHeader>
@@ -642,7 +736,7 @@ export default function Admin() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
-                    <TableHead>URL</TableHead>
+                    <TableHead>Website</TableHead>
                     <TableHead>Domain</TableHead>
                     <TableHead>Users</TableHead>
                     <TableHead>Created</TableHead>
@@ -664,7 +758,9 @@ export default function Admin() {
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{org.website_url || '—'}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{org.domain || '—'}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {org.website_url ? (() => { try { return new URL(org.website_url).hostname.replace(/^www\./, ''); } catch { return org.domain || '—'; } })() : (org.domain || '—')}
+                      </TableCell>
                       <TableCell>{org.user_count}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{new Date(org.created_at).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right space-x-1">

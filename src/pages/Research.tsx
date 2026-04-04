@@ -221,13 +221,13 @@ export default function Research() {
                     <Bot className="h-4 w-4 text-primary" />
                   </div>
                 )}
-                <div className={`rounded-lg px-4 py-3 max-w-[80%] overflow-x-auto ${
+                <div className={`rounded-lg px-4 py-3 overflow-x-auto ${
                   msg.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted'
+                    ? 'bg-primary text-primary-foreground max-w-[80%]'
+                    : 'bg-muted max-w-full'
                 }`}>
                   {msg.role === 'assistant' ? (
-                    <div className="prose prose-sm dark:prose-invert max-w-none [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:px-3 [&_th]:py-1.5 [&_th]:bg-muted [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-1.5">
+                    <div className="prose prose-sm dark:prose-invert max-w-none [&_p]:mb-3 [&_table]:border-collapse [&_table]:w-full [&_table]:text-xs [&_th]:border [&_th]:border-border [&_th]:px-2 [&_th]:py-1.5 [&_th]:bg-muted [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1.5 [&_table]:block [&_table]:overflow-x-auto">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                     </div>
                   ) : (

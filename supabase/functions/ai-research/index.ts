@@ -98,6 +98,12 @@ serve(async (req) => {
 
 Be specific, practical, and data-driven. When comparing tools, use tables. When recommending, consider MSP-specific needs like multi-tenancy, RMM integration, PSA compatibility, and per-technician pricing.
 
+CRITICAL RULES:
+- Only cite tools, products, and features that you can verify actually exist. Do NOT fabricate product names, features, or integrations.
+- If you are unsure whether a product or feature exists, say so explicitly rather than guessing.
+- When possible, include URLs or references to official documentation to support your claims.
+- Add clear paragraph breaks between sections for readability.
+
 ${stackContext ? `The user's current stack includes: ${stackContext}. Reference their existing tools when relevant.` : ""}`;
 
     const response = await fetch(aiUrl, {
