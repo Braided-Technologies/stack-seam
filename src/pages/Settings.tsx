@@ -484,12 +484,12 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
         </CardHeader>
         <CardContent>
           {/* Column headers */}
-          <div className="grid grid-cols-[1fr_1fr_1fr_auto_auto] gap-3 px-3 pb-2 border-b mb-2">
+          <div className="grid grid-cols-[2fr_2fr_1fr_1fr_auto] gap-3 px-3 pb-2 border-b mb-2">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</span>
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</span>
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</span>
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Role</span>
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider w-8"></span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider w-20"></span>
           </div>
           <div className="space-y-2">
             {members.map(member => (
