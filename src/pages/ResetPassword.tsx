@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
-import stackseamLogo from '@/assets/stackseam-logo.png';
+import stackseamIcon from '@/assets/stackseam-icon.svg';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
