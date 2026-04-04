@@ -663,6 +663,8 @@ export default function Admin() {
                           <span className="font-medium">{org.name}</span>
                         )}
                       </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{org.website_url || '—'}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{org.domain || '—'}</TableCell>
                       <TableCell>{org.user_count}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{new Date(org.created_at).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right space-x-1">
