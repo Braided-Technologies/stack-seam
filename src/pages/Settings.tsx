@@ -239,7 +239,7 @@ function ConnectorsSection() {
   );
 }
 
-function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
+function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: boolean; orgName?: string }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [inviteEmail, setInviteEmail] = useState('');
