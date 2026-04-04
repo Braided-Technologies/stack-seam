@@ -11,7 +11,7 @@ type AuthContextType = {
   userRole: 'admin' | 'member' | 'platform_admin' | null;
   mfaEnrolled: boolean;
   mfaVerified: boolean;
-  aal: AuthenticatorAssuranceLevels | null;
+  aal: any;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
