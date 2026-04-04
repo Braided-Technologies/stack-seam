@@ -500,7 +500,11 @@ export default function Admin() {
           </Card>
         </TabsContent>
 
-        {/* FEEDBACK TAB — table with detail columns */}
+        {/* INTEGRATIONS TAB */}
+        <TabsContent value="integrations" className="space-y-4">
+          <IntegrationsModeration />
+        </TabsContent>
+
         <TabsContent value="feedback" className="space-y-4">
           <Card>
             <CardHeader>
