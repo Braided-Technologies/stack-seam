@@ -55,10 +55,23 @@ export default function Budget() {
     },
   });
 
+  // Compute effective totals: monthly includes annual/12, annual includes monthly*12
   const totalMonthly = useMemo(() =>
-    userApps.reduce((sum, ua) => sum + (Number(ua.cost_monthly) || 0), 0), [userApps]);
+    userApps.reduce((sum, ua) => {
+      const m = Number(ua.cost_monthly) || 0;
+      const a = Number(ua.cost_annual) || 0;
+      if (m > 0) return sum + m;
+      if (a > 0) return sum + a / 12;
+      return sum;
+    }, 0), [userApps]);
   const totalAnnual = useMemo(() =>
-    userApps.reduce((sum, ua) => sum + (Number(ua.cost_annual) || 0), 0), [userApps]);
+    userApps.reduce((sum, ua) => {
+      const m = Number(ua.cost_monthly) || 0;
+      const a = Number(ua.cost_annual) || 0;
+      if (a > 0) return sum + a;
+      if (m > 0) return sum + m * 12;
+      return sum;
+    }, 0), [userApps]);
   const appsWithContracts = useMemo(() => {
     const uaIdsWithContracts = new Set(allContracts.map(c => c.user_application_id));
     return uaIdsWithContracts.size;
