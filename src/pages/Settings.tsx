@@ -761,6 +761,14 @@ export default function Settings() {
           setOrgUrl((data as any).website_url || '');
           setOrgDomain((data as any).domain || '');
         }
+        // Load enforce_email_domain setting
+        const { data: settingData } = await supabase
+          .from('org_settings')
+          .select('setting_value')
+          .eq('organization_id', orgId)
+          .eq('setting_key', 'enforce_email_domain')
+          .maybeSingle();
+        if (settingData?.setting_value === 'true') setEnforceDomain(true);
       })();
     }
   }, [orgName, orgId]);
