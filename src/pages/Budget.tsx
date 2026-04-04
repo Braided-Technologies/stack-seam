@@ -92,7 +92,14 @@ export default function Budget() {
     const map = new Map<string, number>();
     for (const ua of userApps) {
       const cat = (ua.applications as any)?.categories?.name || 'Uncategorized';
-      const cost = spendView === 'monthly' ? (Number(ua.cost_monthly) || 0) : (Number(ua.cost_annual) || 0);
+      const m = Number(ua.cost_monthly) || 0;
+      const a = Number(ua.cost_annual) || 0;
+      let cost: number;
+      if (spendView === 'monthly') {
+        cost = m > 0 ? m : a > 0 ? a / 12 : 0;
+      } else {
+        cost = a > 0 ? a : m > 0 ? m * 12 : 0;
+      }
       map.set(cat, (map.get(cat) || 0) + cost);
     }
     return Array.from(map.entries())
