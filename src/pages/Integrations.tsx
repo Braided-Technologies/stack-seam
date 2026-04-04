@@ -278,12 +278,20 @@ export default function Integrations() {
             Manage and track integrations between your stack tools
           </p>
         </div>
-        <Link to="/map">
-          <Button variant="outline" size="sm" className="gap-2">
-            <MapIcon className="h-4 w-4" />
-            Stack Map
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link to="/map">
+            <Button variant="outline" size="sm" className="gap-2">
+              <MapIcon className="h-4 w-4" />
+              Stack Map
+            </Button>
+          </Link>
+          {isAdmin && (
+            <Button size="sm" className="gap-2" onClick={() => setShowSubmitDialog(true)}>
+              <Plus className="h-4 w-4" />
+              Add Integration
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Summary */}
