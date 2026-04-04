@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Layers, DollarSign, CalendarClock, Link2, AlertTriangle } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
+import { formatCompact, formatCompactCurrency } from '@/lib/formatters';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -40,10 +41,10 @@ export default function Dashboard() {
 
       <div className="grid gap-4 md:grid-cols-4">
         {[
-          { to: '/stack', icon: Layers, value: userApps.length, label: 'Total Apps', link: true },
-          { icon: DollarSign, value: `$${totalMonthly.toLocaleString()}`, label: 'Monthly Spend' },
-          { icon: DollarSign, value: `$${totalAnnual.toLocaleString()}`, label: 'Annual Spend' },
-          { to: '/integrations', icon: Link2, value: relevantIntegrations.length, label: 'Integrations Available', link: true },
+          { to: '/stack', icon: Layers, value: formatCompact(userApps.length), label: 'Total Apps', link: true },
+          { icon: DollarSign, value: formatCompactCurrency(totalMonthly), label: 'Monthly Spend' },
+          { icon: DollarSign, value: formatCompactCurrency(totalAnnual), label: 'Annual Spend' },
+          { to: '/integrations', icon: Link2, value: formatCompact(relevantIntegrations.length), label: 'Integrations Available', link: true },
         ].map((card, i) => {
           const content = (
             <div className={cn(
@@ -53,8 +54,8 @@ export default function Dashboard() {
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 flex-shrink-0">
                 <card.icon className="h-4 w-4 text-primary" />
               </div>
-              <div>
-                <p className="text-2xl font-bold">{card.value}</p>
+              <div className="min-w-0">
+                <p className="text-2xl font-bold truncate">{card.value}</p>
                 <p className="text-xs text-muted-foreground">{card.label}</p>
               </div>
             </div>
@@ -67,7 +68,6 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Urgent renewal alerts */}
       {urgentRenewals.length > 0 && (
         <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-5 space-y-3">
           <h3 className="flex items-center gap-2 font-semibold text-destructive">
