@@ -60,7 +60,7 @@ export default function Auth() {
             <Layers className="h-6 w-6 text-primary-foreground" />
           </div>
           <CardTitle className="text-2xl font-display">StackSeam</CardTitle>
-          <CardDescription>IT Stack Intelligence Portal</CardDescription>
+          <CardDescription>Every connection. Every cost.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Button
