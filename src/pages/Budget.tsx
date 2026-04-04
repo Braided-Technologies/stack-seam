@@ -114,6 +114,12 @@ export default function Budget() {
     return items;
   }, [userApps, sortKey, sortAsc]);
 
+  const filteredApps = useMemo(() => {
+    if (!appSearch) return sortedApps;
+    const q = appSearch.toLowerCase();
+    return sortedApps.filter(a => a.name.toLowerCase().includes(q) || a.category.toLowerCase().includes(q));
+  }, [sortedApps, appSearch]);
+
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc(!sortAsc);
     else { setSortKey(key); setSortAsc(true); }
