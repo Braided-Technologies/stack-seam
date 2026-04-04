@@ -36,7 +36,7 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 }
 
 // Configuration
-const SITE_NAME = "stack-map-nexus"
+const SITE_NAME = "StackSeam"
 const SENDER_DOMAIN = "notify.stackseam.tech"
 const ROOT_DOMAIN = "stackseam.tech"
 const FROM_DOMAIN = "stackseam.tech" // Domain shown in From address (may be root or sender subdomain)
