@@ -486,6 +486,7 @@ export default function StackMap() {
         appName={selectedApp?.name || ''}
         appId={selectedApp?.id || ''}
         integrations={allIntegrations as any}
+        userAppIds={userAppIdList}
       />
     </div>
   );
