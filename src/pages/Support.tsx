@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useKBCategories, useKBArticles, useKBArticleBySlug, useCreateKBArticle, useUpdateKBArticle, useDeleteKBArticle, useCreateKBCategory, useDeleteKBCategory } from '@/hooks/useKBData';
