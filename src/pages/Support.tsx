@@ -19,7 +19,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Search, BookOpen, Plus, ArrowLeft, Pencil, Trash2, FolderPlus,
   Rocket, LayoutGrid, DollarSign, Link2, Settings, Sparkles,
-  ChevronRight, FileText, MessageSquare, Send
+  ChevronRight, FileText, MessageSquare, Send, ImageIcon
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
