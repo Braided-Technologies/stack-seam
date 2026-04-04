@@ -511,7 +511,7 @@ export default function Stack() {
                       )}
                     </div>
                   ) : (
-                    <ScrollArea className="max-h-[50vh]">
+                    <ScrollArea className="max-h-[calc(85vh-200px)]">
                       <div className="space-y-2 pr-2">
                         {infoAppIntegrations.map((integ: any) => (
                           <div key={integ.id} className="rounded-lg border p-3 space-y-1.5">
