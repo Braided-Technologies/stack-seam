@@ -316,6 +316,80 @@ export type Database = {
           },
         ]
       }
+      kb_articles: {
+        Row: {
+          category_id: string | null
+          content: string
+          created_at: string
+          display_order: number
+          id: string
+          is_published: boolean
+          slug: string
+          tags: string[] | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category_id?: string | null
+          content?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_published?: boolean
+          slug: string
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string | null
+          content?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_published?: boolean
+          slug?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kb_articles_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "kb_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kb_categories: {
+        Row: {
+          created_at: string
+          display_order: number
+          icon: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          icon?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          icon?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       org_integrations: {
         Row: {
           configured_at: string | null
