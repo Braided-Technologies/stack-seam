@@ -34,7 +34,10 @@ type FeedbackItem = {
   description: string | null;
   status: string;
   admin_response: string | null;
+  screenshot_urls: string[] | null;
   created_at: string;
+  user_email?: string;
+  org_name?: string;
 };
 
 type OrgItem = {
@@ -52,6 +55,21 @@ type UserItem = {
   role: string;
   created_at: string;
 };
+
+function AdminScreenshot({ path }: { path: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.storage.from('feedback-screenshots').createSignedUrl(path, 3600).then(({ data }) => {
+      if (data?.signedUrl) setUrl(data.signedUrl);
+    });
+  }, [path]);
+  if (!url) return <div className="h-20 w-20 rounded-md bg-muted animate-pulse" />;
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer">
+      <img src={url} alt="Screenshot" className="h-20 w-20 object-cover rounded-md border border-border hover:opacity-80 transition-opacity" />
+    </a>
+  );
+}
 
 export default function Admin() {
   const { userRole, loading } = useAuth();
@@ -88,15 +106,31 @@ export default function Admin() {
     const roleData = roleRes.data || [];
 
     setAllApps(apps);
-    setFeedback(fb);
     setCategories(catRes.data || []);
+
+    const orgNameMap: Record<string, string> = {};
+    orgData.forEach(o => { orgNameMap[o.id] = o.name; });
+
+    // Fetch user emails for feedback submitters
+    const feedbackUserIds = [...new Set(fb.map(f => f.user_id))];
+    let emailMap: Record<string, string> = {};
+    if (feedbackUserIds.length > 0) {
+      const { data: emailData } = await supabase.rpc('get_feedback_user_emails' as any, { _user_ids: feedbackUserIds });
+      if (Array.isArray(emailData)) {
+        emailData.forEach((e: any) => { emailMap[e.user_id] = e.email; });
+      }
+    }
+
+    setFeedback(fb.map(f => ({
+      ...f,
+      user_email: emailMap[f.user_id] || f.user_id.substring(0, 8) + '...',
+      org_name: f.organization_id ? orgNameMap[f.organization_id] || 'Unknown' : undefined,
+    })));
 
     const countMap: Record<string, number> = {};
     roleData.forEach(r => { countMap[r.organization_id] = (countMap[r.organization_id] || 0) + 1; });
     setOrgs(orgData.map(o => ({ ...o, user_count: countMap[o.id] || 0 })));
 
-    const orgNameMap: Record<string, string> = {};
-    orgData.forEach(o => { orgNameMap[o.id] = o.name; });
     setUsers(roleData.map(r => ({
       id: r.id,
       user_id: r.user_id,
@@ -398,14 +432,18 @@ export default function Admin() {
                     <Card key={fb.id} className="border">
                       <CardContent className="p-4 space-y-3">
                         <div className="flex items-start justify-between gap-4">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
+                          <div className="space-y-1 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <Badge variant={typeColor(fb.type) as any}>{fb.type}</Badge>
                               <Badge variant={statusColor(fb.status) as any}>{fb.status.replace('_', ' ')}</Badge>
                               <span className="text-xs text-muted-foreground">{new Date(fb.created_at).toLocaleDateString()}</span>
                             </div>
                             <h4 className="font-medium">{fb.title}</h4>
-                            {fb.description && <p className="text-sm text-muted-foreground">{fb.description}</p>}
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              <span>User: {fb.user_email}</span>
+                              {fb.org_name && <span>Org: <span className="text-foreground font-medium">{fb.org_name}</span></span>}
+                            </div>
+                            {fb.description && <p className="text-sm text-muted-foreground mt-1">{fb.description}</p>}
                           </div>
                           <Select value={fb.status} onValueChange={(v) => updateFeedbackStatus(fb.id, v)}>
                             <SelectTrigger className="w-32">
@@ -419,6 +457,17 @@ export default function Admin() {
                             </SelectContent>
                           </Select>
                         </div>
+                        {/* Screenshots */}
+                        {fb.screenshot_urls && fb.screenshot_urls.length > 0 && (
+                          <div className="space-y-1">
+                            <span className="text-xs font-medium text-muted-foreground">Attachments ({fb.screenshot_urls.length})</span>
+                            <div className="flex gap-2 flex-wrap">
+                              {fb.screenshot_urls.map((path, i) => (
+                                <AdminScreenshot key={i} path={path} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         {fb.admin_response && (
                           <div className="bg-muted rounded-md p-3 text-sm">
                             <span className="font-medium text-xs text-muted-foreground">Admin Response:</span>

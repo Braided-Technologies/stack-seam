@@ -621,6 +621,13 @@ export type Database = {
           token: string
         }[]
       }
+      get_feedback_user_emails: {
+        Args: { _user_ids: string[] }
+        Returns: {
+          email: string
+          user_id: string
+        }[]
+      }
       get_org_invitations: {
         Args: { _org_id: string }
         Returns: {
