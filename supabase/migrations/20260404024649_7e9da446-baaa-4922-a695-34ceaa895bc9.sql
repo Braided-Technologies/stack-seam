@@ -1,0 +1,1 @@
+INSERT INTO categories (name, icon, display_order) VALUES ('Design & Creative', 'Palette', 31);
