@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Auth from "./pages/Auth";
 import OrgSetup from "./pages/OrgSetup";
+import MfaSetup from "./pages/MfaSetup";
+import MfaVerify from "./pages/MfaVerify";
 import Dashboard from "./pages/Dashboard";
 import Stack from "./pages/Stack";
 import StackMap from "./pages/StackMap";
@@ -21,10 +23,14 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, orgId } = useAuth();
+  const { user, loading, orgId, mfaEnrolled, mfaVerified } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/auth" replace />;
   if (!orgId) return <Navigate to="/setup" replace />;
+  // If MFA is enrolled but not verified for this session, require verification
+  if (mfaEnrolled && !mfaVerified) return <Navigate to="/mfa-verify" replace />;
+  // If MFA is not enrolled, require setup
+  if (!mfaEnrolled) return <Navigate to="/mfa-setup" replace />;
   return <AppLayout>{children}</AppLayout>;
 }
 
@@ -32,6 +38,8 @@ const AppRoutes = () => (
   <Routes>
     <Route path="/auth" element={<Auth />} />
     <Route path="/setup" element={<OrgSetup />} />
+    <Route path="/mfa-setup" element={<MfaSetup />} />
+    <Route path="/mfa-verify" element={<MfaVerify />} />
     <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
     <Route path="/stack" element={<ProtectedRoute><Stack /></ProtectedRoute>} />
     <Route path="/map" element={<ProtectedRoute><StackMap /></ProtectedRoute>} />
