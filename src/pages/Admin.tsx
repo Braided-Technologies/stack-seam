@@ -305,8 +305,9 @@ export default function Admin() {
 
   const filteredApps = appFilter === 'all' ? allApps : allApps.filter(a => a.status === appFilter);
 
-  // Feedback filtering & sorting
+  // Feedback filtering & sorting (hide closed/resolved by default)
   const filteredFeedback = (fbTypeFilter === 'all' ? feedback : feedback.filter(f => f.type === fbTypeFilter))
+    .filter(f => showClosed || (f.status !== 'closed' && f.status !== 'resolved'))
     .sort((a, b) => {
       let cmp = 0;
       if (fbSortKey === 'date') cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
