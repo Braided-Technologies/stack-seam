@@ -1,28 +1,25 @@
-## Help Center — Knowledge Base + AI Chatbot
 
-### Phase 1: Database & Backend
-1. **`kb_articles` table** — title, slug, content (markdown), category, tags, published, display_order, created/updated timestamps. Platform admin only for CRUD; all authenticated users can read published articles.
-2. **`kb_categories` table** — name, icon, display_order. Platform admin managed.
-3. **AI chat edge function** — Uses Lovable AI (gemini-3-flash-preview) with streaming. System prompt includes:
-   - KB article content (fetched from DB based on user query)
-   - User's current stack apps and integrations (fetched via service role)
-   - General MSP best practices context
-   - Instructions to recommend KB articles and escalate to feedback system when unable to help
 
-### Phase 2: Help Page (`/help`)
-- Search bar for KB articles
-- Category-grouped article listing
-- Individual article view with markdown rendering
-- Platform admin: create/edit/delete/publish articles inline
+## Fix: Chat Panel Overlap + Post-Answer Follow-Up
 
-### Phase 3: AI Chat Panel
-- Floating help button (?) accessible from anywhere
-- Slide-out chat drawer with streaming AI responses
-- Bot recommends relevant KB articles inline
-- "Open a support ticket" button that routes to existing feedback dialog
-- Conversation history per session (in-memory, not persisted)
+### Problem 1: Overlap with top icons
+The `SheetContent` has `p-0` but the default Sheet close button (X) from shadcn overlaps with the header content. The chat panel's `SheetHeader` needs top padding or the sheet's built-in close button needs to be accounted for. The fixed help button at `bottom-6 right-6 z-50` may also overlap other UI elements.
 
-### Tech Stack
-- Lovable AI Gateway via edge function for chat
-- react-markdown for article + chat rendering
-- Existing feedback system for escalation
+### Problem 2: Post-answer UX
+Rather than a full "anything else?" prompt with yes/no, a lighter approach works better: after the assistant finishes responding, show a subtle "follow-up suggestions" area with the quick action buttons again (minus the welcome text). This lets users either type freely or tap a quick action without an extra confirmation step.
+
+### Plan
+
+**1. Fix overlap (HelpChatPanel.tsx)**
+- Add proper spacing to the `SheetContent` so the built-in close button doesn't overlap the header. Adjust `SheetHeader` padding-right to account for the X button.
+- Ensure the floating help button doesn't overlap other fixed UI elements by adjusting z-index if needed.
+
+**2. Add follow-up quick actions after assistant response**
+- After the assistant finishes streaming (when `isLoading` becomes false and the last message is from the assistant), show a condensed set of quick action chips below the last message.
+- These will be smaller, inline buttons (not the full welcome card layout) — just the labels like "Browse Help Articles", "Submit Feedback", "Ask another question".
+- Tapping one triggers the same `handleQuickAction` logic already in place.
+- This avoids the awkward "anything else?" yes/no flow while still guiding users.
+
+### Files to modify
+- `src/components/HelpChatPanel.tsx` — fix padding/overlap, add follow-up quick actions after assistant response
+
