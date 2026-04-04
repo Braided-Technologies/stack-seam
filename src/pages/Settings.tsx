@@ -490,7 +490,55 @@ function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
                     <Badge variant={member.role === 'admin' ? 'default' : 'secondary'}>{member.role}</Badge>
                   )}
                 </div>
-                <div>
+                <div className="flex items-center gap-1">
+                  {isAdmin && (
+                    <>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Reset Password">
+                            <KeyRound className="h-3.5 w-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Reset Password?</AlertDialogTitle>
+                            <AlertDialogDescription>This will send a password reset email to the user.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              disabled={actionLoading[`${member.user_id}_reset_password`]}
+                              onClick={() => adminAction(member.user_id, 'reset_password')}
+                            >
+                              {actionLoading[`${member.user_id}_reset_password`] ? 'Sending...' : 'Send Reset Email'}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Reset 2FA">
+                            <ShieldOff className="h-3.5 w-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Reset Two-Factor Authentication?</AlertDialogTitle>
+                            <AlertDialogDescription>This will remove all MFA factors for this user. They will need to set up 2FA again on their next login.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              disabled={actionLoading[`${member.user_id}_reset_mfa`]}
+                              onClick={() => adminAction(member.user_id, 'reset_mfa')}
+                            >
+                              {actionLoading[`${member.user_id}_reset_mfa`] ? 'Resetting...' : 'Reset 2FA'}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </>
+                  )}
                   {isAdmin && member.role !== 'admin' && (
                     <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeMember.mutate(member.id)}>
                       <X className="h-3.5 w-3.5" />
