@@ -260,6 +260,20 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
     },
   });
 
+  const { data: memberEmails = {} } = useQuery({
+    queryKey: ['member-emails', members.map(m => m.user_id)],
+    enabled: members.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_feedback_user_emails', {
+        _user_ids: members.map(m => m.user_id),
+      });
+      if (error) return {};
+      const map: Record<string, string> = {};
+      (data || []).forEach((r: any) => { map[r.user_id] = r.email; });
+      return map;
+    },
+  });
+
   const { data: invitations = [] } = useQuery({
     queryKey: ['invitations', orgId],
     enabled: !!orgId && isAdmin,
