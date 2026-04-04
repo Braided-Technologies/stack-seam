@@ -221,7 +221,7 @@ export default function Research() {
                     <Bot className="h-4 w-4 text-primary" />
                   </div>
                 )}
-                <div className={`rounded-lg px-4 py-3 max-w-[80%] ${
+                <div className={`rounded-lg px-4 py-3 max-w-[80%] overflow-x-auto ${
                   msg.role === 'user'
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted'
