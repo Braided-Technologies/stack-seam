@@ -50,8 +50,261 @@ function FeedbackSection() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [screenshots, setScreenshots] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: myFeedback = [] } = useQuery({
+    queryKey: ['my-feedback', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data } = await supabase
+        .from('feedback')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const addFiles = useCallback((files: File[]) => {
+    const imageFiles = files.filter(f => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+    const toAdd = imageFiles.slice(0, 5 - screenshots.length);
+    if (toAdd.length === 0) {
+      toast({ title: 'Maximum 5 screenshots', variant: 'destructive' });
+      return;
+    }
+    setScreenshots(prev => [...prev, ...toAdd]);
+    toAdd.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => setPreviews(prev => [...prev, e.target?.result as string]);
+      reader.readAsDataURL(file);
+    });
+  }, [screenshots.length]);
+
+  const removeScreenshot = (index: number) => {
+    setScreenshots(prev => prev.filter((_, i) => i !== index));
+    setPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          const file = items[i].getAsFile();
+          if (file) files.push(file);
+        }
+      }
+      if (files.length > 0) {
+        e.preventDefault();
+        addFiles(files);
+      }
+    };
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [addFiles]);
+
+  const uploadScreenshots = async (): Promise<string[]> => {
+    if (!user || screenshots.length === 0) return [];
+    const urls: string[] = [];
+    for (const file of screenshots) {
+      const ext = file.name.split('.').pop() || 'png';
+      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage
+        .from('feedback-screenshots')
+        .upload(path, file, { cacheControl: '3600' });
+      if (!error) urls.push(path);
+    }
+    return urls;
+  };
+
+  const handleSubmit = async () => {
+    if (!title.trim() || !user) return;
+    setSubmitting(true);
+    try {
+      const screenshotUrls = await uploadScreenshots();
+      const insertData: any = {
+        user_id: user.id,
+        organization_id: orgId,
+        type,
+        title: title.trim(),
+        description: description.trim() || null,
+      };
+      if (screenshotUrls.length > 0) insertData.screenshot_urls = screenshotUrls;
+      const { error } = await supabase.from('feedback').insert(insertData);
+      if (error) throw error;
+      toast({ title: 'Feedback submitted', description: "Thank you! We'll review this shortly." });
+      setTitle('');
+      setDescription('');
+      setType('bug');
+      setScreenshots([]);
+      setPreviews([]);
+      queryClient.invalidateQueries({ queryKey: ['my-feedback'] });
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const statusColor = (s: string) => {
+    switch (s) {
+      case 'open': return 'destructive';
+      case 'in_progress': return 'default';
+      case 'resolved': case 'closed': return 'secondary';
+      default: return 'outline';
+    }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      <Tabs defaultValue="submit">
+        <TabsList className="w-full max-w-sm">
+          <TabsTrigger value="submit" className="flex-1">Submit Feedback</TabsTrigger>
+          <TabsTrigger value="history" className="flex-1">My Submissions ({myFeedback.length})</TabsTrigger>
+        </TabsList>
+        <TabsContent value="submit" className="mt-6">
+          <Card className="p-6 space-y-4">
+            <div className="space-y-1 mb-2">
+              <h3 className="font-semibold text-base">Send us feedback</h3>
+              <p className="text-sm text-muted-foreground">Report a bug, suggest a feature, or ask a question. Our team reviews every submission.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select value={type} onValueChange={setType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bug">🐛 Bug Report</SelectItem>
+                  <SelectItem value="idea">💡 Feature Idea</SelectItem>
+                  <SelectItem value="question">❓ Question</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Brief summary..." />
+            </div>
+            <div className="space-y-2">
+              <Label>Details</Label>
+              <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe in detail..." className="min-h-[100px]" />
+            </div>
+
+            {/* Screenshot Upload */}
+            <div className="space-y-2">
+              <Label>Screenshots (optional)</Label>
+              <div
+                onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-primary'); }}
+                onDragLeave={(e) => { e.preventDefault(); e.currentTarget.classList.remove('border-primary'); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.remove('border-primary');
+                  addFiles(Array.from(e.dataTransfer.files));
+                }}
+                className="border-2 border-dashed border-border rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files) addFiles(Array.from(e.target.files));
+                    e.target.value = '';
+                  }}
+                />
+                <ImageIcon className="h-6 w-6 mx-auto mb-1.5 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  Drop images, <span className="text-primary font-medium">click to browse</span>, or paste from clipboard
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">PNG, JPG, GIF — max 5 files</p>
+              </div>
+
+              {previews.length > 0 && (
+                <div className="flex gap-2 flex-wrap mt-2">
+                  {previews.map((src, i) => (
+                    <div key={i} className="relative group">
+                      <img src={src} alt={`Screenshot ${i + 1}`} className="h-20 w-20 object-cover rounded-md border border-border" />
+                      <button
+                        onClick={() => removeScreenshot(i)}
+                        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <Button onClick={handleSubmit} disabled={!title.trim() || submitting} className="w-full">
+              <Send className="h-4 w-4 mr-2" /> {submitting ? 'Submitting...' : 'Submit Feedback'}
+            </Button>
+          </Card>
+        </TabsContent>
+        <TabsContent value="history" className="mt-6">
+          {myFeedback.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm font-medium">No submissions yet</p>
+              <p className="text-xs mt-1">Your bug reports, feature ideas, and questions will appear here.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {myFeedback.map((fb: any) => (
+                <Card key={fb.id} className="p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={statusColor(fb.status) as any}>{fb.status.replace('_', ' ')}</Badge>
+                    <Badge variant="outline">{fb.type}</Badge>
+                    <span className="text-xs text-muted-foreground ml-auto">{new Date(fb.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <p className="font-medium text-sm">{fb.title}</p>
+                  {fb.description && <p className="text-xs text-muted-foreground">{fb.description}</p>}
+                  {fb.screenshot_urls && (fb.screenshot_urls as string[]).length > 0 && (
+                    <div className="flex gap-2 flex-wrap">
+                      {(fb.screenshot_urls as string[]).map((path: string, i: number) => (
+                        <ScreenshotThumbnail key={i} path={path} />
+                      ))}
+                    </div>
+                  )}
+                  {fb.admin_response && (
+                    <div className="bg-muted rounded-md p-2 text-xs">
+                      <span className="font-medium">Response:</span> {fb.admin_response}
+                    </div>
+                  )}
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function ScreenshotThumbnail({ path }: { path: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.storage.from('feedback-screenshots').createSignedUrl(path, 3600).then(({ data }) => {
+      if (data?.signedUrl) setUrl(data.signedUrl);
+    });
+  }, [path]);
+
+  if (!url) return <div className="h-16 w-16 rounded-md bg-muted animate-pulse" />;
+
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer">
+      <img src={url} alt="Screenshot" className="h-16 w-16 object-cover rounded-md border border-border hover:opacity-80 transition-opacity" />
+    </a>
+  );
+}
     queryKey: ['my-feedback', user?.id],
     queryFn: async () => {
       if (!user) return [];
