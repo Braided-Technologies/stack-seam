@@ -56,6 +56,8 @@ type UserItem = {
   org_name: string;
   role: string;
   created_at: string;
+  email: string;
+  name: string;
 };
 
 function AdminScreenshot({ path }: { path: string }) {
@@ -77,7 +79,8 @@ type FeedbackSortKey = 'date' | 'type' | 'status';
 
 export default function Admin() {
   const { userRole, loading } = useAuth();
-  const [activeTab, setActiveTab] = useState('moderation');
+  const [activeTab, setActiveTab] = useState('users');
+  const [showClosed, setShowClosed] = useState(false);
   const [allApps, setAllApps] = useState<PendingApp[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
@@ -154,14 +157,44 @@ export default function Admin() {
     roleData.forEach(r => { countMap[r.organization_id] = (countMap[r.organization_id] || 0) + 1; });
     setOrgs(orgData.map(o => ({ ...o, user_count: countMap[o.id] || 0 })));
 
-    setUsers(roleData.map(r => ({
-      id: r.id,
-      user_id: r.user_id,
-      organization_id: r.organization_id,
-      org_name: orgNameMap[r.organization_id] || 'Unknown',
-      role: r.role,
-      created_at: r.created_at,
-    })));
+    // Fetch user emails and names for users tab
+    const allUserIds = [...new Set(roleData.map(r => r.user_id))];
+    let userEmailMap: Record<string, string> = {};
+    if (allUserIds.length > 0) {
+      const { data: ueData } = await supabase.rpc('get_feedback_user_emails' as any, { _user_ids: allUserIds });
+      if (Array.isArray(ueData)) {
+        ueData.forEach((e: any) => { userEmailMap[e.user_id] = e.email; });
+      }
+    }
+
+    // Get all invitations to derive names
+    const allInvitations: any[] = [];
+    for (const org of orgData) {
+      const { data: invData } = await supabase.rpc('get_org_invitations', { _org_id: org.id });
+      if (invData) allInvitations.push(...invData);
+    }
+    const nameByEmail: Record<string, { first: string; last: string }> = {};
+    allInvitations.forEach((inv: any) => {
+      if (inv.email && (inv.first_name || inv.last_name)) {
+        nameByEmail[inv.email.toLowerCase()] = { first: inv.first_name || '', last: inv.last_name || '' };
+      }
+    });
+
+    setUsers(roleData.map(r => {
+      const email = userEmailMap[r.user_id] || '';
+      const invName = email ? nameByEmail[email.toLowerCase()] : undefined;
+      const name = invName && (invName.first || invName.last) ? `${invName.first} ${invName.last}`.trim() : (email ? email.split('@')[0] : r.user_id.slice(0, 8) + '…');
+      return {
+        id: r.id,
+        user_id: r.user_id,
+        organization_id: r.organization_id,
+        org_name: orgNameMap[r.organization_id] || 'Unknown',
+        role: r.role,
+        created_at: r.created_at,
+        email,
+        name,
+      };
+    }));
 
     const pendingCount = apps.filter(a => a.status === 'org_only').length;
     const openTickets = fb.filter(f => f.status === 'open').length;
@@ -272,8 +305,9 @@ export default function Admin() {
 
   const filteredApps = appFilter === 'all' ? allApps : allApps.filter(a => a.status === appFilter);
 
-  // Feedback filtering & sorting
+  // Feedback filtering & sorting (hide closed/resolved by default)
   const filteredFeedback = (fbTypeFilter === 'all' ? feedback : feedback.filter(f => f.type === fbTypeFilter))
+    .filter(f => showClosed || (f.status !== 'closed' && f.status !== 'resolved'))
     .sort((a, b) => {
       let cmp = 0;
       if (fbSortKey === 'date') cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
@@ -335,9 +369,9 @@ export default function Admin() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="moderation">Apps {stats.pending > 0 && `(${stats.pending})`}</TabsTrigger>
-          <TabsTrigger value="orgs">Organizations</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="orgs">Organizations</TabsTrigger>
+          <TabsTrigger value="moderation">Apps {stats.pending > 0 && `(${stats.pending})`}</TabsTrigger>
           <TabsTrigger value="feedback">Support {stats.openTickets > 0 && `(${stats.openTickets})`}</TabsTrigger>
         </TabsList>
 
@@ -472,7 +506,11 @@ export default function Admin() {
                   <CardTitle>User Feedback & Support</CardTitle>
                   <CardDescription>Bug reports, feature ideas, and questions from all users</CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer select-none">
+                    <input type="checkbox" checked={showClosed} onChange={e => setShowClosed(e.target.checked)} className="rounded" />
+                    Show Closed
+                  </label>
                   <Select value={fbTypeFilter} onValueChange={(v: any) => setFbTypeFilter(v)}>
                     <SelectTrigger className="w-[130px] h-8">
                       <SelectValue />
@@ -654,7 +692,8 @@ export default function Admin() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>User ID</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
                     <TableHead>Organization</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Joined</TableHead>
@@ -664,7 +703,8 @@ export default function Admin() {
                 <TableBody>
                   {users.map(u => (
                     <TableRow key={u.id}>
-                      <TableCell className="font-mono text-xs">{u.user_id.slice(0, 8)}…</TableCell>
+                      <TableCell className="font-medium text-sm">{u.name}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{u.email || '—'}</TableCell>
                       <TableCell className="font-medium">{u.org_name}</TableCell>
                       <TableCell>
                         <Select value={u.role} onValueChange={(v) => changeUserRole(u.id, v)}>

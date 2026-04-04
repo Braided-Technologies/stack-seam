@@ -778,7 +778,7 @@ export default function Settings() {
       const { error } = await supabase.from('organizations').update({ name: companyName.trim() }).eq('id', orgId);
       if (error) throw error;
       await refreshOrg();
-      toast({ title: 'Company name updated' });
+      toast({ title: 'Organization name updated' });
     } catch (e: any) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
     }
@@ -827,7 +827,7 @@ export default function Settings() {
       <Tabs defaultValue="team" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="team">Team</TabsTrigger>
-          <TabsTrigger value="company">Company</TabsTrigger>
+          <TabsTrigger value="company">Organization</TabsTrigger>
           <TabsTrigger value="ai">AI Config</TabsTrigger>
           <TabsTrigger value="connectors">Connectors</TabsTrigger>
         </TabsList>
@@ -837,17 +837,17 @@ export default function Settings() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Building2 className="h-5 w-5" />
-                Company
+                Organization
               </CardTitle>
-              <CardDescription>Manage your company name and organization details.</CardDescription>
+              <CardDescription>Manage your organization name and details.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Company Name</Label>
+                <Label>Organization Name</Label>
                 <Input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="e.g. Acme MSP" maxLength={100} />
               </div>
               <Button onClick={handleSaveOrg} disabled={savingOrg || !companyName.trim() || companyName.trim() === orgName}>
-                {savingOrg ? 'Saving...' : 'Update Company Name'}
+                {savingOrg ? 'Saving...' : 'Update Organization Name'}
               </Button>
             </CardContent>
           </Card>

@@ -92,16 +92,19 @@ export default function AppIntegrationsPanel({ open, onClose, appName, appId, in
                     </div>
                   )}
                   {integ.documentation_url && (
-                    <a
-                      href={integ.documentation_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
-                      onClick={e => e.stopPropagation()}
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                      Documentation
-                    </a>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={integ.documentation_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Documentation
+                      </a>
+                      <span className="text-[10px] text-muted-foreground italic">⚠ Unverified link</span>
+                    </div>
                   )}
                 </div>
               ))}

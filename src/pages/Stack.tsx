@@ -530,15 +530,18 @@ export default function Stack() {
                               <p className="text-xs text-muted-foreground">{integ.description}</p>
                             )}
                             {integ.documentation_url && (
-                              <a
-                                href={integ.documentation_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                              >
-                                <ExternalLink className="h-3 w-3" />
-                                Documentation
-                              </a>
+                              <div className="flex items-center gap-2">
+                                <a
+                                  href={integ.documentation_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  Documentation
+                                </a>
+                                <span className="text-[10px] text-muted-foreground italic">⚠ Unverified</span>
+                              </div>
                             )}
                           </div>
                         ))}
