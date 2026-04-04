@@ -642,6 +642,8 @@ export default function Admin() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
+                    <TableHead>URL</TableHead>
+                    <TableHead>Domain</TableHead>
                     <TableHead>Users</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
