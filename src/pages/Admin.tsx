@@ -56,6 +56,8 @@ type UserItem = {
   org_name: string;
   role: string;
   created_at: string;
+  email: string;
+  name: string;
 };
 
 function AdminScreenshot({ path }: { path: string }) {
