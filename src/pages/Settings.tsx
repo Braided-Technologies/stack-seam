@@ -752,7 +752,16 @@ export default function Settings() {
 
   useEffect(() => {
     if (orgName) setCompanyName(orgName);
-  }, [orgName]);
+    if (orgId) {
+      (async () => {
+        const { data } = await supabase.from('organizations').select('website_url, domain').eq('id', orgId).maybeSingle();
+        if (data) {
+          setOrgUrl((data as any).website_url || '');
+          setOrgDomain((data as any).domain || '');
+        }
+      })();
+    }
+  }, [orgName, orgId]);
 
   useEffect(() => {
     if (!orgId) return;
