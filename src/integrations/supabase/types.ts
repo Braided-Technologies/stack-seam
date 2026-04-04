@@ -322,6 +322,9 @@ export type Database = {
           last_verified: string | null
           link_status: string
           source_app_id: string
+          status: string
+          submitted_by_org: string | null
+          submitted_by_user: string | null
           target_app_id: string
         }
         Insert: {
@@ -334,6 +337,9 @@ export type Database = {
           last_verified?: string | null
           link_status?: string
           source_app_id: string
+          status?: string
+          submitted_by_org?: string | null
+          submitted_by_user?: string | null
           target_app_id: string
         }
         Update: {
@@ -346,6 +352,9 @@ export type Database = {
           last_verified?: string | null
           link_status?: string
           source_app_id?: string
+          status?: string
+          submitted_by_org?: string | null
+          submitted_by_user?: string | null
           target_app_id?: string
         }
         Relationships: [
@@ -354,6 +363,13 @@ export type Database = {
             columns: ["source_app_id"]
             isOneToOne: false
             referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "integrations_submitted_by_org_fkey"
+            columns: ["submitted_by_org"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
