@@ -55,6 +55,7 @@ export default function StackMap() {
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set());
   const [legendOpen, setLegendOpen] = useState(true);
   const [groupLayout, setGroupLayout] = useState(false);
+  const [expandedLegendGroups, setExpandedLegendGroups] = useState<Set<string>>(new Set());
 
   const userAppIdList = useMemo(() => userApps.map(ua => ua.application_id), [userApps]);
 
