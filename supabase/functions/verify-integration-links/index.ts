@@ -54,80 +54,64 @@ Deno.serve(async (req) => {
       checked: [] as { id: string; url: string; status: string; httpStatus?: number }[],
     };
 
-    for (const integration of integrations || []) {
-      const url = integration.documentation_url;
-      if (!url) continue;
+    // Process in parallel batches of 10
+    const BATCH_SIZE = 10;
+    for (let batchStart = 0; batchStart < (integrations?.length || 0); batchStart += BATCH_SIZE) {
+      const batch = (integrations || []).slice(batchStart, batchStart + BATCH_SIZE);
+      
+      const batchResults = await Promise.allSettled(batch.map(async (integration) => {
+        const url = integration.documentation_url;
+        if (!url) return null;
 
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000);
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 8000);
 
-        const resp = await fetch(url, {
-          method: "HEAD",
-          signal: controller.signal,
-          redirect: "follow",
-          headers: {
-            "User-Agent": "StackSeam-LinkChecker/1.0",
-          },
-        });
-
-        clearTimeout(timeout);
-
-        let linkStatus = "unchecked";
-        if (resp.ok) {
-          linkStatus = "verified";
-          results.verified++;
-        } else if (resp.status === 404 || resp.status === 410) {
-          linkStatus = "dead";
-          results.dead++;
-        } else if (resp.status === 405) {
-          // HEAD not supported, try GET
-          const getResp = await fetch(url, {
-            method: "GET",
+          const resp = await fetch(url, {
+            method: "HEAD",
+            signal: controller.signal,
             redirect: "follow",
             headers: { "User-Agent": "StackSeam-LinkChecker/1.0" },
           });
-          // Consume the body
-          await getResp.text();
-          if (getResp.ok) {
+
+          clearTimeout(timeout);
+
+          let linkStatus = "unchecked";
+          if (resp.ok) {
             linkStatus = "verified";
-            results.verified++;
+          } else if (resp.status === 404 || resp.status === 410) {
+            linkStatus = "dead";
+          } else if (resp.status === 405) {
+            const getResp = await fetch(url, {
+              method: "GET",
+              redirect: "follow",
+              headers: { "User-Agent": "StackSeam-LinkChecker/1.0" },
+            });
+            await getResp.text();
+            linkStatus = getResp.ok ? "verified" : "dead";
           } else {
             linkStatus = "dead";
-            results.dead++;
           }
-        } else {
-          linkStatus = "dead";
-          results.dead++;
+
+          await serviceClient
+            .from("integrations")
+            .update({ link_status: linkStatus, last_verified: new Date().toISOString() })
+            .eq("id", integration.id);
+
+          if (linkStatus === "verified") results.verified++;
+          else results.dead++;
+
+          results.checked.push({ id: integration.id, url, status: linkStatus, httpStatus: resp.status });
+        } catch (e: any) {
+          results.errors++;
+          await serviceClient
+            .from("integrations")
+            .update({ link_status: "dead", last_verified: new Date().toISOString() })
+            .eq("id", integration.id);
+          results.checked.push({ id: integration.id, url, status: "dead" });
         }
-
-        await serviceClient
-          .from("integrations")
-          .update({ link_status: linkStatus, last_verified: new Date().toISOString() })
-          .eq("id", integration.id);
-
-        results.checked.push({
-          id: integration.id,
-          url,
-          status: linkStatus,
-          httpStatus: resp.status,
-        });
-      } catch (e: any) {
-        results.errors++;
-        await serviceClient
-          .from("integrations")
-          .update({ link_status: "dead", last_verified: new Date().toISOString() })
-          .eq("id", integration.id);
-
-        results.checked.push({
-          id: integration.id,
-          url,
-          status: "dead",
-        });
-      }
-
-      // Small delay to avoid hammering external servers
-      await new Promise(r => setTimeout(r, 200));
+        return null;
+      }));
     }
 
     return new Response(JSON.stringify({ success: true, results }), {
