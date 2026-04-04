@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userRole, setUserRole] = useState<'admin' | 'member' | 'platform_admin' | null>(null);
   const [mfaEnrolled, setMfaEnrolled] = useState(false);
   const [mfaVerified, setMfaVerified] = useState(false);
-  const [aal, setAal] = useState<AuthenticatorAssuranceLevels | null>(null);
+  const [aal, setAal] = useState<any>(null);
 
   const fetchOrg = async (userId: string) => {
     const { data: roleData } = await supabase
