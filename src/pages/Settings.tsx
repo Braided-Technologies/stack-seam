@@ -11,7 +11,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Settings as SettingsIcon, Key, Cpu, Building2, UserPlus, Users, Mail, Shield, User, X, Link2, RefreshCw, KeyRound, ShieldOff, Search, ArrowUpDown } from 'lucide-react';
+import { Settings as SettingsIcon, Key, Cpu, Building2, UserPlus, Users, Mail, Shield, User, X, Link2, RefreshCw, KeyRound, ShieldOff, Search, ArrowUpDown, Globe } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const PROVIDERS = [
