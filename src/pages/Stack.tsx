@@ -494,7 +494,7 @@ export default function Stack() {
                             }
                             try {
                               const result = await discoverIntegrations.mutateAsync(allNames);
-                              toast({ title: `Found ${result.discovered || 0} integrations` });
+                              toast({ title: `Found ${result.saved || 0} new integrations`, description: result.discovered > result.saved ? `${result.discovered - result.saved} already existed or were filtered.` : undefined });
                             } catch (e: any) {
                               toast({ title: 'Discovery failed', description: e.message, variant: 'destructive' });
                             }
