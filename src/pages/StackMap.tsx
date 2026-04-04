@@ -353,7 +353,7 @@ export default function StackMap() {
           </div>
         </Panel>
 
-        <Panel position="top-right" className="bg-card/90 backdrop-blur rounded-lg border shadow-sm">
+        <Panel position="top-right" className="bg-card/90 backdrop-blur rounded-lg border shadow-sm max-w-[220px]">
           <button
             onClick={() => setLegendOpen(!legendOpen)}
             className="flex items-center gap-2 px-3 py-2 w-full text-left text-sm font-medium"
@@ -362,47 +362,74 @@ export default function StackMap() {
             Categories
             <span className="ml-auto text-xs text-muted-foreground">{hiddenCategories.size > 0 ? `${hiddenCategories.size} hidden` : ''}</span>
           </button>
-        {legendOpen && (
+          {legendOpen && (
             <div className="px-3 pb-3">
               <div className="flex gap-2 mb-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 text-xs px-2"
-                  onClick={() => setHiddenCategories(new Set())}
-                >
-                  Select All
+                <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => setHiddenCategories(new Set())}>
+                  Show All
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-6 text-xs px-2"
-                  onClick={() => setHiddenCategories(new Set(presentCategories))}
-                >
-                  Deselect All
+                <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => setHiddenCategories(new Set(presentCategories))}>
+                  Hide All
                 </Button>
               </div>
-              <ScrollArea className="max-h-52">
-                <div className="space-y-1.5">
-                  {presentCategories.map(cat => {
-                    const color = CATEGORY_COLORS[cat] || 'hsl(221, 83%, 53%)';
-                    const hidden = hiddenCategories.has(cat);
+              <ScrollArea className="max-h-64">
+                <div className="space-y-1">
+                  {CATEGORY_GROUPS.map(group => {
+                    const groupCats = group.categories.filter(c => presentCategories.includes(c));
+                    if (groupCats.length === 0) return null;
+                    const allHidden = groupCats.every(c => hiddenCategories.has(c));
+                    const someHidden = groupCats.some(c => hiddenCategories.has(c));
+                    const isExpanded = expandedLegendGroups.has(group.label);
+
+                    const toggleGroupCats = () => {
+                      setHiddenCategories(prev => {
+                        const next = new Set(prev);
+                        if (allHidden) {
+                          groupCats.forEach(c => next.delete(c));
+                        } else {
+                          groupCats.forEach(c => next.add(c));
+                        }
+                        return next;
+                      });
+                    };
+
                     return (
-                      <label
-                        key={cat}
-                        className="flex items-center gap-2 cursor-pointer text-xs py-0.5"
-                      >
-                        <Checkbox
-                          checked={!hidden}
-                          onCheckedChange={() => toggleCategory(cat)}
-                          className="h-3.5 w-3.5"
-                        />
-                        <span
-                          className="h-2.5 w-2.5 rounded-full flex-shrink-0"
-                          style={{ background: color }}
-                        />
-                        <span className={hidden ? 'text-muted-foreground line-through' : ''}>{cat}</span>
-                      </label>
+                      <Collapsible key={group.label} open={isExpanded} onOpenChange={() => {
+                        setExpandedLegendGroups(prev => {
+                          const next = new Set(prev);
+                          if (next.has(group.label)) next.delete(group.label);
+                          else next.add(group.label);
+                          return next;
+                        });
+                      }}>
+                        <div className="flex items-center gap-1.5">
+                          <Checkbox
+                            checked={!allHidden}
+                            className="h-3.5 w-3.5"
+                            onCheckedChange={toggleGroupCats}
+                          />
+                          <CollapsibleTrigger className="flex items-center gap-1 flex-1 text-xs font-semibold py-1 hover:text-foreground text-muted-foreground">
+                            {isExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                            {group.label}
+                            {someHidden && !allHidden && <span className="text-[10px] text-muted-foreground ml-1">(partial)</span>}
+                          </CollapsibleTrigger>
+                        </div>
+                        <CollapsibleContent>
+                          <div className="ml-5 space-y-0.5">
+                            {groupCats.map(cat => {
+                              const color = CATEGORY_COLORS[cat] || 'hsl(221, 83%, 53%)';
+                              const hidden = hiddenCategories.has(cat);
+                              return (
+                                <label key={cat} className="flex items-center gap-2 cursor-pointer text-xs py-0.5">
+                                  <Checkbox checked={!hidden} onCheckedChange={() => toggleCategory(cat)} className="h-3 w-3" />
+                                  <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: color }} />
+                                  <span className={hidden ? 'text-muted-foreground line-through' : ''}>{cat}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
                     );
                   })}
                 </div>
