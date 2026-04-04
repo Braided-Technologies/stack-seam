@@ -8,11 +8,15 @@ import {
   Container,
   Head,
   Heading,
+  Hr,
   Html,
-  Link,
+  Img,
   Preview,
+  Section,
   Text,
 } from 'npm:@react-email/components@0.0.22'
+
+const LOGO_URL = 'https://ivmbbnmmioeufmxtvsgs.supabase.co/storage/v1/object/public/email-assets/stackseam-logo.png'
 
 interface InviteEmailProps {
   siteName: string
@@ -27,24 +31,28 @@ export const InviteEmail = ({
 }: InviteEmailProps) => (
   <Html lang="en" dir="ltr">
     <Head />
-    <Preview>You've been invited to join {siteName}</Preview>
+    <Preview>You've been invited to join StackSeam</Preview>
     <Body style={main}>
-      <Container style={container}>
-        <Heading style={h1}>You've been invited!</Heading>
+      <Container style={card}>
+        <Section style={logoSection}>
+          <Img src={LOGO_URL} alt="StackSeam" width="140" height="auto" style={logo} />
+        </Section>
+        <Hr style={divider} />
+        <Heading style={h1}>You're Invited! 🚀</Heading>
         <Text style={text}>
-          You've been invited to join{' '}
-          <Link href={siteUrl} style={link}>
-            <strong>{siteName}</strong>
-          </Link>
-          . Click the button below to accept the invitation and create your
-          account.
+          Your team is using StackSeam to manage their IT stack. Click below to accept the invitation and join your organization.
         </Text>
-        <Button style={button} href={confirmationUrl}>
-          Accept Invitation
-        </Button>
-        <Text style={footer}>
-          If you weren't expecting this invitation, you can safely ignore this
-          email.
+        <Section style={buttonSection}>
+          <Button style={button} href={confirmationUrl}>
+            Accept Invitation
+          </Button>
+        </Section>
+        <Text style={textSmall}>
+          If you weren't expecting this invitation, you can safely ignore this email.
+        </Text>
+        <Hr style={divider} />
+        <Text style={footerBrand}>
+          © StackSeam — IT Stack Intelligence for MSPs
         </Text>
       </Container>
     </Body>
@@ -53,28 +61,57 @@ export const InviteEmail = ({
 
 export default InviteEmail
 
-const main = { backgroundColor: '#ffffff', fontFamily: 'Outfit, system-ui, sans-serif' }
-const container = { padding: '20px 25px' }
+const main = {
+  backgroundColor: '#f4f4f5',
+  fontFamily: 'Outfit, system-ui, sans-serif',
+  padding: '40px 0',
+}
+const card = {
+  backgroundColor: '#ffffff',
+  borderRadius: '12px',
+  padding: '40px 32px',
+  maxWidth: '480px',
+  margin: '0 auto',
+  border: '1px solid #e4e4e7',
+}
+const logoSection = { textAlign: 'center' as const, marginBottom: '8px' }
+const logo = { margin: '0 auto' }
+const divider = { borderColor: '#e4e4e7', margin: '20px 0' }
 const h1 = {
-  fontSize: '22px',
+  fontSize: '24px',
   fontWeight: 'bold' as const,
-  color: 'hsl(225, 20%, 15%)',
-  margin: '0 0 20px',
+  color: '#1a1f36',
+  margin: '0 0 12px',
+  textAlign: 'center' as const,
 }
 const text = {
-  fontSize: '14px',
-  color: 'hsl(215, 16%, 47%)',
-  lineHeight: '1.5',
-  margin: '0 0 25px',
+  fontSize: '15px',
+  color: '#6b7280',
+  lineHeight: '1.6',
+  margin: '0 0 20px',
+  textAlign: 'center' as const,
 }
-const link = { color: 'inherit', textDecoration: 'underline' }
+const textSmall = {
+  fontSize: '13px',
+  color: '#9ca3af',
+  lineHeight: '1.5',
+  margin: '0 0 16px',
+  textAlign: 'center' as const,
+}
+const buttonSection = { textAlign: 'center' as const, margin: '8px 0 16px' }
 const button = {
-  backgroundColor: 'hsl(38, 92%, 50%)',
-  color: 'hsl(225, 30%, 10%)',
-  fontSize: '14px',
+  backgroundColor: '#e8930c',
+  color: '#1a1f36',
+  fontSize: '15px',
   fontWeight: '600' as const,
   borderRadius: '8px',
-  padding: '12px 20px',
+  padding: '14px 28px',
   textDecoration: 'none',
+  display: 'inline-block' as const,
 }
-const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
+const footerBrand = {
+  fontSize: '11px',
+  color: '#d1d5db',
+  margin: '0',
+  textAlign: 'center' as const,
+}
