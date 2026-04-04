@@ -163,13 +163,13 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
     if (checkedFields.license_count && editableFields.license_count != null) data.license_count = Number(editableFields.license_count);
     if (checkedFields.notes && editableFields.notes) data.notes = editableFields.notes;
 
-    // Aggregate costs from selected line items
+    // If line items are selected, use their costs INSTEAD of (not in addition to) base costs
     const selectedItems = editableLineItems.filter((_, i) => checkedLineItems[i]);
     if (selectedItems.length > 0) {
       const liMonthly = selectedItems.reduce((sum, li) => sum + (Number(li.monthly_cost) || 0), 0);
       const liAnnual = selectedItems.reduce((sum, li) => sum + (Number(li.annual_cost) || 0), 0);
-      if (liMonthly > 0) data.cost_monthly = (data.cost_monthly || 0) + liMonthly;
-      if (liAnnual > 0) data.cost_annual = (data.cost_annual || 0) + liAnnual;
+      if (liMonthly > 0) data.cost_monthly = liMonthly;
+      if (liAnnual > 0) data.cost_annual = liAnnual;
       data.selected_line_items = selectedItems;
     }
 
