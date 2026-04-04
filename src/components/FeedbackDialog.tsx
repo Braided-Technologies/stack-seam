@@ -14,10 +14,12 @@ import { MessageSquare, Send } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 
-export default function FeedbackDialog({ isExpanded = true }: { isExpanded?: boolean }) {
+export default function FeedbackDialog({ isExpanded = true, externalOpen, onExternalOpenChange }: { isExpanded?: boolean; externalOpen?: boolean; onExternalOpenChange?: (open: boolean) => void }) {
   const { user, orgId } = useAuth();
   const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = onExternalOpenChange || setInternalOpen;
   const [type, setType] = useState('bug');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
