@@ -357,6 +357,23 @@ function TeamSection({ orgId, isAdmin }: { orgId: string; isAdmin: boolean }) {
     },
   });
 
+  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
+
+  const adminAction = async (userId: string, action: 'reset_password' | 'reset_mfa') => {
+    setActionLoading(prev => ({ ...prev, [`${userId}_${action}`]: true }));
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-user-actions', {
+        body: { action, target_user_id: userId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({ title: 'Success', description: data.message });
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    }
+    setActionLoading(prev => ({ ...prev, [`${userId}_${action}`]: false }));
+  };
+
   return (
     <div className="space-y-6">
       {isAdmin && (
