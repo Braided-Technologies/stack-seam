@@ -692,7 +692,8 @@ export default function Admin() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>User ID</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
                     <TableHead>Organization</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Joined</TableHead>
@@ -702,7 +703,8 @@ export default function Admin() {
                 <TableBody>
                   {users.map(u => (
                     <TableRow key={u.id}>
-                      <TableCell className="font-mono text-xs">{u.user_id.slice(0, 8)}…</TableCell>
+                      <TableCell className="font-medium text-sm">{u.name}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{u.email || '—'}</TableCell>
                       <TableCell className="font-medium">{u.org_name}</TableCell>
                       <TableCell>
                         <Select value={u.role} onValueChange={(v) => changeUserRole(u.id, v)}>
