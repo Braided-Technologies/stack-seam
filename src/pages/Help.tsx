@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import { Separator } from '@/components/ui/separator';
 import { toast } from '@/hooks/use-toast';
 import { Search, BookOpen, Plus, ArrowLeft, Pencil, Trash2, FolderPlus, Tag } from 'lucide-react';
