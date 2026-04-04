@@ -34,7 +34,10 @@ type FeedbackItem = {
   description: string | null;
   status: string;
   admin_response: string | null;
+  screenshot_urls: string[] | null;
   created_at: string;
+  user_email?: string;
+  org_name?: string;
 };
 
 type OrgItem = {
