@@ -744,6 +744,7 @@ export default function Settings() {
   const [companyName, setCompanyName] = useState('');
   const [orgUrl, setOrgUrl] = useState('');
   const [orgDomain, setOrgDomain] = useState('');
+  const [enforceDomain, setEnforceDomain] = useState(false);
   const [savingOrg, setSavingOrg] = useState(false);
   const [provider, setProvider] = useState('lovable');
   const [apiKey, setApiKey] = useState('');
