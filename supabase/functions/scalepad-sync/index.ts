@@ -7,7 +7,7 @@ const corsHeaders = {
 
 const SCALEPAD_BASE = "https://api.scalepad.com/core/v1";
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
