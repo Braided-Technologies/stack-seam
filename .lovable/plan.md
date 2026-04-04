@@ -1,45 +1,43 @@
 
+# Multi-Fix Plan (8 Items)
 
-# Multi-Issue Fix Plan
+## 1. Contract Rescan — Skip Dialog for Existing Files
+If a file was already uploaded and kept (i.e. user clicks scan on an existing file row), skip the "Keep or Delete" dialog and go straight to scanning with `delete_after_scan = false`.
 
-## Issues (6 items)
+## 2. Contract Line Items — Unlimited Quantity Option
+Add an "Unlimited" toggle/checkbox next to the Qty field. When checked, set quantity to `null` and display "Unlimited" instead of a number.
 
-### 1. Delete All Dead-Link Integrations (150 of 196)
-The verification already ran — 150 integrations have `link_status = 'dead'`. Delete all of them via a database migration. This leaves 45 verified + 1 unchecked.
+## 3. Number Formatting with Commas
+Add a currency/number formatter throughout the app:
+- Contract scan results (line items: 30000 → 30,000)
+- Budget page charts and tables
+- Dashboard stat cards
 
-### 2. Contract Scan — Scrollable + Line Item Cost Summation
-The extracted data `ScrollArea` has `max-h-[400px]` but it sits inside a dialog tab that itself has constrained height. Two fixes:
-- Increase `ScrollArea` max-height or make it fill available space
-- Make "Import Selected" button sticky at bottom so it's always reachable
-- Auto-sum checked line items into the cost fields (editable so user can override). When line items are checked/unchecked, recalculate `cost_annual` and `cost_monthly` from the sum of checked items and update the editable fields live
+## 4. Contact Form Validation
+- Email: validate proper email format
+- Phone: add country code selector + proper phone format validation
+- Requires adding a country code dropdown component
 
-### 3. Remove Domain Column from Admin Orgs Tab
-The "Domain" column is redundant since it's derived from `website_url`. Remove it from the table — just show Name, Website, Users, Created, Actions.
+## 5. App Detail Dialog — Save & Close
+When saving app details, close the dialog after successful save.
 
-### 4. Admin Apps & Integrations Tabs — Unified Layout
-Both tabs should have the same structure:
-- **Top section**: Pending items (status = `org_only` for apps, `pending` for integrations) with approve/reject actions
-- **Bottom section**: Scrollable catalog of ALL items with search/filter
+## 6. Budget Chart — Monthly/Annual Toggle + Dark Mode Tooltip
+- Add toggle to switch between monthly and annual spend in the category chart
+- Fix tooltip styling for dark mode readability
 
-Currently the Integrations tab only shows pending. Add a full catalog list below (all approved integrations in a scrollable table showing Source App, Target App, Documentation URL, Status, with delete action).
+## 7. Dashboard Stat Boxes — Compact Numbers
+Shorten large numbers: 30,000 → 30k, 4,200 → 4.2k, 1,500 → 1.5k
 
-### 5. Stack Map Categories Panel — Fix Text Wrapping
-"Productivity & Communication" wraps awkwardly in the category panel. The panel has `max-w-[220px]` which is too narrow. Increase to `max-w-[260px]` to accommodate longer category group names.
-
-### 6. Light Mode Already Adjusted — No Change Needed
-Background was already darkened in previous iteration.
+## 8. Integration Discovery — Domain Validation Rule
+- Documentation URL must come from one of the two apps' vendor domains
+- Fix: discovered integrations not appearing in the list (likely a refetch/cache issue)
+- Update the discover-integrations edge function to enforce this rule
 
 ## Implementation Order
-
-1. **Migration**: `DELETE FROM integrations WHERE link_status = 'dead'`
-2. **ContractsSection.tsx**: Fix scroll, sticky import button, auto-sum line items into cost fields
-3. **Admin.tsx**: Remove Domain column from Orgs tab; redesign Integrations tab to match Apps tab layout (pending section + full catalog); load all integrations with app name joins
-4. **StackMap.tsx**: Widen categories panel from `max-w-[220px]` to `max-w-[260px]`
-
-## Technical Details
-
-- **Line item auto-sum**: When `checkedLineItems` changes, compute `sum(annual_cost)` and `sum(monthly_cost)` from checked items and update `editableFields.cost_annual` / `cost_monthly`. User can still manually edit after.
-- **Sticky import button**: Move the Import/Dismiss buttons outside the `ScrollArea` so they're always visible at the bottom of the extraction panel.
-- **Admin Integrations full catalog**: Query `integrations` with status = 'approved' joined to `applications` for source/target names. Display in a `ScrollArea` table with delete action.
-- **Dead link cleanup**: Simple `DELETE FROM public.integrations WHERE link_status = 'dead'` migration.
-
+1. Utility: number formatting helper (used everywhere)
+2. ContractsSection: rescan flow + unlimited qty + formatting
+3. ContactsSection: validation + phone format
+4. Stack.tsx: save & close dialog
+5. Budget.tsx: toggle + tooltip fix
+6. Dashboard.tsx: compact numbers
+7. discover-integrations edge function: domain rule + fix propagation
