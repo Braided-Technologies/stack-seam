@@ -37,6 +37,7 @@ export default function Integrations() {
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
   const { data: allIntegrations = [] } = useIntegrations();
   const { data: userApps = [] } = useUserApplications();
+  const discoverIntegrations = useDiscoverIntegrations();
   const queryClient = useQueryClient();
 
   // Fetch all approved apps for submit integration dialog
