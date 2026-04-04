@@ -167,6 +167,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <main className="flex-1 overflow-auto">
         {children}
       </main>
+      <HelpChatPanel />
     </div>
   );
 }
