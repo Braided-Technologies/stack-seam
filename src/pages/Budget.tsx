@@ -234,7 +234,16 @@ export default function Budget() {
             Application Spend
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search applications..."
+              value={appSearch}
+              onChange={e => setAppSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
           <div className="rounded-md border overflow-auto">
             <Table>
               <TableHeader>
@@ -265,13 +274,13 @@ export default function Budget() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedApps.length === 0 ? (
+                {filteredApps.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                      No applications with cost data yet. Add costs in My Stack.
+                      {appSearch ? 'No applications match your search.' : 'No applications with cost data yet. Add costs in My Stack.'}
                     </TableCell>
                   </TableRow>
-                ) : sortedApps.map(app => (
+                ) : filteredApps.map(app => (
                   <TableRow key={app.id} className="cursor-pointer hover:bg-accent/50" onClick={() => openAppEdit(app)}>
                     <TableCell className="font-medium">{app.name}</TableCell>
                     <TableCell><Badge variant="secondary" className="text-xs">{app.category}</Badge></TableCell>

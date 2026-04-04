@@ -242,8 +242,8 @@ export default function StackMap() {
       id: i.id,
       source: i.source_app_id,
       target: i.target_app_id,
-      animated: true,
-      style: { stroke: 'hsl(var(--primary))', strokeWidth: 2 },
+      animated: false,
+      style: { stroke: 'hsl(var(--primary))', strokeWidth: 1.5, opacity: 0.6 },
       markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--primary))' },
       data: i,
     }));
