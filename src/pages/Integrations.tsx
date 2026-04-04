@@ -28,6 +28,10 @@ export default function Integrations() {
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(CATEGORY_GROUPS.map(g => g.label)));
   const [openApps, setOpenApps] = useState<Set<string>>(new Set());
   const [allExpanded, setAllExpanded] = useState(true);
+  const [showSubmitDialog, setShowSubmitDialog] = useState(false);
+  const [submitSourceApp, setSubmitSourceApp] = useState('');
+  const [submitTargetApp, setSubmitTargetApp] = useState('');
+  const [submitDocUrl, setSubmitDocUrl] = useState('');
 
   const { orgId, userRole, user } = useAuth();
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
