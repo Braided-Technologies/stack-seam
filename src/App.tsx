@@ -14,7 +14,7 @@ import Settings from "./pages/Settings";
 import Integrations from "./pages/Integrations";
 import Budget from "./pages/Budget";
 import Admin from "./pages/Admin";
-import Help from "./pages/Help";
+import Support from "./pages/Support";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
@@ -41,7 +41,8 @@ const AppRoutes = () => (
     <Route path="/research" element={<ProtectedRoute><Research /></ProtectedRoute>} />
     <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
     <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
-    <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
+    <Route path="/support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
+    <Route path="/help" element={<Navigate to="/support" replace />} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );
