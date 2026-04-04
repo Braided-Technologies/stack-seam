@@ -12,13 +12,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Search, BookOpen, Plus, ArrowLeft, Pencil, Trash2, FolderPlus,
   Rocket, LayoutGrid, DollarSign, Link2, Settings, Sparkles,
-  ChevronRight, FileText
+  ChevronRight, FileText, MessageSquare, Send
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+
 
 const CATEGORY_ICONS: Record<string, any> = {
   'Getting Started': Rocket,
@@ -38,12 +42,138 @@ const CATEGORY_DESCRIPTIONS: Record<string, string> = {
   'AI & Research': 'Use the AI Research Assistant and Help Center chatbot.',
 };
 
-export default function Help() {
+// ─── Feedback Section (inline) ───
+function FeedbackSection() {
+  const { user, orgId } = useAuth();
+  const queryClient = useQueryClient();
+  const [type, setType] = useState('bug');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const { data: myFeedback = [] } = useQuery({
+    queryKey: ['my-feedback', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data } = await supabase
+        .from('feedback')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const handleSubmit = async () => {
+    if (!title.trim() || !user) return;
+    setSubmitting(true);
+    const { error } = await supabase.from('feedback').insert({
+      user_id: user.id,
+      organization_id: orgId,
+      type,
+      title: title.trim(),
+      description: description.trim() || null,
+    });
+    setSubmitting(false);
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Feedback submitted', description: "Thank you! We'll review this shortly." });
+    setTitle('');
+    setDescription('');
+    setType('bug');
+    queryClient.invalidateQueries({ queryKey: ['my-feedback'] });
+  };
+
+  const statusColor = (s: string) => {
+    switch (s) {
+      case 'open': return 'destructive';
+      case 'in_progress': return 'default';
+      case 'resolved': case 'closed': return 'secondary';
+      default: return 'outline';
+    }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      <Tabs defaultValue="submit">
+        <TabsList className="w-full max-w-sm">
+          <TabsTrigger value="submit" className="flex-1">Submit Feedback</TabsTrigger>
+          <TabsTrigger value="history" className="flex-1">My Submissions ({myFeedback.length})</TabsTrigger>
+        </TabsList>
+        <TabsContent value="submit" className="mt-6">
+          <Card className="p-6 space-y-4">
+            <div className="space-y-1 mb-2">
+              <h3 className="font-semibold text-base">Send us feedback</h3>
+              <p className="text-sm text-muted-foreground">Report a bug, suggest a feature, or ask a question. Our team reviews every submission.</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <Select value={type} onValueChange={setType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bug">🐛 Bug Report</SelectItem>
+                  <SelectItem value="idea">💡 Feature Idea</SelectItem>
+                  <SelectItem value="question">❓ Question</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Title</Label>
+              <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Brief summary..." />
+            </div>
+            <div className="space-y-2">
+              <Label>Details</Label>
+              <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe in detail..." className="min-h-[100px]" />
+            </div>
+            <Button onClick={handleSubmit} disabled={!title.trim() || submitting} className="w-full">
+              <Send className="h-4 w-4 mr-2" /> Submit Feedback
+            </Button>
+          </Card>
+        </TabsContent>
+        <TabsContent value="history" className="mt-6">
+          {myFeedback.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm font-medium">No submissions yet</p>
+              <p className="text-xs mt-1">Your bug reports, feature ideas, and questions will appear here.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {myFeedback.map((fb: any) => (
+                <Card key={fb.id} className="p-4 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge variant={statusColor(fb.status) as any}>{fb.status.replace('_', ' ')}</Badge>
+                    <Badge variant="outline">{fb.type}</Badge>
+                    <span className="text-xs text-muted-foreground ml-auto">{new Date(fb.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <p className="font-medium text-sm">{fb.title}</p>
+                  {fb.description && <p className="text-xs text-muted-foreground">{fb.description}</p>}
+                  {fb.admin_response && (
+                    <div className="bg-muted rounded-md p-2 text-xs">
+                      <span className="font-medium">Response:</span> {fb.admin_response}
+                    </div>
+                  )}
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// ─── Main Support Page ───
+export default function Support() {
   const { userRole } = useAuth();
   const isPlatformAdmin = userRole === 'platform_admin';
   const [searchParams, setSearchParams] = useSearchParams();
   const articleSlug = searchParams.get('article');
   const categoryView = searchParams.get('category');
+  const activeTab = searchParams.get('tab') || 'kb';
 
   const { data: categories = [] } = useKBCategories();
   const { data: articles = [] } = useKBArticles();
@@ -147,6 +277,10 @@ export default function Help() {
     }
   };
 
+  const setTab = (tab: string) => {
+    setSearchParams({ tab });
+  };
+
   // ─── Article Detail View ───
   if (articleSlug && activeArticle) {
     const sameCategoryArticles = publishedArticles.filter(
@@ -163,7 +297,7 @@ export default function Help() {
           }
         }}>
           <ArrowLeft className="h-4 w-4" />
-          {(activeArticle as any).kb_categories?.name || 'Help Center'}
+          {(activeArticle as any).kb_categories?.name || 'Knowledge Base'}
         </Button>
 
         <div className="flex items-start justify-between mb-4">
@@ -204,7 +338,6 @@ export default function Help() {
           <ReactMarkdown>{activeArticle.content}</ReactMarkdown>
         </div>
 
-        {/* Related articles in same category */}
         {sameCategoryArticles.length > 0 && (
           <div className="mt-12 pt-6 border-t border-border">
             <h3 className="text-sm font-semibold text-muted-foreground mb-3">Related articles</h3>
@@ -238,7 +371,7 @@ export default function Help() {
     return (
       <div className="max-w-4xl mx-auto p-6">
         <Button variant="ghost" className="mb-4 gap-2 text-muted-foreground hover:text-foreground" onClick={() => setSearchParams({})}>
-          <ArrowLeft className="h-4 w-4" /> Help Center
+          <ArrowLeft className="h-4 w-4" /> Support
         </Button>
 
         <div className="flex items-center gap-3 mb-6">
@@ -291,127 +424,145 @@ export default function Help() {
     );
   }
 
-  // ─── Home / Browse View ───
+  // ─── Main Support View with Tabs ───
   return (
     <div className="max-w-5xl mx-auto p-6">
-      {/* Hero Section */}
-      <div className="rounded-xl bg-primary/5 border border-primary/10 p-8 mb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold mb-1">How can we help?</h1>
-            <p className="text-muted-foreground text-sm">Search our knowledge base or browse topics below</p>
-          </div>
-          {isPlatformAdmin && (
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setNewCatOpen(true)}>
-                <FolderPlus className="h-3.5 w-3.5 mr-1" /> Category
-              </Button>
-              <Button size="sm" onClick={() => openEditor()}>
-                <Plus className="h-3.5 w-3.5 mr-1" /> New Article
-              </Button>
-            </div>
-          )}
-        </div>
-        <div className="relative mt-5 max-w-xl">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search for answers..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-background"
-          />
-        </div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">Support</h1>
+        <p className="text-muted-foreground text-sm mt-1">Find answers, browse guides, or reach out to our team</p>
       </div>
 
-      {/* Search Results */}
-      {search ? (
-        <div>
-          <p className="text-sm text-muted-foreground mb-4">
-            {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{search}"
-          </p>
-          <div className="space-y-2">
-            {searchResults.map((article: any) => (
-              <Card
-                key={article.id}
-                className="p-4 cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => { setSearch(''); setSearchParams({ article: article.slug }); }}
-              >
-                <div className="flex items-center gap-3">
-                  <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-sm">{article.title}</h3>
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                      {article.kb_categories?.name}
-                    </p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                </div>
-              </Card>
-            ))}
-            {searchResults.length === 0 && (
-              <div className="text-center py-12 text-muted-foreground">
-                <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm font-medium">No results found</p>
-                <p className="text-xs mt-1">Try different keywords or browse by topic</p>
+      <Tabs value={activeTab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="kb" className="gap-1.5">
+            <BookOpen className="h-3.5 w-3.5" /> Knowledge Base
+          </TabsTrigger>
+          <TabsTrigger value="feedback" className="gap-1.5">
+            <MessageSquare className="h-3.5 w-3.5" /> Feedback & Tickets
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="kb" className="mt-6">
+          {/* Hero Search */}
+          <div className="rounded-xl bg-primary/5 border border-primary/10 p-6 mb-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold mb-1">How can we help?</h2>
+                <p className="text-muted-foreground text-sm">Search our knowledge base or browse topics below</p>
               </div>
-            )}
+              {isPlatformAdmin && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setNewCatOpen(true)}>
+                    <FolderPlus className="h-3.5 w-3.5 mr-1" /> Category
+                  </Button>
+                  <Button size="sm" onClick={() => openEditor()}>
+                    <Plus className="h-3.5 w-3.5 mr-1" /> New Article
+                  </Button>
+                </div>
+              )}
+            </div>
+            <div className="relative mt-4 max-w-xl">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search for answers..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 bg-background"
+              />
+            </div>
           </div>
-        </div>
-      ) : (
-        /* Category Cards Grid */
-        <div>
-          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Browse by topic</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {categories.map((cat: any) => {
-              const CatIcon = CATEGORY_ICONS[cat.name] || BookOpen;
-              const catArticles = articlesByCategory[cat.name] || [];
-              return (
-                <Card
-                  key={cat.id}
-                  className="p-5 cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all group"
-                  onClick={() => setSearchParams({ category: cat.id })}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
-                      <CatIcon className="h-4.5 w-4.5 text-primary" />
-                    </div>
-                    {isPlatformAdmin && (
-                      <button
-                        className="text-xs text-muted-foreground hover:text-destructive transition-colors"
-                        onClick={(e) => { e.stopPropagation(); deleteCategory.mutate(cat.id); }}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                  <h3 className="font-semibold text-sm mb-1">{cat.name}</h3>
-                  <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
-                    {CATEGORY_DESCRIPTIONS[cat.name] || `${catArticles.length} articles`}
-                  </p>
-                  {/* Top articles preview */}
-                  <div className="space-y-1">
-                    {catArticles.slice(0, 3).map((a: any) => (
-                      <div
-                        key={a.id}
-                        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
-                        onClick={(e) => { e.stopPropagation(); setSearchParams({ article: a.slug }); }}
-                      >
-                        <ChevronRight className="h-3 w-3 flex-shrink-0" />
-                        <span className="truncate">{a.title}</span>
+
+          {/* Search Results */}
+          {search ? (
+            <div>
+              <p className="text-sm text-muted-foreground mb-4">
+                {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{search}"
+              </p>
+              <div className="space-y-2">
+                {searchResults.map((article: any) => (
+                  <Card
+                    key={article.id}
+                    className="p-4 cursor-pointer hover:border-primary/50 transition-colors"
+                    onClick={() => { setSearch(''); setSearchParams({ article: article.slug }); }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-sm">{article.title}</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{article.kb_categories?.name}</p>
                       </div>
-                    ))}
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </Card>
+                ))}
+                {searchResults.length === 0 && (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm font-medium">No results found</p>
+                    <p className="text-xs mt-1">Try different keywords or browse by topic</p>
                   </div>
-                  {catArticles.length > 3 && (
-                    <p className="text-xs text-primary mt-2 font-medium">
-                      View all {catArticles.length} articles →
-                    </p>
-                  )}
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-      )}
+                )}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Browse by topic</h2>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {categories.map((cat: any) => {
+                  const CatIcon = CATEGORY_ICONS[cat.name] || BookOpen;
+                  const catArticles = articlesByCategory[cat.name] || [];
+                  return (
+                    <Card
+                      key={cat.id}
+                      className="p-5 cursor-pointer hover:border-primary/50 hover:shadow-sm transition-all group"
+                      onClick={() => setSearchParams({ category: cat.id })}
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
+                          <CatIcon className="h-4.5 w-4.5 text-primary" />
+                        </div>
+                        {isPlatformAdmin && (
+                          <button
+                            className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+                            onClick={(e) => { e.stopPropagation(); deleteCategory.mutate(cat.id); }}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                      <h3 className="font-semibold text-sm mb-1">{cat.name}</h3>
+                      <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
+                        {CATEGORY_DESCRIPTIONS[cat.name] || `${catArticles.length} articles`}
+                      </p>
+                      <div className="space-y-1">
+                        {catArticles.slice(0, 3).map((a: any) => (
+                          <div
+                            key={a.id}
+                            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
+                            onClick={(e) => { e.stopPropagation(); setSearchParams({ article: a.slug }); }}
+                          >
+                            <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate">{a.title}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {catArticles.length > 3 && (
+                        <p className="text-xs text-primary mt-2 font-medium">
+                          View all {catArticles.length} articles →
+                        </p>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="feedback" className="mt-6">
+          <FeedbackSection />
+        </TabsContent>
+      </Tabs>
 
       {/* Article editor dialog */}
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>

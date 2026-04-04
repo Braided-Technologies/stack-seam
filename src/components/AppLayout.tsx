@@ -1,10 +1,9 @@
 import { ReactNode, useEffect, useState, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Layers, Map, LogOut, Building2, Moon, Sun, Sparkles, Settings, Link2, ChevronsLeft, ChevronsRight, ShieldCheck, DollarSign, HelpCircle } from 'lucide-react';
-import FeedbackDialog from '@/components/FeedbackDialog';
+import { LayoutDashboard, Layers, Map, LogOut, Building2, Moon, Sun, Sparkles, Settings, Link2, ChevronsLeft, ChevronsRight, ShieldCheck, DollarSign, LifeBuoy } from 'lucide-react';
 import HelpChatPanel from '@/components/HelpChatPanel';
 
 const navItems = [
@@ -19,10 +18,10 @@ const navItems = [
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { orgName, signOut, user, userRole } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar-collapsed') === 'true');
   const [hovered, setHovered] = useState(false);
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
@@ -45,6 +44,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const handleMouseLeave = () => {
     clearTimeout(hoverTimeout.current);
     setHovered(false);
+  };
+
+  const openFeedbackTab = () => {
+    navigate('/support?tab=feedback');
   };
 
   return (
@@ -131,20 +134,19 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             </div>
           )}
           <Link
-            to="/help"
-            title={!isExpanded ? 'Help Center' : undefined}
+            to="/support"
+            title={!isExpanded ? 'Support' : undefined}
             className={cn(
               'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors w-full',
               !isExpanded && 'justify-center px-0',
-              location.pathname === '/help'
+              location.pathname === '/support'
                 ? 'bg-primary/10 text-primary'
                 : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
             )}
           >
-            <HelpCircle className="h-4 w-4 flex-shrink-0" />
-            {isExpanded && 'Help Center'}
+            <LifeBuoy className="h-4 w-4 flex-shrink-0" />
+            {isExpanded && 'Support'}
           </Link>
-          <FeedbackDialog isExpanded={isExpanded} externalOpen={feedbackOpen} onExternalOpenChange={setFeedbackOpen} />
           <Button
             variant="ghost"
             size="sm"
@@ -181,7 +183,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <main className="flex-1 overflow-auto">
         {children}
       </main>
-      <HelpChatPanel onOpenFeedback={() => { setFeedbackOpen(true); }} />
+      <HelpChatPanel onOpenFeedback={openFeedbackTab} />
     </div>
   );
 }

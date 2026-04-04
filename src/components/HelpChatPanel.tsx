@@ -20,7 +20,7 @@ const QUICK_ACTIONS = [
   },
   {
     icon: MessageSquare,
-    label: 'Submit Feedback',
+    label: 'Submit Feedback or Ticket',
     description: 'Report a bug, request a feature, or ask a question',
     action: 'open-feedback' as const,
   },
@@ -33,10 +33,10 @@ const QUICK_ACTIONS = [
   },
   {
     icon: Sparkles,
-    label: 'Get stack recommendations',
-    description: 'AI-powered advice for your MSP stack',
+    label: 'Help with an integration',
+    description: 'Get links and guidance for connecting your tools',
     action: 'prompt' as const,
-    prompt: 'What tools would you recommend for ',
+    prompt: 'How do I connect ',
   },
 ];
 
@@ -136,7 +136,7 @@ export default function HelpChatPanel({ onOpenFeedback }: { onOpenFeedback?: () 
   const handleQuickAction = (action: typeof QUICK_ACTIONS[number]) => {
     if (action.action === 'navigate-help') {
       setOpen(false);
-      navigate('/help');
+      navigate('/support');
     } else if (action.action === 'open-feedback') {
       setOpen(false);
       onOpenFeedback?.();
@@ -150,6 +150,19 @@ export default function HelpChatPanel({ onOpenFeedback }: { onOpenFeedback?: () 
   const resetChat = () => {
     setMessages([]);
     setShowQuickActions(true);
+  };
+
+  // Handle link clicks within the chat to navigate internally
+  const handleLinkClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const anchor = target.closest('a');
+    if (!anchor) return;
+    const href = anchor.getAttribute('href');
+    if (href && (href.startsWith('/support') || href.startsWith('/help'))) {
+      e.preventDefault();
+      setOpen(false);
+      navigate(href);
+    }
   };
 
   return (
@@ -177,7 +190,7 @@ export default function HelpChatPanel({ onOpenFeedback }: { onOpenFeedback?: () 
           </div>
         </SheetHeader>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-4" onClick={handleLinkClick}>
           {/* Welcome + Quick Actions */}
           {showQuickActions && messages.length === 0 && (
             <div className="space-y-4">
@@ -228,7 +241,7 @@ export default function HelpChatPanel({ onOpenFeedback }: { onOpenFeedback?: () 
                 )}
               >
                 {msg.role === 'assistant' ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:my-1 [&>ul]:my-1 [&>ol]:my-1">
+                  <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:my-1 [&>ul]:my-1 [&>ol]:my-1 prose-a:text-primary prose-a:underline prose-a:font-medium">
                     <ReactMarkdown>{msg.content}</ReactMarkdown>
                   </div>
                 ) : (
