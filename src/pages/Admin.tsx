@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from '@/hooks/use-toast';
-import { Check, X, Building2, Users, Layers, MessageSquare, BarChart3, Pencil, Trash2, Save, ChevronDown, ArrowUpDown } from 'lucide-react';
+import { Check, X, Building2, Users, Layers, MessageSquare, BarChart3, Pencil, Trash2, Save, ChevronDown, ArrowUpDown, KeyRound, ShieldOff } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 type PendingApp = {
@@ -94,6 +94,22 @@ export default function Admin() {
   const [fbSortKey, setFbSortKey] = useState<FeedbackSortKey>('date');
   const [fbSortAsc, setFbSortAsc] = useState(false);
   const [expandedFb, setExpandedFb] = useState<Set<string>>(new Set());
+  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
+
+  const adminAction = async (userId: string, action: 'reset_password' | 'reset_mfa') => {
+    setActionLoading(prev => ({ ...prev, [`${userId}_${action}`]: true }));
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-user-actions', {
+        body: { action, target_user_id: userId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({ title: 'Success', description: data.message });
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    }
+    setActionLoading(prev => ({ ...prev, [`${userId}_${action}`]: false }));
+  };
 
   useEffect(() => {
     if (userRole === 'platform_admin') loadData();
@@ -664,21 +680,63 @@ export default function Admin() {
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right">
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button size="sm" variant="ghost" className="text-destructive"><Trash2 className="h-3 w-3" /></Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Remove this user?</AlertDialogTitle>
-                              <AlertDialogDescription>This will remove the user's role and organization access. They will need to be re-invited.</AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => removeUser(u.id)}>Remove</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <div className="flex items-center justify-end gap-1">
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="sm" variant="ghost" title="Reset Password"><KeyRound className="h-3 w-3" /></Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Reset Password?</AlertDialogTitle>
+                                <AlertDialogDescription>This will send a password reset email to this user.</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  disabled={actionLoading[`${u.user_id}_reset_password`]}
+                                  onClick={() => adminAction(u.user_id, 'reset_password')}
+                                >
+                                  {actionLoading[`${u.user_id}_reset_password`] ? 'Sending...' : 'Send Reset Email'}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="sm" variant="ghost" title="Reset 2FA"><ShieldOff className="h-3 w-3" /></Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Reset Two-Factor Authentication?</AlertDialogTitle>
+                                <AlertDialogDescription>This will remove all MFA factors. The user will need to set up 2FA again on next login.</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  disabled={actionLoading[`${u.user_id}_reset_mfa`]}
+                                  onClick={() => adminAction(u.user_id, 'reset_mfa')}
+                                >
+                                  {actionLoading[`${u.user_id}_reset_mfa`] ? 'Resetting...' : 'Reset 2FA'}
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="sm" variant="ghost" className="text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Remove this user?</AlertDialogTitle>
+                                <AlertDialogDescription>This will remove the user's role and organization access. They will need to be re-invited.</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => removeUser(u.id)}>Remove</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
