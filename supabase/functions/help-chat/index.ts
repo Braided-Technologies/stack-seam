@@ -60,37 +60,76 @@ serve(async (req) => {
       .single();
 
     let stackContext = "";
+    let integrationContext = "";
+
     if (roleData?.organization_id) {
       const { data: userApps } = await supabase
         .from("user_applications")
-        .select("applications(name, categories(name))")
+        .select("applications(name, vendor_url, categories(name))")
         .eq("organization_id", roleData.organization_id);
 
       if (userApps?.length) {
         const appList = userApps
-          .map((ua: any) => `${ua.applications?.name} (${ua.applications?.categories?.name || "Uncategorized"})`)
-          .join(", ");
-        stackContext = `\n\nThe user's current IT stack includes: ${appList}`;
+          .map((ua: any) => {
+            const name = ua.applications?.name;
+            const cat = ua.applications?.categories?.name || "Uncategorized";
+            const url = ua.applications?.vendor_url;
+            return `${name} (${cat})${url ? ` - ${url}` : ""}`;
+          })
+          .join("\n");
+        stackContext = `\n\nThe user's current IT stack:\n${appList}`;
+      }
+
+      // Fetch integrations with documentation URLs
+      const { data: integrations } = await supabase
+        .from("integrations")
+        .select(`
+          description,
+          documentation_url,
+          integration_type,
+          data_shared,
+          source_app:applications!integrations_source_app_id_fkey(name, vendor_url),
+          target_app:applications!integrations_target_app_id_fkey(name, vendor_url)
+        `)
+        .limit(200);
+
+      if (integrations?.length) {
+        const intList = integrations
+          .map((i: any) => {
+            const src = i.source_app?.name || "Unknown";
+            const tgt = i.target_app?.name || "Unknown";
+            const desc = i.description ? ` — ${i.description}` : "";
+            const docUrl = i.documentation_url ? ` | Docs: ${i.documentation_url}` : "";
+            const dataShared = i.data_shared ? ` | Data: ${i.data_shared}` : "";
+            return `${src} ↔ ${tgt}${desc}${dataShared}${docUrl}`;
+          })
+          .join("\n");
+        integrationContext = `\n\nKnown integrations in the catalog:\n${intList}`;
       }
     }
 
     const kbContext = articles?.length
-      ? `\n\nAvailable Knowledge Base articles:\n${articles.map((a) => `- "${a.title}" (slug: ${a.slug}): ${a.content?.substring(0, 200)}...`).join("\n")}`
+      ? `\n\nAvailable Knowledge Base articles:\n${articles.map((a) => `- "${a.title}" (link: /support?article=${a.slug}): ${a.content?.substring(0, 200)}...`).join("\n")}`
       : "";
 
     const systemPrompt = `You are StackSeam's AI support assistant for Managed Service Providers (MSPs). You help users with questions about their IT stack, tool integrations, best practices, and platform usage.
 
 Your capabilities:
-- Recommend relevant Knowledge Base articles when they exist
+- Recommend relevant Knowledge Base articles with clickable links
 - Provide MSP-specific guidance on tool selection, integration, and optimization
 - Help troubleshoot common IT stack issues
 - Suggest best practices for security, backup, monitoring, and operations
+- Find and share vendor documentation links for specific integrations
+- Guide users to submit feedback/tickets when needed
 
-When recommending a KB article, format it as: 📄 **[Article Title](/help?article=SLUG)**
+IMPORTANT FORMATTING RULES:
+1. When recommending a KB article, ALWAYS use a clickable markdown link: 📄 [Article Title](/support?article=SLUG)
+2. When sharing integration documentation, use: 🔗 [Integration Name - Docs](URL)
+3. When a user asks about connecting two specific tools, search the integration data for matching pairs and share the documentation_url if available. Also check the vendor URLs for the apps involved.
+4. If the user needs human support, direct them to: [Submit Feedback](/support?tab=feedback)
+5. Always use markdown links — never just paste raw URLs.
 
-If you cannot fully resolve the user's issue, suggest they submit a support ticket using the feedback button in the sidebar.
-
-Be concise, helpful, and technically accurate. Use markdown formatting.${kbContext}${stackContext}`;
+Be concise, helpful, and technically accurate. Use markdown formatting.${kbContext}${stackContext}${integrationContext}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
