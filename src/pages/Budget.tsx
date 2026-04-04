@@ -86,6 +86,16 @@ export default function Budget() {
       .slice(0, 10);
   }, [userApps]);
 
+  // Map user_application_id -> has contract
+  const contractByUaId = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    allContracts.forEach(c => {
+      if (!map[c.user_application_id]) map[c.user_application_id] = [];
+      map[c.user_application_id].push(c);
+    });
+    return map;
+  }, [allContracts]);
+
   const sortedApps = useMemo(() => {
     const items = userApps.map(ua => ({
       id: ua.id,
@@ -98,6 +108,8 @@ export default function Budget() {
       term_months: ua.term_months,
       license_count: ua.license_count,
       notes: ua.notes,
+      hasContract: !!(contractByUaId[ua.id]?.length),
+      contracts: contractByUaId[ua.id] || [],
     }));
     items.sort((a, b) => {
       let cmp = 0;
