@@ -741,6 +741,8 @@ export default function Settings() {
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
 
   const [companyName, setCompanyName] = useState('');
+  const [orgUrl, setOrgUrl] = useState('');
+  const [orgDomain, setOrgDomain] = useState('');
   const [savingOrg, setSavingOrg] = useState(false);
   const [provider, setProvider] = useState('lovable');
   const [apiKey, setApiKey] = useState('');
@@ -750,7 +752,16 @@ export default function Settings() {
 
   useEffect(() => {
     if (orgName) setCompanyName(orgName);
-  }, [orgName]);
+    if (orgId) {
+      (async () => {
+        const { data } = await supabase.from('organizations').select('website_url, domain').eq('id', orgId).maybeSingle();
+        if (data) {
+          setOrgUrl((data as any).website_url || '');
+          setOrgDomain((data as any).domain || '');
+        }
+      })();
+    }
+  }, [orgName, orgId]);
 
   useEffect(() => {
     if (!orgId) return;
@@ -775,10 +786,13 @@ export default function Settings() {
     if (!orgId || !companyName.trim()) return;
     setSavingOrg(true);
     try {
-      const { error } = await supabase.from('organizations').update({ name: companyName.trim() }).eq('id', orgId);
+      const { error } = await supabase.from('organizations').update({
+        name: companyName.trim(),
+        website_url: orgUrl.trim() || null,
+      } as any).eq('id', orgId);
       if (error) throw error;
       await refreshOrg();
-      toast({ title: 'Organization name updated' });
+      toast({ title: 'Organization updated' });
     } catch (e: any) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
     }
@@ -846,8 +860,19 @@ export default function Settings() {
                 <Label>Organization Name</Label>
                 <Input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="e.g. Acme MSP" maxLength={100} />
               </div>
-              <Button onClick={handleSaveOrg} disabled={savingOrg || !companyName.trim() || companyName.trim() === orgName}>
-                {savingOrg ? 'Saving...' : 'Update Organization Name'}
+              <div className="space-y-2">
+                <Label>Website URL</Label>
+                <Input value={orgUrl} onChange={e => setOrgUrl(e.target.value)} placeholder="e.g. https://acme.com" />
+              </div>
+              {orgDomain && (
+                <div className="space-y-2">
+                  <Label>Domain</Label>
+                  <Input value={orgDomain} disabled className="opacity-60" />
+                  <p className="text-xs text-muted-foreground">Domain is set during organization creation and used to prevent duplicates.</p>
+                </div>
+              )}
+              <Button onClick={handleSaveOrg} disabled={savingOrg || !companyName.trim()}>
+                {savingOrg ? 'Saving...' : 'Update Organization'}
               </Button>
             </CardContent>
           </Card>

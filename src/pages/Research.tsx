@@ -221,7 +221,7 @@ export default function Research() {
                     <Bot className="h-4 w-4 text-primary" />
                   </div>
                 )}
-                <div className={`rounded-lg px-4 py-3 max-w-[80%] ${
+                <div className={`rounded-lg px-4 py-3 max-w-[80%] overflow-x-auto ${
                   msg.role === 'user'
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted'
@@ -257,6 +257,14 @@ export default function Research() {
 
       <div className="border-t px-6 py-4">
         <div className="flex gap-2 max-w-3xl mx-auto">
+          <Button
+            onClick={() => sendMessage(input)}
+            disabled={!input.trim() || isLoading}
+            size="icon"
+            className="shrink-0"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
           <Textarea
             value={input}
             onChange={e => setInput(e.target.value)}
@@ -269,14 +277,6 @@ export default function Research() {
               }
             }}
           />
-          <Button
-            onClick={() => sendMessage(input)}
-            disabled={!input.trim() || isLoading}
-            size="icon"
-            className="shrink-0"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
         </div>
       </div>
     </div>

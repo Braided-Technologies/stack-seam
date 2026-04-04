@@ -86,6 +86,16 @@ export default function Budget() {
       .slice(0, 10);
   }, [userApps]);
 
+  // Map user_application_id -> has contract
+  const contractByUaId = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    allContracts.forEach(c => {
+      if (!map[c.user_application_id]) map[c.user_application_id] = [];
+      map[c.user_application_id].push(c);
+    });
+    return map;
+  }, [allContracts]);
+
   const sortedApps = useMemo(() => {
     const items = userApps.map(ua => ({
       id: ua.id,
@@ -98,6 +108,8 @@ export default function Budget() {
       term_months: ua.term_months,
       license_count: ua.license_count,
       notes: ua.notes,
+      hasContract: !!(contractByUaId[ua.id]?.length),
+      contracts: contractByUaId[ua.id] || [],
     }));
     items.sort((a, b) => {
       let cmp = 0;
@@ -279,12 +291,13 @@ export default function Budget() {
                       Renewal <ArrowUpDown className="h-3 w-3" />
                     </Button>
                   </TableHead>
+                  <TableHead>Contract</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredApps.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       {appSearch ? 'No applications match your search.' : 'No applications with cost data yet. Add costs in My Stack.'}
                     </TableCell>
                   </TableRow>
@@ -297,46 +310,26 @@ export default function Budget() {
                     <TableCell className="capitalize">{app.billing_cycle || '—'}</TableCell>
                     <TableCell>{app.license_count ?? '—'}</TableCell>
                     <TableCell>{app.renewal_date ? new Date(app.renewal_date).toLocaleDateString() : '—'}</TableCell>
+                    <TableCell>
+                      {app.hasContract ? (
+                        <div className="flex items-center gap-1">
+                          <Badge variant="default" className="text-xs">Yes</Badge>
+                          {app.contracts.map((c: any) => (
+                            <Button key={c.id} size="icon" variant="ghost" className="h-6 w-6" title={`Download ${c.file_name}`}
+                              onClick={(e) => { e.stopPropagation(); handleDownloadContract(c.file_path, c.file_name); }}>
+                              <Download className="h-3 w-3" />
+                            </Button>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No</span>
+                      )}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Contracts Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <FileText className="h-5 w-5" />
-            All Contracts ({allContracts.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {allContracts.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">No contracts uploaded yet. Upload contracts from My Stack.</p>
-          ) : (
-            <div className="space-y-2">
-              {allContracts.map((c: any) => (
-                <div key={c.id} className="flex items-center justify-between rounded-lg border p-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{c.file_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {c.user_applications?.applications?.name || 'Unknown App'}
-                        {c.file_size && ` · ${(c.file_size / 1024).toFixed(0)}KB`}
-                      </p>
-                    </div>
-                  </div>
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleDownloadContract(c.file_path, c.file_name)}>
-                    <Download className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -418,7 +411,21 @@ export default function Budget() {
               </TabsContent>
 
               <TabsContent value="contracts" className="pt-2">
-                <ContractsSection userApplicationId={editingApp.id} isAdmin={isAdmin} />
+                <ContractsSection
+                  userApplicationId={editingApp.id}
+                  isAdmin={isAdmin}
+                  onExtractedData={(data) => {
+                    const updated = { ...editingApp };
+                    if (data.cost_monthly != null) updated.cost_monthly = data.cost_monthly;
+                    if (data.cost_annual != null) updated.cost_annual = data.cost_annual;
+                    if (data.renewal_date) updated.renewal_date = data.renewal_date;
+                    if (data.term_months != null) updated.term_months = data.term_months;
+                    if (data.billing_cycle) updated.billing_cycle = data.billing_cycle;
+                    if (data.license_count != null) updated.license_count = data.license_count;
+                    if (data.notes) updated.notes = data.notes;
+                    setEditingApp(updated);
+                  }}
+                />
               </TabsContent>
             </Tabs>
           )}

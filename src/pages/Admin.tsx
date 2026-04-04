@@ -45,6 +45,8 @@ type FeedbackItem = {
 type OrgItem = {
   id: string;
   name: string;
+  domain: string | null;
+  website_url: string | null;
   created_at: string;
   user_count: number;
 };
@@ -155,7 +157,7 @@ export default function Admin() {
 
     const countMap: Record<string, number> = {};
     roleData.forEach(r => { countMap[r.organization_id] = (countMap[r.organization_id] || 0) + 1; });
-    setOrgs(orgData.map(o => ({ ...o, user_count: countMap[o.id] || 0 })));
+    setOrgs(orgData.map(o => ({ ...o, user_count: countMap[o.id] || 0, website_url: (o as any).website_url || null })));
 
     // Fetch user emails and names for users tab
     const allUserIds = [...new Set(roleData.map(r => r.user_id))];
@@ -497,7 +499,7 @@ export default function Admin() {
           </Card>
         </TabsContent>
 
-        {/* FEEDBACK TAB — collapsible, sortable, filterable */}
+        {/* FEEDBACK TAB — table with detail columns */}
         <TabsContent value="feedback" className="space-y-4">
           <Card>
             <CardHeader>
@@ -522,12 +524,6 @@ export default function Admin() {
                       <SelectItem value="question">❓ Questions</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => toggleFbSort('date')}>
-                    <ArrowUpDown className="h-3 w-3" /> Date
-                  </Button>
-                  <Button variant="outline" size="sm" className="h-8 gap-1" onClick={() => toggleFbSort('status')}>
-                    <ArrowUpDown className="h-3 w-3" /> Status
-                  </Button>
                 </div>
               </div>
             </CardHeader>
@@ -536,80 +532,98 @@ export default function Admin() {
                 <p className="text-muted-foreground text-sm py-4 text-center">No feedback found</p>
               ) : (
                 <ScrollArea className="h-[600px]">
-                  <div className="space-y-2 pr-4">
-                    {filteredFeedback.map(fb => {
-                      const isOpen = expandedFb.has(fb.id);
-                      return (
-                        <Collapsible key={fb.id} open={isOpen} onOpenChange={() => toggleFbExpand(fb.id)}>
-                          <CollapsibleTrigger asChild>
-                            <div className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:bg-accent/50 transition-colors">
-                              <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
-                                <Badge variant={typeColor(fb.type) as any} className="text-xs">{fb.type}</Badge>
-                                <Badge variant={statusColor(fb.status) as any} className="text-xs">{fb.status.replace('_', ' ')}</Badge>
-                                <span className="text-sm font-medium truncate">{fb.title}</span>
-                                <span className="text-xs text-muted-foreground ml-auto flex-shrink-0">{new Date(fb.created_at).toLocaleDateString()}</span>
-                              </div>
-                              <ChevronDown className={`h-4 w-4 ml-2 text-muted-foreground transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
-                            </div>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent>
-                            <div className="border border-t-0 rounded-b-lg p-4 space-y-3 bg-card">
-                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                <span>User: {fb.user_email}</span>
-                                {fb.org_name && <span>Org: <span className="text-foreground font-medium">{fb.org_name}</span></span>}
-                              </div>
-                              {fb.description && <p className="text-sm text-muted-foreground">{fb.description}</p>}
-
-                              {fb.screenshot_urls && fb.screenshot_urls.length > 0 && (
-                                <div className="space-y-1">
-                                  <span className="text-xs font-medium text-muted-foreground">Attachments ({fb.screenshot_urls.length})</span>
-                                  <div className="flex gap-2 flex-wrap">
-                                    {fb.screenshot_urls.map((path, i) => (
-                                      <AdminScreenshot key={i} path={path} />
-                                    ))}
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>
+                          <Button variant="ghost" size="sm" className="gap-1 -ml-3" onClick={() => toggleFbSort('type')}>
+                            Type <ArrowUpDown className="h-3 w-3" />
+                          </Button>
+                        </TableHead>
+                        <TableHead>
+                          <Button variant="ghost" size="sm" className="gap-1 -ml-3" onClick={() => toggleFbSort('status')}>
+                            Status <ArrowUpDown className="h-3 w-3" />
+                          </Button>
+                        </TableHead>
+                        <TableHead>Title</TableHead>
+                        <TableHead>User</TableHead>
+                        <TableHead>Organization</TableHead>
+                        <TableHead>
+                          <Button variant="ghost" size="sm" className="gap-1 -ml-3" onClick={() => toggleFbSort('date')}>
+                            Date <ArrowUpDown className="h-3 w-3" />
+                          </Button>
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredFeedback.map(fb => {
+                        const isOpen = expandedFb.has(fb.id);
+                        return (
+                          <>
+                            <TableRow key={fb.id} className="cursor-pointer hover:bg-accent/50" onClick={() => toggleFbExpand(fb.id)}>
+                              <TableCell><Badge variant={typeColor(fb.type) as any} className="text-xs">{fb.type}</Badge></TableCell>
+                              <TableCell><Badge variant={statusColor(fb.status) as any} className="text-xs">{fb.status.replace('_', ' ')}</Badge></TableCell>
+                              <TableCell className="font-medium text-sm max-w-xs truncate">{fb.title}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{fb.user_email}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{fb.org_name || '—'}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{new Date(fb.created_at).toLocaleDateString()}</TableCell>
+                            </TableRow>
+                            {isOpen && (
+                              <TableRow key={`${fb.id}-detail`}>
+                                <TableCell colSpan={6} className="bg-card border-t-0 p-4">
+                                  <div className="space-y-3">
+                                    {fb.description && <p className="text-sm text-muted-foreground">{fb.description}</p>}
+                                    {fb.screenshot_urls && fb.screenshot_urls.length > 0 && (
+                                      <div className="space-y-1">
+                                        <span className="text-xs font-medium text-muted-foreground">Attachments ({fb.screenshot_urls.length})</span>
+                                        <div className="flex gap-2 flex-wrap">
+                                          {fb.screenshot_urls.map((path, i) => (
+                                            <AdminScreenshot key={i} path={path} />
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {fb.admin_response && (
+                                      <div className="bg-muted rounded-md p-3 text-sm">
+                                        <span className="font-medium text-xs text-muted-foreground">Admin Response:</span>
+                                        <p className="mt-1">{fb.admin_response}</p>
+                                      </div>
+                                    )}
+                                    <div className="flex items-start gap-2">
+                                      <div className="flex-1 space-y-2">
+                                        <Textarea
+                                          placeholder="Write a response..."
+                                          value={adminResponses[fb.id] || ''}
+                                          onChange={e => setAdminResponses(prev => ({ ...prev, [fb.id]: e.target.value }))}
+                                          className="min-h-[60px]"
+                                        />
+                                        <div className="flex gap-2">
+                                          <Button size="sm" onClick={() => sendAdminResponse(fb.id)} disabled={!adminResponses[fb.id]?.trim()}>
+                                            Reply
+                                          </Button>
+                                          <Select value={fb.status} onValueChange={(v) => updateFeedbackStatus(fb.id, v)}>
+                                            <SelectTrigger className="w-32 h-8">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="open">Open</SelectItem>
+                                              <SelectItem value="in_progress">In Progress</SelectItem>
+                                              <SelectItem value="resolved">Resolved</SelectItem>
+                                              <SelectItem value="closed">Closed</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                      </div>
+                                    </div>
                                   </div>
-                                </div>
-                              )}
-
-                              {fb.admin_response && (
-                                <div className="bg-muted rounded-md p-3 text-sm">
-                                  <span className="font-medium text-xs text-muted-foreground">Admin Response:</span>
-                                  <p className="mt-1">{fb.admin_response}</p>
-                                </div>
-                              )}
-
-                              <div className="flex items-start gap-2">
-                                <div className="flex-1 space-y-2">
-                                  <Textarea
-                                    placeholder="Write a response..."
-                                    value={adminResponses[fb.id] || ''}
-                                    onChange={e => setAdminResponses(prev => ({ ...prev, [fb.id]: e.target.value }))}
-                                    className="min-h-[60px]"
-                                  />
-                                  <div className="flex gap-2">
-                                    <Button size="sm" onClick={() => sendAdminResponse(fb.id)} disabled={!adminResponses[fb.id]?.trim()}>
-                                      Reply
-                                    </Button>
-                                    <Select value={fb.status} onValueChange={(v) => updateFeedbackStatus(fb.id, v)}>
-                                      <SelectTrigger className="w-32 h-8">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="open">Open</SelectItem>
-                                        <SelectItem value="in_progress">In Progress</SelectItem>
-                                        <SelectItem value="resolved">Resolved</SelectItem>
-                                        <SelectItem value="closed">Closed</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </CollapsibleContent>
-                        </Collapsible>
-                      );
-                    })}
-                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
                 </ScrollArea>
               )}
             </CardContent>
@@ -628,6 +642,8 @@ export default function Admin() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
+                    <TableHead>URL</TableHead>
+                    <TableHead>Domain</TableHead>
                     <TableHead>Users</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -647,6 +663,8 @@ export default function Admin() {
                           <span className="font-medium">{org.name}</span>
                         )}
                       </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{org.website_url || '—'}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{org.domain || '—'}</TableCell>
                       <TableCell>{org.user_count}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{new Date(org.created_at).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right space-x-1">

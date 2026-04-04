@@ -320,6 +320,7 @@ export type Database = {
           id: string
           integration_type: string | null
           last_verified: string | null
+          link_status: string
           source_app_id: string
           target_app_id: string
         }
@@ -331,6 +332,7 @@ export type Database = {
           id?: string
           integration_type?: string | null
           last_verified?: string | null
+          link_status?: string
           source_app_id: string
           target_app_id: string
         }
@@ -342,6 +344,7 @@ export type Database = {
           id?: string
           integration_type?: string | null
           last_verified?: string | null
+          link_status?: string
           source_app_id?: string
           target_app_id?: string
         }
@@ -582,6 +585,7 @@ export type Database = {
           id: string
           name: string
           updated_at: string
+          website_url: string | null
         }
         Insert: {
           created_at?: string
@@ -589,6 +593,7 @@ export type Database = {
           id?: string
           name: string
           updated_at?: string
+          website_url?: string | null
         }
         Update: {
           created_at?: string
@@ -596,6 +601,7 @@ export type Database = {
           id?: string
           name?: string
           updated_at?: string
+          website_url?: string | null
         }
         Relationships: []
       }

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useContractFiles, useUploadContract, useDeleteContractFile } from '@/hooks/useStackData';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import { Upload, FileText, Trash2, Download, ScanSearch, Loader2, Check } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,8 +25,10 @@ interface ContractsSectionProps {
 
 interface LineItem {
   name: string;
+  quantity?: number | null;
   monthly_cost?: number | null;
   annual_cost?: number | null;
+  unit_price?: number | null;
   description?: string | null;
 }
 
@@ -53,6 +56,9 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
   // Checkboxes for extracted fields
   const [checkedFields, setCheckedFields] = useState<Record<string, boolean>>({});
   const [checkedLineItems, setCheckedLineItems] = useState<Record<number, boolean>>({});
+  // Editable field values
+  const [editableFields, setEditableFields] = useState<Record<string, any>>({});
+  const [editableLineItems, setEditableLineItems] = useState<LineItem[]>([]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -102,6 +108,8 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
     setScanResult(null);
     setCheckedFields({});
     setCheckedLineItems({});
+    setEditableFields({});
+    setEditableLineItems([]);
     try {
       const { data, error } = await supabase.functions.invoke('scan-contract', {
         body: { file_path: filePath, user_application_id: userApplicationId, delete_after_scan: deleteAfterScan },
@@ -110,26 +118,30 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
       if (data?.error) throw new Error(data.error);
       const extracted: ExtractedData = data.extracted || {};
       setScanResult(extracted);
-      // Default all fields to checked
+      // Default all fields to checked, and set editable values
       const fields: Record<string, boolean> = {};
-      if (extracted.vendor_name) fields.vendor_name = true;
-      if (extracted.cost_monthly != null) fields.cost_monthly = true;
-      if (extracted.cost_annual != null) fields.cost_annual = true;
-      if (extracted.renewal_date) fields.renewal_date = true;
-      if (extracted.term_months != null) fields.term_months = true;
-      if (extracted.billing_cycle) fields.billing_cycle = true;
-      if (extracted.license_count != null) fields.license_count = true;
-      if (extracted.notes) fields.notes = true;
+      const editable: Record<string, any> = {};
+      const fieldKeys = ['vendor_name', 'cost_monthly', 'cost_annual', 'renewal_date', 'term_months', 'billing_cycle', 'license_count', 'notes'];
+      for (const key of fieldKeys) {
+        const value = (extracted as any)[key];
+        if (value != null && value !== '') {
+          fields[key] = true;
+          editable[key] = value;
+        }
+      }
       setCheckedFields(fields);
+      setEditableFields(editable);
       // Default line items to unchecked so user picks relevant ones
       const liChecks: Record<number, boolean> = {};
-      (extracted.line_items || []).forEach((_, i) => { liChecks[i] = false; });
+      const liEditable = (extracted.line_items || []).map((item, i) => {
+        liChecks[i] = false;
+        return { ...item };
+      });
       setCheckedLineItems(liChecks);
+      setEditableLineItems(liEditable);
       toast({
         title: 'Contract scanned',
-        description: deleteAfterScan
-          ? 'Data extracted. Review and import below.'
-          : 'Data extracted. Review and import below.',
+        description: 'Data extracted. Review, edit, and import below.',
       });
     } catch (err: any) {
       toast({ title: 'Scan failed', description: err.message, variant: 'destructive' });
@@ -140,20 +152,20 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
   const handleImport = () => {
     if (!scanResult) return;
     const data: any = {};
-    if (checkedFields.vendor_name && scanResult.vendor_name) data.vendor_name = scanResult.vendor_name;
-    if (checkedFields.cost_monthly && scanResult.cost_monthly != null) data.cost_monthly = scanResult.cost_monthly;
-    if (checkedFields.cost_annual && scanResult.cost_annual != null) data.cost_annual = scanResult.cost_annual;
-    if (checkedFields.renewal_date && scanResult.renewal_date) data.renewal_date = scanResult.renewal_date;
-    if (checkedFields.term_months && scanResult.term_months != null) data.term_months = scanResult.term_months;
-    if (checkedFields.billing_cycle && scanResult.billing_cycle) data.billing_cycle = scanResult.billing_cycle;
-    if (checkedFields.license_count && scanResult.license_count != null) data.license_count = scanResult.license_count;
-    if (checkedFields.notes && scanResult.notes) data.notes = scanResult.notes;
+    if (checkedFields.vendor_name && editableFields.vendor_name) data.vendor_name = editableFields.vendor_name;
+    if (checkedFields.cost_monthly && editableFields.cost_monthly != null) data.cost_monthly = Number(editableFields.cost_monthly);
+    if (checkedFields.cost_annual && editableFields.cost_annual != null) data.cost_annual = Number(editableFields.cost_annual);
+    if (checkedFields.renewal_date && editableFields.renewal_date) data.renewal_date = editableFields.renewal_date;
+    if (checkedFields.term_months && editableFields.term_months != null) data.term_months = Number(editableFields.term_months);
+    if (checkedFields.billing_cycle && editableFields.billing_cycle) data.billing_cycle = editableFields.billing_cycle;
+    if (checkedFields.license_count && editableFields.license_count != null) data.license_count = Number(editableFields.license_count);
+    if (checkedFields.notes && editableFields.notes) data.notes = editableFields.notes;
 
     // Aggregate costs from selected line items
-    const selectedItems = (scanResult.line_items || []).filter((_, i) => checkedLineItems[i]);
+    const selectedItems = editableLineItems.filter((_, i) => checkedLineItems[i]);
     if (selectedItems.length > 0) {
-      const liMonthly = selectedItems.reduce((sum, li) => sum + (li.monthly_cost || 0), 0);
-      const liAnnual = selectedItems.reduce((sum, li) => sum + (li.annual_cost || 0), 0);
+      const liMonthly = selectedItems.reduce((sum, li) => sum + (Number(li.monthly_cost) || 0), 0);
+      const liAnnual = selectedItems.reduce((sum, li) => sum + (Number(li.annual_cost) || 0), 0);
       if (liMonthly > 0) data.cost_monthly = (data.cost_monthly || 0) + liMonthly;
       if (liAnnual > 0) data.cost_annual = (data.cost_annual || 0) + liAnnual;
       data.selected_line_items = selectedItems;
@@ -170,6 +182,14 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
 
   const toggleLineItem = (index: number) => {
     setCheckedLineItems(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+
+  const updateField = (key: string, value: any) => {
+    setEditableFields(prev => ({ ...prev, [key]: value }));
+  };
+
+  const updateLineItem = (index: number, key: keyof LineItem, value: any) => {
+    setEditableLineItems(prev => prev.map((item, i) => i === index ? { ...item, [key]: value } : item));
   };
 
   const formatSize = (bytes: number | null) => {
@@ -190,11 +210,15 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
     notes: 'Notes',
   };
 
-  const formatFieldValue = (key: string, value: any) => {
-    if (value == null) return '—';
-    if (key === 'cost_monthly' || key === 'cost_annual') return `$${value}`;
-    if (key === 'term_months') return `${value} months`;
-    return String(value);
+  const FIELD_TYPES: Record<string, string> = {
+    vendor_name: 'text',
+    cost_monthly: 'number',
+    cost_annual: 'number',
+    renewal_date: 'date',
+    term_months: 'number',
+    billing_cycle: 'text',
+    license_count: 'number',
+    notes: 'text',
   };
 
   return (
@@ -250,52 +274,79 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
         <p className="text-xs text-muted-foreground">No contracts uploaded yet.</p>
       )}
 
-      {/* Extracted data with checkboxes */}
+      {/* Extracted data with editable fields and checkboxes */}
       {scanResult && (
         <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-3">
-          <p className="font-medium text-xs uppercase tracking-wider text-muted-foreground">Extracted Data — Select fields to import</p>
+          <p className="font-medium text-xs uppercase tracking-wider text-muted-foreground">Extracted Data — Edit & select fields to import</p>
           
           {/* Standard fields */}
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {Object.entries(FIELD_LABELS).map(([key, label]) => {
-              const value = (scanResult as any)[key];
-              if (value == null && key !== 'notes') return null;
-              if (key === 'notes' && !value) return null;
+              if (editableFields[key] == null && !checkedFields[key]) return null;
               return (
-                <label key={key} className="flex items-center gap-2 cursor-pointer hover:bg-accent/30 rounded px-1 py-0.5">
+                <div key={key} className="flex items-center gap-2">
                   <Checkbox
                     checked={!!checkedFields[key]}
                     onCheckedChange={() => toggleField(key)}
                   />
-                  <span className="font-medium text-xs w-24">{label}:</span>
-                  <span className="text-xs">{formatFieldValue(key, value)}</span>
-                </label>
+                  <span className="font-medium text-xs w-24 shrink-0">{label}:</span>
+                  <Input
+                    type={FIELD_TYPES[key] || 'text'}
+                    value={editableFields[key] ?? ''}
+                    onChange={e => updateField(key, e.target.value)}
+                    className="h-7 text-xs flex-1"
+                  />
+                </div>
               );
             })}
           </div>
 
           {/* Line items */}
-          {scanResult.line_items && scanResult.line_items.length > 0 && (
+          {editableLineItems.length > 0 && (
             <div className="space-y-1.5">
               <p className="font-medium text-xs uppercase tracking-wider text-muted-foreground mt-2">
-                Line Items ({scanResult.line_items.length}) — Select items relevant to this app
+                Line Items ({editableLineItems.length}) — Select items relevant to this app
               </p>
-              {scanResult.line_items.map((item, i) => (
-                <label key={i} className="flex items-start gap-2 cursor-pointer hover:bg-accent/30 rounded px-1 py-1 border border-border/50 bg-background/50">
+              {editableLineItems.map((item, i) => (
+                <div key={i} className="flex items-start gap-2 rounded px-1 py-1 border border-border/50 bg-background/50">
                   <Checkbox
                     checked={!!checkedLineItems[i]}
                     onCheckedChange={() => toggleLineItem(i)}
-                    className="mt-0.5"
+                    className="mt-1.5"
                   />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium">{item.name}</p>
-                    <div className="flex gap-3 text-xs text-muted-foreground">
-                      {item.monthly_cost != null && <span>${item.monthly_cost}/mo</span>}
-                      {item.annual_cost != null && <span>${item.annual_cost}/yr</span>}
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <Input
+                      value={item.name}
+                      onChange={e => updateLineItem(i, 'name', e.target.value)}
+                      className="h-7 text-xs font-medium"
+                      placeholder="Product name"
+                    />
+                    <div className="grid grid-cols-3 gap-1">
+                      <Input
+                        type="number"
+                        value={item.monthly_cost ?? ''}
+                        onChange={e => updateLineItem(i, 'monthly_cost', e.target.value ? Number(e.target.value) : null)}
+                        className="h-6 text-xs"
+                        placeholder="$/mo"
+                      />
+                      <Input
+                        type="number"
+                        value={item.annual_cost ?? ''}
+                        onChange={e => updateLineItem(i, 'annual_cost', e.target.value ? Number(e.target.value) : null)}
+                        className="h-6 text-xs"
+                        placeholder="$/yr"
+                      />
+                      <Input
+                        type="number"
+                        value={item.quantity ?? ''}
+                        onChange={e => updateLineItem(i, 'quantity', e.target.value ? Number(e.target.value) : null)}
+                        className="h-6 text-xs"
+                        placeholder="Qty"
+                      />
                     </div>
-                    {item.description && <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>}
+                    {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
                   </div>
-                </label>
+                </div>
               ))}
             </div>
           )}
