@@ -8,15 +8,10 @@ import {
   Container,
   Head,
   Heading,
-  Hr,
   Html,
-  Img,
   Preview,
-  Section,
   Text,
 } from 'npm:@react-email/components@0.0.22'
-
-const LOGO_URL = 'https://ivmbbnmmioeufmxtvsgs.supabase.co/storage/v1/object/public/email-assets/stackseam-logo.png'
 
 interface RecoveryEmailProps {
   siteName: string
@@ -29,28 +24,20 @@ export const RecoveryEmail = ({
 }: RecoveryEmailProps) => (
   <Html lang="en" dir="ltr">
     <Head />
-    <Preview>Reset your StackSeam password</Preview>
+    <Preview>Reset your password for {siteName}</Preview>
     <Body style={main}>
-      <Container style={card}>
-        <Section style={logoSection}>
-          <Img src={LOGO_URL} alt="StackSeam" width="140" height="auto" style={logo} />
-        </Section>
-        <Hr style={divider} />
-        <Heading style={h1}>Reset Your Password</Heading>
+      <Container style={container}>
+        <Heading style={h1}>Reset your password</Heading>
         <Text style={text}>
-          We received a request to reset your StackSeam password. Click the button below to choose a new one.
+          We received a request to reset your password for {siteName}. Click
+          the button below to choose a new password.
         </Text>
-        <Section style={buttonSection}>
-          <Button style={button} href={confirmationUrl}>
-            Reset Password
-          </Button>
-        </Section>
-        <Text style={textSmall}>
-          This link will expire shortly. If you didn't request a password reset, no action is needed — your password will stay the same.
-        </Text>
-        <Hr style={divider} />
-        <Text style={footerBrand}>
-          © StackSeam — IT Stack Intelligence for MSPs
+        <Button style={button} href={confirmationUrl}>
+          Reset Password
+        </Button>
+        <Text style={footer}>
+          If you didn't request a password reset, you can safely ignore this
+          email. Your password will not be changed.
         </Text>
       </Container>
     </Body>
@@ -59,57 +46,26 @@ export const RecoveryEmail = ({
 
 export default RecoveryEmail
 
-const main = {
-  backgroundColor: '#f4f4f5',
-  fontFamily: 'Outfit, system-ui, sans-serif',
-  padding: '40px 0',
-}
-const card = {
-  backgroundColor: '#ffffff',
-  borderRadius: '12px',
-  padding: '40px 32px',
-  maxWidth: '480px',
-  margin: '0 auto',
-  border: '1px solid #e4e4e7',
-}
-const logoSection = { textAlign: 'center' as const, marginBottom: '8px' }
-const logo = { margin: '0 auto' }
-const divider = { borderColor: '#e4e4e7', margin: '20px 0' }
+const main = { backgroundColor: '#ffffff', fontFamily: 'Arial, sans-serif' }
+const container = { padding: '20px 25px' }
 const h1 = {
-  fontSize: '24px',
+  fontSize: '22px',
   fontWeight: 'bold' as const,
-  color: '#1a1f36',
-  margin: '0 0 12px',
-  textAlign: 'center' as const,
+  color: '#000000',
+  margin: '0 0 20px',
 }
 const text = {
-  fontSize: '15px',
-  color: '#6b7280',
-  lineHeight: '1.6',
-  margin: '0 0 20px',
-  textAlign: 'center' as const,
-}
-const textSmall = {
-  fontSize: '13px',
-  color: '#9ca3af',
+  fontSize: '14px',
+  color: '#55575d',
   lineHeight: '1.5',
-  margin: '0 0 16px',
-  textAlign: 'center' as const,
+  margin: '0 0 25px',
 }
-const buttonSection = { textAlign: 'center' as const, margin: '8px 0 16px' }
 const button = {
-  backgroundColor: '#e8930c',
-  color: '#1a1f36',
-  fontSize: '15px',
-  fontWeight: '600' as const,
+  backgroundColor: '#000000',
+  color: '#ffffff',
+  fontSize: '14px',
   borderRadius: '8px',
-  padding: '14px 28px',
+  padding: '12px 20px',
   textDecoration: 'none',
-  display: 'inline-block' as const,
 }
-const footerBrand = {
-  fontSize: '11px',
-  color: '#d1d5db',
-  margin: '0',
-  textAlign: 'center' as const,
-}
+const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }

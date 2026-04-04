@@ -8,15 +8,10 @@ import {
   Container,
   Head,
   Heading,
-  Hr,
   Html,
-  Img,
   Preview,
-  Section,
   Text,
 } from 'npm:@react-email/components@0.0.22'
-
-const LOGO_URL = 'https://ivmbbnmmioeufmxtvsgs.supabase.co/storage/v1/object/public/email-assets/stackseam-logo.png'
 
 interface MagicLinkEmailProps {
   siteName: string
@@ -29,28 +24,19 @@ export const MagicLinkEmail = ({
 }: MagicLinkEmailProps) => (
   <Html lang="en" dir="ltr">
     <Head />
-    <Preview>Your StackSeam login link</Preview>
+    <Preview>Your login link for {siteName}</Preview>
     <Body style={main}>
-      <Container style={card}>
-        <Section style={logoSection}>
-          <Img src={LOGO_URL} alt="StackSeam" width="140" height="auto" style={logo} />
-        </Section>
-        <Hr style={divider} />
-        <Heading style={h1}>Your Login Link</Heading>
+      <Container style={container}>
+        <Heading style={h1}>Your login link</Heading>
         <Text style={text}>
-          Click the button below to securely log in to StackSeam. This link will expire shortly.
+          Click the button below to log in to {siteName}. This link will expire
+          shortly.
         </Text>
-        <Section style={buttonSection}>
-          <Button style={button} href={confirmationUrl}>
-            Log In to StackSeam
-          </Button>
-        </Section>
-        <Text style={textSmall}>
+        <Button style={button} href={confirmationUrl}>
+          Log In
+        </Button>
+        <Text style={footer}>
           If you didn't request this link, you can safely ignore this email.
-        </Text>
-        <Hr style={divider} />
-        <Text style={footerBrand}>
-          © StackSeam — IT Stack Intelligence for MSPs
         </Text>
       </Container>
     </Body>
@@ -59,57 +45,26 @@ export const MagicLinkEmail = ({
 
 export default MagicLinkEmail
 
-const main = {
-  backgroundColor: '#f4f4f5',
-  fontFamily: 'Outfit, system-ui, sans-serif',
-  padding: '40px 0',
-}
-const card = {
-  backgroundColor: '#ffffff',
-  borderRadius: '12px',
-  padding: '40px 32px',
-  maxWidth: '480px',
-  margin: '0 auto',
-  border: '1px solid #e4e4e7',
-}
-const logoSection = { textAlign: 'center' as const, marginBottom: '8px' }
-const logo = { margin: '0 auto' }
-const divider = { borderColor: '#e4e4e7', margin: '20px 0' }
+const main = { backgroundColor: '#ffffff', fontFamily: 'Arial, sans-serif' }
+const container = { padding: '20px 25px' }
 const h1 = {
-  fontSize: '24px',
+  fontSize: '22px',
   fontWeight: 'bold' as const,
-  color: '#1a1f36',
-  margin: '0 0 12px',
-  textAlign: 'center' as const,
+  color: '#000000',
+  margin: '0 0 20px',
 }
 const text = {
-  fontSize: '15px',
-  color: '#6b7280',
-  lineHeight: '1.6',
-  margin: '0 0 20px',
-  textAlign: 'center' as const,
-}
-const textSmall = {
-  fontSize: '13px',
-  color: '#9ca3af',
+  fontSize: '14px',
+  color: '#55575d',
   lineHeight: '1.5',
-  margin: '0 0 16px',
-  textAlign: 'center' as const,
+  margin: '0 0 25px',
 }
-const buttonSection = { textAlign: 'center' as const, margin: '8px 0 16px' }
 const button = {
-  backgroundColor: '#e8930c',
-  color: '#1a1f36',
-  fontSize: '15px',
-  fontWeight: '600' as const,
+  backgroundColor: '#000000',
+  color: '#ffffff',
+  fontSize: '14px',
   borderRadius: '8px',
-  padding: '14px 28px',
+  padding: '12px 20px',
   textDecoration: 'none',
-  display: 'inline-block' as const,
 }
-const footerBrand = {
-  fontSize: '11px',
-  color: '#d1d5db',
-  margin: '0',
-  textAlign: 'center' as const,
-}
+const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
