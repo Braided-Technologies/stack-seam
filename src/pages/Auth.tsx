@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { toast } from '@/hooks/use-toast';
-import stackseamLogo from '@/assets/stackseam-logo.png';
+import stackseamIcon from '@/assets/stackseam-icon.svg';
 import { lovable } from '@/integrations/lovable/index';
 
 export default function Auth() {
@@ -76,7 +76,7 @@ export default function Auth() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <img src={stackseamLogo} alt="StackSeam" className="mx-auto mb-2 h-12 object-contain" />
+          <img src={stackseamIcon} alt="StackSeam" className="mx-auto mb-2 h-12 w-12" />
           <CardTitle className="text-2xl font-display">StackSeam</CardTitle>
           <CardDescription>Every connection. Every cost.</CardDescription>
         </CardHeader>
