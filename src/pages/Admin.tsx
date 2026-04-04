@@ -664,7 +664,9 @@ export default function Admin() {
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{org.website_url || '—'}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{org.domain || '—'}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {org.website_url ? (() => { try { return new URL(org.website_url).hostname.replace(/^www\./, ''); } catch { return org.domain || '—'; } })() : (org.domain || '—')}
+                      </TableCell>
                       <TableCell>{org.user_count}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{new Date(org.created_at).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right space-x-1">
