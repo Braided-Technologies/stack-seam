@@ -562,28 +562,18 @@ export default function Admin() {
 
         {/* APPS TAB */}
         <TabsContent value="moderation" className="space-y-4">
+          {/* Pending Section */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Applications</CardTitle>
-                  <CardDescription>Manage all applications in the catalog</CardDescription>
-                </div>
-                <Select value={appFilter} onValueChange={(v: any) => setAppFilter(v)}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
-                    <SelectItem value="org_only">Pending</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <CardTitle className="flex items-center gap-2">
+                <Layers className="h-5 w-5" />
+                Pending App Submissions
+              </CardTitle>
+              <CardDescription>Review user-submitted applications</CardDescription>
             </CardHeader>
             <CardContent>
-              {filteredApps.length === 0 ? (
-                <p className="text-muted-foreground text-sm py-4 text-center">No apps found</p>
+              {allApps.filter(a => a.status === 'org_only').length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">No pending applications</p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -591,93 +581,165 @@ export default function Admin() {
                       <TableHead>Name</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead>Description</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Date</TableHead>
+                      <TableHead>Submitted</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredApps.map(app => (
+                    {allApps.filter(a => a.status === 'org_only').map(app => (
                       <TableRow key={app.id}>
-                        <TableCell>
-                          {editingApp === app.id ? (
-                            <Input value={editAppData.name} onChange={e => setEditAppData(prev => ({ ...prev, name: e.target.value }))} className="h-8" />
-                          ) : (
-                            <span className="font-medium">{app.name}</span>
-                          )}
+                        <TableCell className="font-medium">{app.name}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {categories.find(c => c.id === app.category_id)?.name || '—'}
                         </TableCell>
-                        <TableCell>
-                          {editingApp === app.id ? (
-                            <Select value={editAppData.category_id || 'none'} onValueChange={(v) => setEditAppData(prev => ({ ...prev, category_id: v === 'none' ? null : v }))}>
-                              <SelectTrigger className="w-[140px] h-8">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">None</SelectItem>
-                                {categories.map(c => (
-                                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">
-                              {categories.find(c => c.id === app.category_id)?.name || '—'}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="max-w-xs">
-                          {editingApp === app.id ? (
-                            <Input value={editAppData.description} onChange={e => setEditAppData(prev => ({ ...prev, description: e.target.value }))} className="h-8" />
-                          ) : (
-                            <span className="text-sm text-muted-foreground truncate block">{app.description || '—'}</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={app.status === 'approved' ? 'default' : 'secondary'}>{app.status}</Badge>
-                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground max-w-xs truncate">{app.description || '—'}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{new Date(app.created_at).toLocaleDateString()}</TableCell>
                         <TableCell className="text-right space-x-1">
-                          {editingApp === app.id ? (
-                            <>
-                              <Button size="sm" variant="outline" onClick={() => saveAppEdit(app.id)}><Save className="h-3 w-3 mr-1" />Save</Button>
-                              <Button size="sm" variant="ghost" onClick={() => setEditingApp(null)}>Cancel</Button>
-                            </>
-                          ) : (
-                            <>
-                              {app.status === 'org_only' && (
-                                <Button size="sm" variant="outline" onClick={() => approveApp(app.id)}>
-                                  <Check className="h-3 w-3 mr-1" /> Approve
-                                </Button>
-                              )}
-                              <Button size="sm" variant="ghost" onClick={() => {
-                                setEditingApp(app.id);
-                                setEditAppData({ name: app.name, description: app.description || '', category_id: app.category_id });
-                              }}>
-                                <Pencil className="h-3 w-3" />
-                              </Button>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button size="sm" variant="ghost" className="text-destructive"><Trash2 className="h-3 w-3" /></Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete "{app.name}"?</AlertDialogTitle>
-                                    <AlertDialogDescription>This will permanently remove this application from the catalog.</AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => deleteApp(app.id)}>Delete</AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </>
-                          )}
+                          <Button size="sm" variant="outline" onClick={() => approveApp(app.id)}>
+                            <Check className="h-3 w-3 mr-1" /> Approve
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="sm" variant="ghost" className="text-destructive"><X className="h-3 w-3 mr-1" /> Reject</Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete "{app.name}"?</AlertDialogTitle>
+                                <AlertDialogDescription>This will permanently remove this application.</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => deleteApp(app.id)}>Delete</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Full Catalog */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>All Applications ({allApps.filter(a => a.status === 'approved').length})</CardTitle>
+                  <CardDescription>Full catalog of approved applications</CardDescription>
+                </div>
+                <Input
+                  placeholder="Search apps..."
+                  value={appFilter === 'all' ? '' : ''}
+                  onChange={e => {
+                    // Use appSearch state for admin app search
+                    setAdminAppSearch(e.target.value);
+                  }}
+                  className="w-64 h-8"
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[500px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Vendor</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {allApps
+                      .filter(a => a.status === 'approved')
+                      .filter(a => {
+                        if (!adminAppSearch) return true;
+                        const q = adminAppSearch.toLowerCase();
+                        return a.name.toLowerCase().includes(q) || (a.description || '').toLowerCase().includes(q);
+                      })
+                      .map(app => (
+                        <TableRow key={app.id}>
+                          <TableCell>
+                            {editingApp === app.id ? (
+                              <Input value={editAppData.name} onChange={e => setEditAppData(prev => ({ ...prev, name: e.target.value }))} className="h-8" />
+                            ) : (
+                              <span className="font-medium">{app.name}</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingApp === app.id ? (
+                              <Select value={editAppData.category_id || 'none'} onValueChange={(v) => setEditAppData(prev => ({ ...prev, category_id: v === 'none' ? null : v }))}>
+                                <SelectTrigger className="w-[140px] h-8">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">None</SelectItem>
+                                  {categories.map(c => (
+                                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">
+                                {categories.find(c => c.id === app.category_id)?.name || '—'}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            {editingApp === app.id ? (
+                              <Input value={editAppData.description} onChange={e => setEditAppData(prev => ({ ...prev, description: e.target.value }))} className="h-8" />
+                            ) : (
+                              <span className="text-sm text-muted-foreground truncate block">{app.description || '—'}</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {app.vendor_url ? (
+                              <a href={app.vendor_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm truncate block max-w-[150px]">
+                                {app.vendor_url.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}
+                              </a>
+                            ) : '—'}
+                          </TableCell>
+                          <TableCell className="text-right space-x-1">
+                            {editingApp === app.id ? (
+                              <>
+                                <Button size="sm" variant="outline" onClick={() => saveAppEdit(app.id)}><Save className="h-3 w-3 mr-1" />Save</Button>
+                                <Button size="sm" variant="ghost" onClick={() => setEditingApp(null)}>Cancel</Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button size="sm" variant="ghost" onClick={() => {
+                                  setEditingApp(app.id);
+                                  setEditAppData({ name: app.name, description: app.description || '', category_id: app.category_id });
+                                }}>
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button size="sm" variant="ghost" className="text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete "{app.name}"?</AlertDialogTitle>
+                                      <AlertDialogDescription>This will permanently remove this application from the catalog.</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => deleteApp(app.id)}>Delete</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
             </CardContent>
           </Card>
         </TabsContent>
