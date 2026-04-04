@@ -538,7 +538,7 @@ export default function Settings() {
         <h1 className="text-2xl font-bold">Settings</h1>
       </div>
 
-      <Tabs defaultValue="company" className="w-full">
+      <Tabs defaultValue="team" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="team">Team</TabsTrigger>
           <TabsTrigger value="company">Company</TabsTrigger>
