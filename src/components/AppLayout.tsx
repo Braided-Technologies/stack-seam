@@ -14,6 +14,7 @@ const navItems = [
   { to: '/integrations', icon: Link2, label: 'Integrations' },
   { to: '/budget', icon: DollarSign, label: 'Budget' },
   { to: '/research', icon: Sparkles, label: 'Research' },
+  { to: '/help', icon: HelpCircle, label: 'Help Center' },
 ];
 
 export default function AppLayout({ children }: { children: ReactNode }) {
