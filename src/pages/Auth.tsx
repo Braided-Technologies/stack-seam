@@ -13,12 +13,13 @@ import stackseamLogo from '@/assets/stackseam-logo.png';
 import { lovable } from '@/integrations/lovable/index';
 
 export default function Auth() {
-  const { user, loading, orgId } = useAuth();
+  const { user, loading, orgId, signIn, signUp } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
 
   if (loading) return null;
   if (user && orgId) return <Navigate to="/" replace />;
