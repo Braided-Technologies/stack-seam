@@ -22,6 +22,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sidebar-collapsed') === 'true');
   const [hovered, setHovered] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
