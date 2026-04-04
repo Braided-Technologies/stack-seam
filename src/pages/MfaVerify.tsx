@@ -83,7 +83,7 @@ export default function MfaVerify() {
               autoFocus
             />
           </div>
-          <Button className="w-full" disabled={verifying || code.length !== 6} onClick={handleVerify}>
+          <Button id="mfa-verify-btn" className="w-full" disabled={verifying || code.length !== 6} onClick={handleVerify}>
             {verifying ? 'Verifying...' : 'Verify'}
           </Button>
           <Button variant="ghost" className="w-full text-muted-foreground" onClick={() => supabase.auth.signOut()}>
