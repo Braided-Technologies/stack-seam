@@ -287,7 +287,7 @@ export default function Integrations() {
               variant="outline"
               size="sm"
               className="gap-2"
-              disabled={discoverIntegrations.isPending}
+              disabled={isDiscoveringAll}
               onClick={async () => {
                 const stackNames = userApps
                   .map((ua: any) => ua.applications?.name)
@@ -296,15 +296,35 @@ export default function Integrations() {
                   toast({ title: 'Need at least 2 apps', description: 'Add more apps to your stack first.', variant: 'destructive' });
                   return;
                 }
-                try {
-                  const result = await discoverIntegrations.mutateAsync({ appNames: stackNames });
-                  toast({ title: `Found ${result.saved || 0} new integrations`, description: result.discovered > result.saved ? `${result.discovered - result.saved} already existed or were filtered.` : undefined });
-                } catch (e: any) {
-                  toast({ title: 'Discovery failed', description: e.message, variant: 'destructive' });
+                setIsDiscoveringAll(true);
+                let totalSaved = 0;
+                let totalDiscovered = 0;
+                // Iterate through each app one by one
+                for (const ua of userApps) {
+                  const appName = (ua as any).applications?.name;
+                  const appId = ua.application_id;
+                  if (!appName) continue;
+                  setDiscoveringAppId(appId);
+                  try {
+                    const result = await discoverIntegrations.mutateAsync({
+                      appNames: stackNames,
+                      focusApp: appName,
+                    });
+                    totalSaved += result.saved || 0;
+                    totalDiscovered += result.discovered || 0;
+                  } catch (err: any) {
+                    console.error(`Discovery failed for ${appName}:`, err.message);
+                  }
                 }
+                setDiscoveringAppId(null);
+                setIsDiscoveringAll(false);
+                toast({
+                  title: `Discovery complete: ${totalSaved} new integrations`,
+                  description: totalDiscovered > totalSaved ? `${totalDiscovered - totalSaved} already existed or were filtered.` : 'All apps checked.',
+                });
               }}
             >
-              {discoverIntegrations.isPending ? (
+              {isDiscoveringAll ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Zap className="h-4 w-4" />
