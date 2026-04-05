@@ -19,6 +19,54 @@ function normalizeName(name: string | undefined | null): string {
   return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+const APP_ALIASES: Record<string, string[]> = {
+  halopsa: ['halo psa'],
+  ncentral: ['n-central', 'n central', 'n-able n-central', 'n-able n central', 'nable n-central', 'nable n central', 'nable ncentral'],
+  connectwisemanage: ['connectwise manage'],
+  amazonwebservicesaws: ['aws'],
+  chatgpt: ['chat gpt'],
+};
+
+function buildLookupKeys(name: string | undefined | null): string[] {
+  const lower = (name || '').toLowerCase().trim();
+  if (!lower) return [];
+
+  const withoutParens = lower.replace(/\(([^)]+)\)/g, ' $1 ');
+  const spaced = withoutParens.replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const compact = spaced.replace(/\s+/g, '');
+  const hyphenated = spaced.replace(/\s+/g, '-');
+
+  const keys = new Set<string>([lower, spaced, compact, hyphenated].filter(Boolean));
+  for (const alias of APP_ALIASES[compact] || []) {
+    keys.add(alias);
+    keys.add(alias.replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim());
+    keys.add(alias.replace(/[^a-z0-9]/g, ''));
+  }
+
+  const parenMatches = Array.from(lower.matchAll(/\(([^)]+)\)/g));
+  for (const match of parenMatches) {
+    const token = match[1]?.trim().toLowerCase();
+    if (!token) continue;
+    keys.add(token);
+    keys.add(token.replace(/[^a-z0-9]/g, ''));
+  }
+
+  return [...keys].filter(Boolean);
+}
+
+function namesMatch(left: string | undefined | null, right: string | undefined | null): boolean {
+  const leftKeys = new Set(buildLookupKeys(left));
+  return buildLookupKeys(right).some(key => leftKeys.has(key));
+}
+
+function getMappedValue<T>(map: Map<string, T>, name: string | undefined | null): T | undefined {
+  for (const key of buildLookupKeys(name)) {
+    const value = map.get(key);
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
 function isDomainMatch(docUrl: string, appDomains: string[]): boolean {
   const docDomain = extractDomain(docUrl);
   if (!docDomain) return false;
@@ -114,18 +162,7 @@ async function verifyUrlWithContent(url: string, sourceName: string, targetName:
 }
 
 function buildSearchTerms(appName: string): string[] {
-  const terms = [appName.toLowerCase()];
-  // Add common variations
-  const norm = appName.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
-  if (norm !== appName.toLowerCase()) terms.push(norm);
-  // Handle multi-word names - add individual significant words (3+ chars)
-  const words = norm.split(/\s+/).filter(w => w.length >= 3);
-  if (words.length > 1) {
-    // For multi-word names, the full name is enough
-  } else if (words.length === 1 && words[0].length >= 4) {
-    terms.push(words[0]);
-  }
-  return [...new Set(terms)];
+  return buildLookupKeys(appName);
 }
 
 // Try to scrape vendor's integrations page for real content
@@ -258,7 +295,7 @@ async function discoverBatch(
 ) {
   let scrapedContent = '';
   if (focusApp) {
-    const vendorUrl = vendorUrls.get(focusApp.toLowerCase());
+    const vendorUrl = getMappedValue(vendorUrls, focusApp);
     if (vendorUrl) {
       const content = await scrapeVendorIntegrationsPage(vendorUrl, focusApp);
       if (content) {
@@ -460,11 +497,15 @@ serve(async (req) => {
       if (app.vendor_url) {
         const d = extractDomain(app.vendor_url);
         if (d) domains.push(d);
-        vendorUrls.set(app.name.toLowerCase(), app.vendor_url);
+      for (const key of buildLookupKeys(app.name)) {
+        vendorUrls.set(key, app.vendor_url);
+      }
       }
       const nameKey = app.name.toLowerCase().replace(/[^a-z0-9]/g, '');
       domains.push(nameKey + '.com');
-      vendorMap.set(app.name.toLowerCase(), domains);
+      for (const key of buildLookupKeys(app.name)) {
+        vendorMap.set(key, domains);
+      }
     }
 
     const result = await processDiscovery(app_names, LOVABLE_API_KEY, supabaseAdmin, vendorMap, vendorUrls, focus_app);
@@ -497,7 +538,9 @@ function buildVendorMap(orgApps: any[]): Map<string, string[]> {
     }
     const nameKey = app.name.toLowerCase().replace(/[^a-z0-9]/g, '');
     domains.push(nameKey + '.com');
-    vendorMap.set(app.name.toLowerCase(), domains);
+    for (const key of buildLookupKeys(app.name)) {
+      vendorMap.set(key, domains);
+    }
   }
   return vendorMap;
 }
@@ -507,7 +550,9 @@ function buildVendorUrlMap(orgApps: any[]): Map<string, string> {
   for (const oa of orgApps) {
     const app = oa.applications;
     if (app?.vendor_url) {
-      map.set(app.name.toLowerCase(), app.vendor_url);
+      for (const key of buildLookupKeys(app.name)) {
+        map.set(key, app.vendor_url);
+      }
     }
   }
   return map;
@@ -552,16 +597,16 @@ async function processDiscovery(
 
   const seen = new Set<string>();
   const unique = allIntegrations.filter(i => {
-    const key = `${i.source?.toLowerCase()}|${i.target?.toLowerCase()}`;
-    const revKey = `${i.target?.toLowerCase()}|${i.source?.toLowerCase()}`;
+    const key = `${normalizeName(i.source)}|${normalizeName(i.target)}`;
+    const revKey = `${normalizeName(i.target)}|${normalizeName(i.source)}`;
     if (seen.has(key) || seen.has(revKey)) return false;
     seen.add(key);
     return true;
   });
 
   const domainValidated = unique.filter(integ => {
-    const sourceDomains = vendorMap.get(integ.source?.toLowerCase()) || [];
-    const targetDomains = vendorMap.get(integ.target?.toLowerCase()) || [];
+    const sourceDomains = getMappedValue(vendorMap, integ.source) || [];
+    const targetDomains = getMappedValue(vendorMap, integ.target) || [];
     const allDomains = [...sourceDomains, ...targetDomains];
     if (allDomains.length === 0) return true;
     const passes = isDomainMatch(integ.documentation_url, allDomains);
@@ -573,18 +618,23 @@ async function processDiscovery(
 
   const normalizedFocusApp = normalizeName(focusApp);
   const focusFiltered = normalizedFocusApp
-    ? domainValidated.filter(integ => normalizeName(integ.source) === normalizedFocusApp || normalizeName(integ.target) === normalizedFocusApp)
+    ? domainValidated.filter(integ => namesMatch(integ.source, focusApp) || namesMatch(integ.target, focusApp))
     : domainValidated;
 
   console.log(`${focusFiltered.length}/${unique.length} passed all validation${focusApp ? ` for ${focusApp}` : ''}`);
 
   const { data: allApps } = await supabase.from("applications").select("id, name");
-  const appMap = new Map((allApps || []).map((a: any) => [a.name.toLowerCase(), a.id]));
+  const appMap = new Map<string, string>();
+  for (const app of allApps || []) {
+    for (const key of buildLookupKeys(app.name)) {
+      if (!appMap.has(key)) appMap.set(key, app.id);
+    }
+  }
 
   let newCount = 0;
   for (const integ of focusFiltered) {
-    const sourceId = appMap.get(integ.source?.toLowerCase());
-    const targetId = appMap.get(integ.target?.toLowerCase());
+    const sourceId = getMappedValue(appMap, integ.source);
+    const targetId = getMappedValue(appMap, integ.target);
     if (!sourceId || !targetId || sourceId === targetId) continue;
 
     const { data: reverseExists } = await supabase
