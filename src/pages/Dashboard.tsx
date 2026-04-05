@@ -14,7 +14,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { data: userApps = [] } = useUserApplications();
   const { data: integrations = [] } = useIntegrations();
-  const [renewalWindow, setRenewalWindow] = useState<RenewalWindow>(90);
+  const [renewalWindow, setRenewalWindow] = useState<RenewalWindow>('all');
 
   // Compute totals: monthly includes annual/12, annual includes monthly*12
   const totalMonthly = userApps.reduce((sum, ua) => {
