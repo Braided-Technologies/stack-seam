@@ -24,6 +24,10 @@ function extractDomain(url: string): string {
   }
 }
 
+function normalizeName(name: string | undefined | null): string {
+  return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 function isDomainMatch(docUrl: string, appDomains: string[]): boolean {
   const docDomain = extractDomain(docUrl);
   if (!docDomain) return false;
@@ -64,11 +68,17 @@ async function verifyUrl(url: string): Promise<boolean> {
   }
 }
 
-async function discoverBatch(appNames: string[], LOVABLE_API_KEY: string) {
+async function discoverBatch(appNames: string[], LOVABLE_API_KEY: string, focusApp?: string) {
   const appList = appNames.join(", ");
-  const prompt = `You are an expert on MSP/IT software integrations. Given these tools: ${appList}
+  const focusInstruction = focusApp
+    ? `\n\nFOCUS APP: ${focusApp}\nOnly return integrations where either the source or target is ${focusApp}. Ignore any integrations that do not involve ${focusApp}.`
+    : '';
+  const prompt = `You are an expert on MSP/IT software integrations. Given these tools: ${appList}${focusInstruction}
 
-List ALL known integrations between ANY pair of these tools. Be thorough — include:
+${focusApp
+    ? `List ALL known integrations between ${focusApp} and the other provided tools.`
+    : `List ALL known integrations between ANY pair of these tools.`}
+Be thorough — include:
 - Native/built-in integrations
 - API-based integrations
 - Integrations through platforms like Zapier, Power Automate, etc.
@@ -92,14 +102,21 @@ CRITICAL RULES:
     body: JSON.stringify({
       model: "google/gemini-2.5-flash",
       messages: [
-        { role: "system", content: "You are an MSP/IT integration expert. Only report integrations with documentation URLs you are confident are real and accessible. The documentation URL must come from one of the two platforms' official domains." },
+        {
+          role: "system",
+          content: focusApp
+            ? `You are an MSP/IT integration expert. Only report integrations involving ${focusApp}. Only report integrations with documentation URLs you are confident are real and accessible, and the URL must come from one of the two platforms' official domains.`
+            : "You are an MSP/IT integration expert. Only report integrations with documentation URLs you are confident are real and accessible. The documentation URL must come from one of the two platforms' official domains.",
+        },
         { role: "user", content: prompt },
       ],
       tools: [{
         type: "function",
         function: {
           name: "report_integrations",
-          description: "Report discovered integrations between IT tools. Every integration MUST have a real documentation_url from one of the two platforms' domains.",
+          description: focusApp
+            ? `Report discovered integrations involving ${focusApp}. Every integration MUST have a real documentation_url from one of the two platforms' domains.`
+            : "Report discovered integrations between IT tools. Every integration MUST have a real documentation_url from one of the two platforms' domains.",
           parameters: {
             type: "object",
             properties: {
@@ -149,7 +166,7 @@ CRITICAL RULES:
 
   console.log(`Verifying ${candidates.length} candidate URLs...`);
   const verified: any[] = [];
-  
+
   for (let i = 0; i < candidates.length; i += 5) {
     const batch = candidates.slice(i, i + 5);
     const results = await Promise.all(
@@ -166,8 +183,13 @@ CRITICAL RULES:
     }
   }
 
-  console.log(`${verified.length}/${candidates.length} URLs verified as live`);
-  return verified;
+  const normalizedFocusApp = normalizeName(focusApp);
+  const focusFiltered = normalizedFocusApp
+    ? verified.filter((integ: any) => normalizeName(integ.source) === normalizedFocusApp || normalizeName(integ.target) === normalizedFocusApp)
+    : verified;
+
+  console.log(`${focusFiltered.length}/${candidates.length} URLs verified as live${focusApp ? ` for ${focusApp}` : ''}`);
+  return focusFiltered;
 }
 
 serve(async (req) => {
