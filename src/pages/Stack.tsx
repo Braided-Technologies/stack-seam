@@ -569,9 +569,6 @@ export default function Stack() {
                     </ScrollArea>
                   )}
                 </TabsContent>
-                    </ScrollArea>
-                  )}
-                </TabsContent>
 
                 {isInStack && (
                   <TabsContent value="settings" className="pt-2">
