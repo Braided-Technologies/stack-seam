@@ -82,18 +82,18 @@ export default function Auth() {
         </CardHeader>
         <CardContent className="space-y-4">
           {forgotMode ? (
-            <div className="space-y-4">
+            <form onSubmit={e => { e.preventDefault(); handleForgotPassword(); }} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="forgot-email">Email</Label>
                 <Input id="forgot-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" />
               </div>
-              <Button className="w-full" disabled={forgotSubmitting} onClick={handleForgotPassword}>
+              <Button type="submit" className="w-full" disabled={forgotSubmitting}>
                 {forgotSubmitting ? 'Sending...' : 'Send Reset Link'}
               </Button>
-              <Button variant="ghost" className="w-full" onClick={() => setForgotMode(false)}>
+              <Button type="button" variant="ghost" className="w-full" onClick={() => setForgotMode(false)}>
                 Back to Sign In
               </Button>
-            </div>
+            </form>
           ) : (
             <>
               <Button
@@ -124,33 +124,37 @@ export default function Auth() {
                   <TabsTrigger value="signup">Sign Up</TabsTrigger>
                 </TabsList>
                 <TabsContent value="login" className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="login-email">Email</Label>
-                    <Input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password">Password</Label>
-                    <Input id="login-password" type="password" value={password} onChange={e => setPassword(e.target.value)} />
-                  </div>
-                  <Button className="w-full" disabled={submitting} onClick={() => handleSubmit('login')}>
-                    {submitting ? 'Signing in...' : 'Sign In'}
-                  </Button>
+                  <form onSubmit={e => { e.preventDefault(); handleSubmit('login'); }} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="login-email">Email</Label>
+                      <Input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="login-password">Password</Label>
+                      <Input id="login-password" type="password" value={password} onChange={e => setPassword(e.target.value)} />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={submitting}>
+                      {submitting ? 'Signing in...' : 'Sign In'}
+                    </Button>
+                  </form>
                   <button type="button" className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors" onClick={() => setForgotMode(true)}>
                     Forgot your password?
                   </button>
                 </TabsContent>
                 <TabsContent value="signup" className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <Input id="signup-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
-                    <Input id="signup-password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 6 characters" />
-                  </div>
-                  <Button className="w-full" disabled={submitting} onClick={() => handleSubmit('signup')}>
-                    {submitting ? 'Creating account...' : 'Create Account'}
-                  </Button>
+                  <form onSubmit={e => { e.preventDefault(); handleSubmit('signup'); }} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-email">Email</Label>
+                      <Input id="signup-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-password">Password</Label>
+                      <Input id="signup-password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 6 characters" />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={submitting}>
+                      {submitting ? 'Creating account...' : 'Create Account'}
+                    </Button>
+                  </form>
                 </TabsContent>
               </Tabs>
             </>

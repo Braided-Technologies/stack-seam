@@ -75,18 +75,20 @@ export default function ResetPassword() {
           <CardTitle className="text-2xl font-display">Reset Password</CardTitle>
           <CardDescription>Enter your new password below.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="new-password">New Password</Label>
-            <Input id="new-password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 6 characters" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="confirm-password">Confirm Password</Label>
-            <Input id="confirm-password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
-          </div>
-          <Button className="w-full" disabled={submitting} onClick={handleReset}>
-            {submitting ? 'Updating...' : 'Update Password'}
-          </Button>
+        <CardContent>
+          <form onSubmit={e => { e.preventDefault(); handleReset(); }} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New Password</Label>
+              <Input id="new-password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 6 characters" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm Password</Label>
+              <Input id="confirm-password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
+            </div>
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? 'Updating...' : 'Update Password'}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>
