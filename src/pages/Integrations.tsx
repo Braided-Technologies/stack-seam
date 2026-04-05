@@ -457,7 +457,7 @@ export default function Integrations() {
                               variant="ghost"
                               size="sm"
                               className="h-6 text-[10px] gap-1 px-2"
-                              disabled={discoveringAppId === app.appId}
+                              disabled={discoveringAppId === app.appId || isDiscoveringAll}
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 const stackNames = userApps
@@ -474,7 +474,7 @@ export default function Integrations() {
                                 } catch (err: any) {
                                   toast({ title: 'Discovery failed', description: err.message, variant: 'destructive' });
                                 } finally {
-                                  setDiscoveringAppId(null);
+                                  if (!isDiscoveringAll) setDiscoveringAppId(null);
                                 }
                               }}
                             >
