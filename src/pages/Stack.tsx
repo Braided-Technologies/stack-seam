@@ -503,27 +503,29 @@ export default function Stack() {
                 </TabsContent>
 
                 <TabsContent value="integrations" className="pt-2 flex-1 overflow-hidden">
+                  {userApps.length > 0 && (
+                    <div className="mb-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2 w-full"
+                        disabled={discoverIntegrations.isPending}
+                        onClick={handleDiscoverForInfoApp}
+                      >
+                        {discoverIntegrations.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Zap className="h-3.5 w-3.5" />
+                        )}
+                        {infoAppIntegrations.length === 0 ? 'Check Integrations with My Stack' : 'Re-check Integrations'}
+                      </Button>
+                    </div>
+                  )}
                   {infoAppIntegrations.length === 0 ? (
                     <div className="py-4 space-y-3">
                       <p className="text-sm text-muted-foreground">
                         No integrations discovered yet for {infoApp.name}.
                       </p>
-                      {userApps.length > 0 && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-2"
-                          disabled={discoverIntegrations.isPending}
-                          onClick={handleDiscoverForInfoApp}
-                        >
-                          {discoverIntegrations.isPending ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Zap className="h-3.5 w-3.5" />
-                          )}
-                          Check Integrations with My Stack
-                        </Button>
-                      )}
                       {userApps.length === 0 && (
                         <p className="text-xs text-muted-foreground">Add apps to your stack first, then check for integrations.</p>
                       )}
@@ -564,20 +566,6 @@ export default function Stack() {
                           </div>
                         ))}
                       </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="gap-2 mt-3 w-full"
-                        disabled={discoverIntegrations.isPending}
-                        onClick={handleDiscoverForInfoApp}
-                      >
-                        {discoverIntegrations.isPending ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Zap className="h-3.5 w-3.5" />
-                        )}
-                        Re-check Integrations
-                      </Button>
                     </ScrollArea>
                   )}
                 </TabsContent>

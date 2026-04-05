@@ -295,7 +295,7 @@ export default function Integrations() {
                   return;
                 }
                 try {
-                  const result = await discoverIntegrations.mutateAsync(stackNames);
+                  const result = await discoverIntegrations.mutateAsync({ appNames: stackNames });
                   toast({ title: `Found ${result.saved || 0} new integrations`, description: result.discovered > result.saved ? `${result.discovered - result.saved} already existed or were filtered.` : undefined });
                 } catch (e: any) {
                   toast({ title: 'Discovery failed', description: e.message, variant: 'destructive' });
@@ -430,6 +430,33 @@ export default function Integrations() {
                             <span className="text-sm font-medium">{app.appName}</span>
                             <span className="text-xs text-muted-foreground">({filteredIntegrations.length})</span>
                           </div>
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-[10px] gap-1 px-2"
+                              disabled={discoverIntegrations.isPending}
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const stackNames = userApps
+                                  .map((ua: any) => ua.applications?.name)
+                                  .filter(Boolean) as string[];
+                                if (stackNames.length < 2) return;
+                                try {
+                                  const result = await discoverIntegrations.mutateAsync({
+                                    appNames: stackNames.includes(app.appName) ? stackNames : [app.appName, ...stackNames],
+                                    focusApp: app.appName,
+                                  });
+                                  toast({ title: `Found ${result.saved || 0} new integrations for ${app.appName}` });
+                                } catch (err: any) {
+                                  toast({ title: 'Discovery failed', description: err.message, variant: 'destructive' });
+                                }
+                              }}
+                            >
+                              {discoverIntegrations.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                              Discover
+                            </Button>
+                          )}
                         </CollapsibleTrigger>
                         <CollapsibleContent className="mt-1 space-y-2 pl-4">
                           {filteredIntegrations.map(i => {
