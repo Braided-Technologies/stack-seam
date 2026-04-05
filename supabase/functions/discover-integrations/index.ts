@@ -70,13 +70,10 @@ async function scrapeVendorIntegrationsPage(vendorUrl: string, appName: string):
   const domain = extractDomain(vendorUrl);
   if (!domain) return null;
 
-  // Common integrations page paths to try
   const paths = [
     '/integrations', '/partners', '/ecosystem', '/marketplace', '/apps',
     '/connections', '/plugins', '/extensions',
   ];
-
-  // Also try docs subdomains
   const baseUrls = [
     `https://${domain}`,
     `https://docs.${domain}`,
@@ -84,62 +81,99 @@ async function scrapeVendorIntegrationsPage(vendorUrl: string, appName: string):
     `https://support.${domain}`,
   ];
 
+  // Phase 1: Try common integrations paths
   for (const base of baseUrls) {
     for (const path of paths) {
-      const url = `${base}${path}`;
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000);
-        const res = await fetch(url, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StackSeam/1.0)' },
-          signal: controller.signal,
-          redirect: 'follow',
-        });
-        clearTimeout(timeout);
-        if (res.status >= 200 && res.status < 400) {
-          const html = await res.text();
-          if (html.length > 500) {
-            // Extract text and links from HTML
-            const text = html
-              .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-              .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-              .replace(/<[^>]+>/g, ' ')
-              .replace(/\s+/g, ' ')
-              .trim()
-              .slice(0, 8000);
-
-            // Extract all links from the page
-            const linkRegex = /href="(https?:\/\/[^"]+)"/gi;
-            const links: string[] = [];
-            let match;
-            while ((match = linkRegex.exec(html)) !== null) {
-              links.push(match[1]);
-            }
-            // Also extract relative links and resolve them
-            const relLinkRegex = /href="(\/[^"]+)"/gi;
-            while ((match = relLinkRegex.exec(html)) !== null) {
-              try {
-                const resolved = new URL(match[1], url).href;
-                links.push(resolved);
-              } catch { /* ignore */ }
-            }
-
-            const uniqueLinks = [...new Set(links)].filter(l =>
-              l.includes('integration') || l.includes('partner') || l.includes('connect') ||
-              l.includes('plugin') || l.includes('marketplace') || l.includes('app') ||
-              l.includes('doc') || l.includes('guide')
-            ).slice(0, 50);
-
-            console.log(`SCRAPED: ${url} — ${text.length} chars, ${uniqueLinks.length} relevant links`);
-            return `Source: ${url}\nContent: ${text}\n\nRelevant links found:\n${uniqueLinks.join('\n')}`;
-          }
-        }
-      } catch {
-        // Continue trying other paths
+      const result = await tryFetchPage(`${base}${path}`);
+      if (result) {
+        console.log(`SCRAPED: ${base}${path}`);
+        return result;
       }
     }
   }
+
+  // Phase 2: If no integrations page found, fetch doc site root and find integration links
+  for (const base of [`https://docs.${domain}`, `https://help.${domain}`, `https://support.${domain}`, `https://${domain}`]) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const res = await fetch(base, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StackSeam/1.0)' },
+        signal: controller.signal,
+        redirect: 'follow',
+      });
+      clearTimeout(timeout);
+      if (res.status < 200 || res.status >= 400) continue;
+      const html = await res.text();
+      if (html.length < 500) continue;
+
+      // Find links containing "integration" in the page
+      const allLinks = extractLinks(html, base);
+      const integrationLinks = allLinks.filter(l =>
+        l.toLowerCase().includes('integration') || l.toLowerCase().includes('partner') || l.toLowerCase().includes('connector')
+      );
+
+      if (integrationLinks.length > 0) {
+        // Try fetching the first integration link found
+        for (const link of integrationLinks.slice(0, 3)) {
+          const result = await tryFetchPage(link);
+          if (result) {
+            console.log(`SCRAPED (via root crawl): ${link}`);
+            return result;
+          }
+        }
+      }
+    } catch { /* continue */ }
+  }
+
   return null;
+}
+
+function extractLinks(html: string, baseUrl: string): string[] {
+  const links: string[] = [];
+  const absRegex = /href="(https?:\/\/[^"]+)"/gi;
+  const relRegex = /href="(\/[^"]+)"/gi;
+  let match;
+  while ((match = absRegex.exec(html)) !== null) links.push(match[1]);
+  while ((match = relRegex.exec(html)) !== null) {
+    try { links.push(new URL(match[1], baseUrl).href); } catch { /* skip */ }
+  }
+  return [...new Set(links)];
+}
+
+async function tryFetchPage(url: string): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StackSeam/1.0)' },
+      signal: controller.signal,
+      redirect: 'follow',
+    });
+    clearTimeout(timeout);
+    if (res.status < 200 || res.status >= 400) return null;
+    const html = await res.text();
+    if (html.length < 500) return null;
+
+    const text = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 8000);
+
+    const allLinks = extractLinks(html, url);
+    const relevantLinks = allLinks.filter(l =>
+      l.includes('integration') || l.includes('partner') || l.includes('connect') ||
+      l.includes('plugin') || l.includes('marketplace') || l.includes('app') ||
+      l.includes('doc') || l.includes('guide')
+    ).slice(0, 50);
+
+    return `Source: ${url}\nContent: ${text}\n\nRelevant links found:\n${relevantLinks.join('\n')}`;
+  } catch {
+    return null;
+  }
 }
 
 async function discoverBatch(
