@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { formatCompactCurrency } from '@/lib/formatters';
 import { useNavigate } from 'react-router-dom';
 import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication, useIntegrations, useDiscoverIntegrations } from '@/hooks/useStackData';
 import SearchToolDialog from '@/components/SearchToolDialog';
@@ -334,7 +335,7 @@ export default function Stack() {
               <DollarSign className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">${summary.totalMonthly.toLocaleString()}</p>
+              <p className="text-2xl font-bold">{formatCompactCurrency(summary.totalMonthly)}</p>
               <p className="text-xs text-muted-foreground">Monthly Spend</p>
             </div>
           </div>
@@ -343,7 +344,7 @@ export default function Stack() {
               <DollarSign className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">${summary.totalAnnual.toLocaleString()}</p>
+              <p className="text-2xl font-bold">{formatCompactCurrency(summary.totalAnnual)}</p>
               <p className="text-xs text-muted-foreground">Annual Spend</p>
             </div>
           </div>
