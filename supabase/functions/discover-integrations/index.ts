@@ -197,7 +197,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { app_names, scheduled } = body;
+    const { app_names, scheduled, focus_app } = body;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
@@ -244,7 +244,6 @@ serve(async (req) => {
       });
     }
 
-    // Build vendor domain map from all apps
     const { data: allApps } = await supabaseAdmin.from("applications").select("id, name, vendor_url");
     const vendorMap = new Map<string, string[]>();
     for (const app of allApps || []) {
@@ -253,13 +252,12 @@ serve(async (req) => {
         const d = extractDomain(app.vendor_url);
         if (d) domains.push(d);
       }
-      // Also add common known domains for the app name
       const nameKey = app.name.toLowerCase().replace(/[^a-z0-9]/g, '');
       domains.push(nameKey + '.com');
       vendorMap.set(app.name.toLowerCase(), domains);
     }
 
-    const result = await processDiscovery(app_names, LOVABLE_API_KEY, supabaseAdmin, vendorMap);
+    const result = await processDiscovery(app_names, LOVABLE_API_KEY, supabaseAdmin, vendorMap, focus_app);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -293,25 +291,25 @@ async function buildVendorMap(orgApps: any[], supabase: any): Promise<Map<string
   return vendorMap;
 }
 
-async function processDiscovery(appNames: string[], apiKey: string, supabase: any, vendorMap: Map<string, string[]>) {
+async function processDiscovery(appNames: string[], apiKey: string, supabase: any, vendorMap: Map<string, string[]>, focusApp?: string) {
   const BATCH_SIZE = 15;
   const allIntegrations: any[] = [];
 
   if (appNames.length <= BATCH_SIZE) {
-    const results = await discoverBatch(appNames, apiKey);
+    const results = await discoverBatch(appNames, apiKey, focusApp);
     allIntegrations.push(...results);
   } else {
     for (let i = 0; i < appNames.length; i += BATCH_SIZE - 3) {
       const batch = appNames.slice(i, i + BATCH_SIZE);
       if (batch.length < 2) break;
       try {
-        const results = await discoverBatch(batch, apiKey);
+        const results = await discoverBatch(batch, apiKey, focusApp);
         allIntegrations.push(...results);
       } catch (e: any) {
         if (e.message === "RATE_LIMITED") {
           await new Promise(r => setTimeout(r, 3000));
           try {
-            const results = await discoverBatch(batch, apiKey);
+            const results = await discoverBatch(batch, apiKey, focusApp);
             allIntegrations.push(...results);
           } catch {
             console.error("Batch failed after retry, skipping");
@@ -323,7 +321,6 @@ async function processDiscovery(appNames: string[], apiKey: string, supabase: an
     }
   }
 
-  // Deduplicate
   const seen = new Set<string>();
   const unique = allIntegrations.filter(i => {
     const key = `${i.source?.toLowerCase()}|${i.target?.toLowerCase()}`;
@@ -333,12 +330,11 @@ async function processDiscovery(appNames: string[], apiKey: string, supabase: an
     return true;
   });
 
-  // Domain validation: doc URL must be from one of the two apps' domains
   const domainValidated = unique.filter(integ => {
     const sourceDomains = vendorMap.get(integ.source?.toLowerCase()) || [];
     const targetDomains = vendorMap.get(integ.target?.toLowerCase()) || [];
     const allDomains = [...sourceDomains, ...targetDomains];
-    if (allDomains.length === 0) return true; // no vendor data, allow
+    if (allDomains.length === 0) return true;
     const passes = isDomainMatch(integ.documentation_url, allDomains);
     if (!passes) {
       console.log(`DOMAIN_REJECT: ${integ.source} -> ${integ.target}: ${integ.documentation_url} not from ${allDomains.join(', ')}`);
@@ -346,14 +342,18 @@ async function processDiscovery(appNames: string[], apiKey: string, supabase: an
     return passes;
   });
 
-  console.log(`${domainValidated.length}/${unique.length} passed domain validation`);
+  const normalizedFocusApp = normalizeName(focusApp);
+  const focusFiltered = normalizedFocusApp
+    ? domainValidated.filter(integ => normalizeName(integ.source) === normalizedFocusApp || normalizeName(integ.target) === normalizedFocusApp)
+    : domainValidated;
 
-  // Store
+  console.log(`${focusFiltered.length}/${unique.length} passed validation${focusApp ? ` for ${focusApp}` : ''}`);
+
   const { data: allApps } = await supabase.from("applications").select("id, name");
   const appMap = new Map((allApps || []).map((a: any) => [a.name.toLowerCase(), a.id]));
 
   let newCount = 0;
-  for (const integ of domainValidated) {
+  for (const integ of focusFiltered) {
     const sourceId = appMap.get(integ.source?.toLowerCase());
     const targetId = appMap.get(integ.target?.toLowerCase());
     if (!sourceId || !targetId || sourceId === targetId) continue;
@@ -383,5 +383,5 @@ async function processDiscovery(appNames: string[], apiKey: string, supabase: an
     if (!error) newCount++;
   }
 
-  return { discovered: domainValidated.length, saved: newCount, integrations: domainValidated };
+  return { discovered: focusFiltered.length, saved: newCount, integrations: focusFiltered };
 }

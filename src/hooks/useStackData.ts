@@ -212,16 +212,24 @@ export function useSearchTool() {
   });
 }
 
+type DiscoverIntegrationsInput = string[] | { appNames: string[]; focusApp?: string };
+
 export function useDiscoverIntegrations() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (appNames: string[]) => {
+    mutationFn: async (input: DiscoverIntegrationsInput) => {
+      const body = Array.isArray(input)
+        ? { app_names: input }
+        : { app_names: input.appNames, focus_app: input.focusApp };
+
       const { data, error } = await supabase.functions.invoke('discover-integrations', {
-        body: { app_names: appNames },
+        body,
       });
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['integrations'] }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['integrations'] });
+    },
   });
 }

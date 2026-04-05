@@ -576,20 +576,7 @@ export default function Stack() {
                         variant="ghost"
                         className="gap-2 mt-3 w-full"
                         disabled={discoverIntegrations.isPending}
-                        onClick={async () => {
-                          const stackNames = userApps
-                            .map((ua: any) => ua.applications?.name)
-                            .filter(Boolean) as string[];
-                          const allNames = stackNames.includes(infoApp.name)
-                            ? stackNames
-                            : [infoApp.name, ...stackNames];
-                          try {
-                            const result = await discoverIntegrations.mutateAsync(allNames);
-                            toast({ title: `Found ${result.saved || 0} new integrations`, description: result.discovered > result.saved ? `${result.discovered - result.saved} already existed or were filtered.` : undefined });
-                          } catch (e: any) {
-                            toast({ title: 'Discovery failed', description: e.message, variant: 'destructive' });
-                          }
-                        }}
+                        onClick={handleDiscoverForInfoApp}
                       >
                         {discoverIntegrations.isPending ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
