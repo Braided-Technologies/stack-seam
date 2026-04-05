@@ -142,17 +142,19 @@ export default function Auth() {
                   </button>
                 </TabsContent>
                 <TabsContent value="signup" className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <Input id="signup-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
-                    <Input id="signup-password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 6 characters" />
-                  </div>
-                  <Button className="w-full" disabled={submitting} onClick={() => handleSubmit('signup')}>
-                    {submitting ? 'Creating account...' : 'Create Account'}
-                  </Button>
+                  <form onSubmit={e => { e.preventDefault(); handleSubmit('signup'); }} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-email">Email</Label>
+                      <Input id="signup-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-password">Password</Label>
+                      <Input id="signup-password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 6 characters" />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={submitting}>
+                      {submitting ? 'Creating account...' : 'Create Account'}
+                    </Button>
+                  </form>
                 </TabsContent>
               </Tabs>
             </>
