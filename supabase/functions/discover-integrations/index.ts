@@ -92,8 +92,17 @@ async function scrapeVendorIntegrationsPage(vendorUrl: string, appName: string):
     }
   }
 
-  // Phase 2: If no integrations page found, fetch doc site root and find integration links
-  for (const base of [`https://docs.${domain}`, `https://help.${domain}`, `https://support.${domain}`, `https://${domain}`]) {
+  // Phase 2: Check sitemaps for integration-related URLs
+  for (const base of baseUrls) {
+    const sitemapResult = await trySitemapDiscovery(base, domain);
+    if (sitemapResult) {
+      console.log(`SCRAPED (via sitemap): ${base}`);
+      return sitemapResult;
+    }
+  }
+
+  // Phase 3: Fetch doc site root and follow integration links
+  for (const base of baseUrls) {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10000);
@@ -107,14 +116,12 @@ async function scrapeVendorIntegrationsPage(vendorUrl: string, appName: string):
       const html = await res.text();
       if (html.length < 500) continue;
 
-      // Find links containing "integration" in the page
       const allLinks = extractLinks(html, base);
       const integrationLinks = allLinks.filter(l =>
         l.toLowerCase().includes('integration') || l.toLowerCase().includes('partner') || l.toLowerCase().includes('connector')
       );
 
       if (integrationLinks.length > 0) {
-        // Try fetching the first integration link found
         for (const link of integrationLinks.slice(0, 3)) {
           const result = await tryFetchPage(link);
           if (result) {
@@ -126,6 +133,54 @@ async function scrapeVendorIntegrationsPage(vendorUrl: string, appName: string):
     } catch { /* continue */ }
   }
 
+  return null;
+}
+
+async function trySitemapDiscovery(baseUrl: string, domain: string): Promise<string | null> {
+  try {
+    // Try sitemap.xml and sitemap-pages.xml
+    for (const sitemapPath of ['/sitemap.xml', '/sitemap-pages.xml']) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(`${baseUrl}${sitemapPath}`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StackSeam/1.0)' },
+        signal: controller.signal,
+        redirect: 'follow',
+      });
+      clearTimeout(timeout);
+      if (res.status < 200 || res.status >= 400) continue;
+      const xml = await res.text();
+
+      // Check for nested sitemaps first
+      const nestedSitemapRegex = /<loc>(https?:\/\/[^<]+sitemap[^<]*\.xml)<\/loc>/gi;
+      let nestedMatch;
+      while ((nestedMatch = nestedSitemapRegex.exec(xml)) !== null) {
+        const nestedResult = await trySitemapDiscovery(nestedMatch[1].replace(/\/sitemap[^/]*\.xml$/, ''), domain);
+        if (nestedResult) return nestedResult;
+      }
+
+      // Extract all URLs from sitemap
+      const urlRegex = /<loc>(https?:\/\/[^<]+)<\/loc>/gi;
+      const allUrls: string[] = [];
+      let urlMatch;
+      while ((urlMatch = urlRegex.exec(xml)) !== null) {
+        allUrls.push(urlMatch[1]);
+      }
+
+      // Filter for integration-related URLs
+      const integrationUrls = allUrls.filter(u =>
+        u.toLowerCase().includes('integration') || u.toLowerCase().includes('partner') ||
+        u.toLowerCase().includes('connector') || u.toLowerCase().includes('marketplace')
+      );
+
+      if (integrationUrls.length > 0) {
+        console.log(`Found ${integrationUrls.length} integration URLs in sitemap`);
+        // Build content from sitemap URLs — these are verified real URLs
+        const content = `Source: ${baseUrl} (sitemap discovery)\n\nReal integration page URLs found in sitemap:\n${integrationUrls.join('\n')}`;
+        return content;
+      }
+    }
+  } catch { /* continue */ }
   return null;
 }
 
