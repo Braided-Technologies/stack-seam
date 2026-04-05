@@ -478,8 +478,14 @@ export default function Integrations() {
                                 }
                               }}
                             >
-                              {discoveringAppId === app.appId ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
-                              Discover
+{discoveringAppId === app.appId ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : isDiscoveringAll ? (
+                                <Loader2 className="h-3 w-3 animate-spin opacity-40" />
+                              ) : (
+                                <Zap className="h-3 w-3" />
+                              )}
+                              {discoveringAppId === app.appId ? 'Discovering...' : isDiscoveringAll ? 'Queued' : 'Discover'}
                             </Button>
                           )}
                         </CollapsibleTrigger>
