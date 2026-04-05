@@ -124,17 +124,19 @@ export default function Auth() {
                   <TabsTrigger value="signup">Sign Up</TabsTrigger>
                 </TabsList>
                 <TabsContent value="login" className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="login-email">Email</Label>
-                    <Input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password">Password</Label>
-                    <Input id="login-password" type="password" value={password} onChange={e => setPassword(e.target.value)} />
-                  </div>
-                  <Button className="w-full" disabled={submitting} onClick={() => handleSubmit('login')}>
-                    {submitting ? 'Signing in...' : 'Sign In'}
-                  </Button>
+                  <form onSubmit={e => { e.preventDefault(); handleSubmit('login'); }} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="login-email">Email</Label>
+                      <Input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="login-password">Password</Label>
+                      <Input id="login-password" type="password" value={password} onChange={e => setPassword(e.target.value)} />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={submitting}>
+                      {submitting ? 'Signing in...' : 'Sign In'}
+                    </Button>
+                  </form>
                   <button type="button" className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors" onClick={() => setForgotMode(true)}>
                     Forgot your password?
                   </button>
