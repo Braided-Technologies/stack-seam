@@ -66,122 +66,85 @@ async function verifyUrl(url: string): Promise<boolean> {
 }
 
 // Try to scrape vendor's integrations page for real content
-async function scrapeVendorIntegrationsPage(vendorUrl: string, appName: string): Promise<string | null> {
+async function scrapeVendorIntegrationsPage(vendorUrl: string, _appName: string): Promise<string | null> {
   const domain = extractDomain(vendorUrl);
   if (!domain) return null;
 
-  const paths = [
-    '/integrations', '/partners', '/ecosystem', '/marketplace', '/apps',
-    '/connections', '/plugins', '/extensions',
-  ];
-  const baseUrls = [
-    `https://${domain}`,
-    `https://docs.${domain}`,
-    `https://help.${domain}`,
-    `https://support.${domain}`,
-  ];
+  const paths = ['/integrations', '/partners', '/marketplace'];
+  const bases = [`https://${domain}`, `https://docs.${domain}`];
 
-  // Phase 1: Try common integrations paths
-  for (const base of baseUrls) {
-    for (const path of paths) {
-      const result = await tryFetchPage(`${base}${path}`);
-      if (result) {
-        console.log(`SCRAPED: ${base}${path}`);
-        return result;
-      }
-    }
+  // Phase 1: Try common integrations paths in parallel
+  const urls = bases.flatMap(b => paths.map(p => `${b}${p}`));
+  const pageResults = await Promise.all(urls.map(u => tryFetchPage(u)));
+  for (let i = 0; i < pageResults.length; i++) {
+    if (pageResults[i]) { console.log(`SCRAPED: ${urls[i]}`); return pageResults[i]; }
   }
 
-  // Phase 2: Check sitemaps for integration-related URLs
-  for (const base of baseUrls) {
-    const sitemapResult = await trySitemapDiscovery(base, domain);
-    if (sitemapResult) {
-      console.log(`SCRAPED (via sitemap): ${base}`);
-      return sitemapResult;
-    }
+  // Phase 2: Check sitemaps in parallel
+  const sitemapResults = await Promise.all(bases.map(b => trySitemapDiscovery(b)));
+  for (let i = 0; i < sitemapResults.length; i++) {
+    if (sitemapResults[i]) { console.log(`SCRAPED (sitemap): ${bases[i]}`); return sitemapResults[i]; }
   }
-
-  // Phase 3: Fetch doc site root and follow integration links
-  for (const base of baseUrls) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
-      const res = await fetch(base, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StackSeam/1.0)' },
-        signal: controller.signal,
-        redirect: 'follow',
-      });
-      clearTimeout(timeout);
-      if (res.status < 200 || res.status >= 400) continue;
-      const html = await res.text();
-      if (html.length < 500) continue;
-
-      const allLinks = extractLinks(html, base);
-      const integrationLinks = allLinks.filter(l =>
-        l.toLowerCase().includes('integration') || l.toLowerCase().includes('partner') || l.toLowerCase().includes('connector')
-      );
-
-      if (integrationLinks.length > 0) {
-        for (const link of integrationLinks.slice(0, 3)) {
-          const result = await tryFetchPage(link);
-          if (result) {
-            console.log(`SCRAPED (via root crawl): ${link}`);
-            return result;
-          }
-        }
-      }
-    } catch { /* continue */ }
-  }
-
   return null;
 }
 
-async function trySitemapDiscovery(baseUrl: string, domain: string): Promise<string | null> {
-  try {
-    // Try sitemap.xml and sitemap-pages.xml
-    for (const sitemapPath of ['/sitemap.xml', '/sitemap-pages.xml']) {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-      const res = await fetch(`${baseUrl}${sitemapPath}`, {
+async function trySitemapDiscovery(baseUrl: string): Promise<string | null> {
+  for (const path of ['/sitemap.xml', '/sitemap-pages.xml']) {
+    try {
+      const c = new AbortController();
+      const t = setTimeout(() => c.abort(), 5000);
+      const res = await fetch(`${baseUrl}${path}`, {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StackSeam/1.0)' },
-        signal: controller.signal,
-        redirect: 'follow',
+        signal: c.signal, redirect: 'follow',
       });
-      clearTimeout(timeout);
+      clearTimeout(t);
       if (res.status < 200 || res.status >= 400) continue;
       const xml = await res.text();
 
-      // Check for nested sitemaps first
-      const nestedSitemapRegex = /<loc>(https?:\/\/[^<]+sitemap[^<]*\.xml)<\/loc>/gi;
-      let nestedMatch;
-      while ((nestedMatch = nestedSitemapRegex.exec(xml)) !== null) {
-        const nestedResult = await trySitemapDiscovery(nestedMatch[1].replace(/\/sitemap[^/]*\.xml$/, ''), domain);
-        if (nestedResult) return nestedResult;
+      // Handle nested sitemaps (e.g. sitemap index)
+      const nestedRegex = /<loc>(https?:\/\/[^<]+sitemap[^<]*\.xml)<\/loc>/gi;
+      let nested;
+      while ((nested = nestedRegex.exec(xml)) !== null) {
+        try {
+          const c2 = new AbortController();
+          const t2 = setTimeout(() => c2.abort(), 5000);
+          const r2 = await fetch(nested[1], {
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StackSeam/1.0)' },
+            signal: c2.signal, redirect: 'follow',
+          });
+          clearTimeout(t2);
+          if (r2.ok) {
+            const innerXml = await r2.text();
+            const urls = extractSitemapIntegrationUrls(innerXml);
+            if (urls.length > 0) {
+              console.log(`Found ${urls.length} integration URLs in nested sitemap`);
+              return `Source: ${baseUrl} (sitemap)\n\nReal integration page URLs:\n${urls.join('\n')}`;
+            }
+          }
+        } catch { /* skip */ }
       }
 
-      // Extract all URLs from sitemap
-      const urlRegex = /<loc>(https?:\/\/[^<]+)<\/loc>/gi;
-      const allUrls: string[] = [];
-      let urlMatch;
-      while ((urlMatch = urlRegex.exec(xml)) !== null) {
-        allUrls.push(urlMatch[1]);
+      const urls = extractSitemapIntegrationUrls(xml);
+      if (urls.length > 0) {
+        console.log(`Found ${urls.length} integration URLs in sitemap`);
+        return `Source: ${baseUrl} (sitemap)\n\nReal integration page URLs:\n${urls.join('\n')}`;
       }
-
-      // Filter for integration-related URLs
-      const integrationUrls = allUrls.filter(u =>
-        u.toLowerCase().includes('integration') || u.toLowerCase().includes('partner') ||
-        u.toLowerCase().includes('connector') || u.toLowerCase().includes('marketplace')
-      );
-
-      if (integrationUrls.length > 0) {
-        console.log(`Found ${integrationUrls.length} integration URLs in sitemap`);
-        // Build content from sitemap URLs — these are verified real URLs
-        const content = `Source: ${baseUrl} (sitemap discovery)\n\nReal integration page URLs found in sitemap:\n${integrationUrls.join('\n')}`;
-        return content;
-      }
-    }
-  } catch { /* continue */ }
+    } catch { /* continue */ }
+  }
   return null;
+}
+
+function extractSitemapIntegrationUrls(xml: string): string[] {
+  const regex = /<loc>(https?:\/\/[^<]+)<\/loc>/gi;
+  const urls: string[] = [];
+  let m;
+  while ((m = regex.exec(xml)) !== null) {
+    const u = m[1].toLowerCase();
+    if (u.includes('integration') || u.includes('partner') || u.includes('connector') || u.includes('marketplace')) {
+      urls.push(m[1]);
+    }
+  }
+  return urls;
 }
 
 function extractLinks(html: string, baseUrl: string): string[] {
@@ -198,14 +161,13 @@ function extractLinks(html: string, baseUrl: string): string[] {
 
 async function tryFetchPage(url: string): Promise<string | null> {
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), 5000);
     const res = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StackSeam/1.0)' },
-      signal: controller.signal,
-      redirect: 'follow',
+      signal: c.signal, redirect: 'follow',
     });
-    clearTimeout(timeout);
+    clearTimeout(t);
     if (res.status < 200 || res.status >= 400) return null;
     const html = await res.text();
     if (html.length < 500) return null;
@@ -221,8 +183,7 @@ async function tryFetchPage(url: string): Promise<string | null> {
     const allLinks = extractLinks(html, url);
     const relevantLinks = allLinks.filter(l =>
       l.includes('integration') || l.includes('partner') || l.includes('connect') ||
-      l.includes('plugin') || l.includes('marketplace') || l.includes('app') ||
-      l.includes('doc') || l.includes('guide')
+      l.includes('marketplace') || l.includes('doc') || l.includes('guide')
     ).slice(0, 50);
 
     return `Source: ${url}\nContent: ${text}\n\nRelevant links found:\n${relevantLinks.join('\n')}`;
