@@ -147,7 +147,11 @@ export default function Dashboard() {
               {upcomingRenewals.map(ua => {
                 const daysUntil = differenceInDays(new Date(ua.renewal_date!), new Date());
                 return (
-                  <div key={ua.id} className="flex items-center justify-between rounded-lg border p-3">
+                  <div
+                    key={ua.id}
+                    className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:bg-accent/50 transition-colors"
+                    onClick={() => navigate(`/budget?app=${encodeURIComponent((ua as any).applications?.name || '')}`)}
+                  >
                     <div>
                       <p className="font-medium">{(ua as any).applications?.name}</p>
                       <p className="text-sm text-muted-foreground">
