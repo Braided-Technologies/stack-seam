@@ -33,6 +33,7 @@ export default function Integrations() {
   const [submitTargetApp, setSubmitTargetApp] = useState('');
   const [submitDocUrl, setSubmitDocUrl] = useState('');
   const [discoveringAppId, setDiscoveringAppId] = useState<string | null>(null);
+  const [isDiscoveringAll, setIsDiscoveringAll] = useState(false);
 
   const { orgId, userRole, user } = useAuth();
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
