@@ -14,7 +14,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { data: userApps = [] } = useUserApplications();
   const { data: integrations = [] } = useIntegrations();
-  const [renewalWindow, setRenewalWindow] = useState<RenewalWindow>(90);
+  const [renewalWindow, setRenewalWindow] = useState<RenewalWindow>('all');
 
   // Compute totals: monthly includes annual/12, annual includes monthly*12
   const totalMonthly = userApps.reduce((sum, ua) => {
@@ -119,50 +119,54 @@ export default function Dashboard() {
         </div>
       )}
 
-      {upcomingRenewals.length > 0 && (
-        <div className="rounded-xl border bg-card p-5 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="flex items-center gap-2 font-semibold">
-              <CalendarClock className="h-5 w-5" />
-              Upcoming Renewals
-            </h3>
-            <div className="flex items-center gap-1 rounded-lg border p-0.5">
-              {([30, 60, 90, 'all'] as RenewalWindow[]).map(w => (
-                <Button
-                  key={w}
-                  size="sm"
-                  variant={renewalWindow === w ? 'default' : 'ghost'}
-                  className="h-7 text-xs px-2.5"
-                  onClick={() => setRenewalWindow(w)}
-                >
-                  {w === 'all' ? 'All' : `${w}d`}
-                </Button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-3">
-            {upcomingRenewals.map(ua => {
-              const daysUntil = differenceInDays(new Date(ua.renewal_date!), new Date());
-              return (
-                <div key={ua.id} className="flex items-center justify-between rounded-lg border p-3">
-                  <div>
-                    <p className="font-medium">{(ua as any).applications?.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {format(new Date(ua.renewal_date!), 'MMM d, yyyy')}
-                    </p>
-                  </div>
-                  <span className={cn(
-                    'text-sm font-medium',
-                    daysUntil <= 30 ? 'text-destructive' : 'text-muted-foreground'
-                  )}>
-                    {daysUntil <= 0 ? 'Overdue' : `${daysUntil} days`}
-                  </span>
-                </div>
-              );
-            })}
+      <div className="rounded-xl border bg-card p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-2 font-semibold">
+            <CalendarClock className="h-5 w-5" />
+            Upcoming Renewals
+          </h3>
+          <div className="flex items-center gap-1 rounded-lg border p-0.5">
+            {([30, 60, 90, 'all'] as RenewalWindow[]).map(w => (
+              <Button
+                key={w}
+                size="sm"
+                variant={renewalWindow === w ? 'default' : 'ghost'}
+                className="h-7 text-xs px-2.5"
+                onClick={() => setRenewalWindow(w)}
+              >
+                {w === 'all' ? 'All' : `${w}d`}
+              </Button>
+            ))}
           </div>
         </div>
-      )}
+        {upcomingRenewals.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-2">No upcoming renewals{renewalWindow !== 'all' ? ` within ${renewalWindow} days` : ''}.</p>
+        ) : (
+          <ScrollArea className="max-h-[300px]">
+            <div className="space-y-2 pr-2">
+              {upcomingRenewals.map(ua => {
+                const daysUntil = differenceInDays(new Date(ua.renewal_date!), new Date());
+                return (
+                  <div key={ua.id} className="flex items-center justify-between rounded-lg border p-3">
+                    <div>
+                      <p className="font-medium">{(ua as any).applications?.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {format(new Date(ua.renewal_date!), 'MMM d, yyyy')}
+                      </p>
+                    </div>
+                    <span className={cn(
+                      'text-sm font-medium',
+                      daysUntil <= 30 ? 'text-destructive' : 'text-muted-foreground'
+                    )}>
+                      {daysUntil <= 0 ? 'Overdue' : `${daysUntil} days`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        )}
+      </div>
 
       {relevantIntegrations.length > 0 && (
         <div className="rounded-xl border bg-card p-5 space-y-3">
