@@ -6,15 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-function isValidDocUrl(url: string | undefined | null): boolean {
-  if (!url || typeof url !== 'string') return false;
-  const trimmed = url.trim();
-  if (trimmed.length < 10) return false;
-  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) return false;
-  if (trimmed.includes('example.com') || trimmed.includes('placeholder') || trimmed.includes('your-')) return false;
-  return true;
-}
-
 function extractDomain(url: string): string {
   try {
     const u = new URL(url);
@@ -34,6 +25,15 @@ function isDomainMatch(docUrl: string, appDomains: string[]): boolean {
   return appDomains.some(d => docDomain === d || docDomain.endsWith('.' + d));
 }
 
+function isValidDocUrl(url: string | undefined | null): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (trimmed.length < 10) return false;
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) return false;
+  if (trimmed.includes('example.com') || trimmed.includes('placeholder') || trimmed.includes('your-')) return false;
+  return true;
+}
+
 async function verifyUrl(url: string): Promise<boolean> {
   try {
     const controller = new AbortController();
@@ -45,9 +45,7 @@ async function verifyUrl(url: string): Promise<boolean> {
       redirect: 'follow',
     });
     clearTimeout(timeout);
-
     if (res.status >= 200 && res.status < 400) return true;
-
     if (res.status === 405 || res.status === 403) {
       const controller2 = new AbortController();
       const timeout2 = setTimeout(() => controller2.abort(), 8000);
@@ -61,18 +59,112 @@ async function verifyUrl(url: string): Promise<boolean> {
       await res2.text();
       return res2.status >= 200 && res2.status < 400;
     }
-
     return false;
   } catch {
     return false;
   }
 }
 
-async function discoverBatch(appNames: string[], LOVABLE_API_KEY: string, focusApp?: string) {
+// Try to scrape vendor's integrations page for real content
+async function scrapeVendorIntegrationsPage(vendorUrl: string, appName: string): Promise<string | null> {
+  const domain = extractDomain(vendorUrl);
+  if (!domain) return null;
+
+  // Common integrations page paths to try
+  const paths = [
+    '/integrations', '/partners', '/ecosystem', '/marketplace', '/apps',
+    '/connections', '/plugins', '/extensions',
+  ];
+
+  // Also try docs subdomains
+  const baseUrls = [
+    `https://${domain}`,
+    `https://docs.${domain}`,
+    `https://help.${domain}`,
+    `https://support.${domain}`,
+  ];
+
+  for (const base of baseUrls) {
+    for (const path of paths) {
+      const url = `${base}${path}`;
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        const res = await fetch(url, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StackSeam/1.0)' },
+          signal: controller.signal,
+          redirect: 'follow',
+        });
+        clearTimeout(timeout);
+        if (res.status >= 200 && res.status < 400) {
+          const html = await res.text();
+          if (html.length > 500) {
+            // Extract text and links from HTML
+            const text = html
+              .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+              .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+              .replace(/<[^>]+>/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim()
+              .slice(0, 8000);
+
+            // Extract all links from the page
+            const linkRegex = /href="(https?:\/\/[^"]+)"/gi;
+            const links: string[] = [];
+            let match;
+            while ((match = linkRegex.exec(html)) !== null) {
+              links.push(match[1]);
+            }
+            // Also extract relative links and resolve them
+            const relLinkRegex = /href="(\/[^"]+)"/gi;
+            while ((match = relLinkRegex.exec(html)) !== null) {
+              try {
+                const resolved = new URL(match[1], url).href;
+                links.push(resolved);
+              } catch { /* ignore */ }
+            }
+
+            const uniqueLinks = [...new Set(links)].filter(l =>
+              l.includes('integration') || l.includes('partner') || l.includes('connect') ||
+              l.includes('plugin') || l.includes('marketplace') || l.includes('app') ||
+              l.includes('doc') || l.includes('guide')
+            ).slice(0, 50);
+
+            console.log(`SCRAPED: ${url} — ${text.length} chars, ${uniqueLinks.length} relevant links`);
+            return `Source: ${url}\nContent: ${text}\n\nRelevant links found:\n${uniqueLinks.join('\n')}`;
+          }
+        }
+      } catch {
+        // Continue trying other paths
+      }
+    }
+  }
+  return null;
+}
+
+async function discoverBatch(
+  appNames: string[],
+  LOVABLE_API_KEY: string,
+  vendorUrls: Map<string, string>,
+  focusApp?: string
+) {
+  // If we have a focus app, try to scrape its vendor page first
+  let scrapedContent = '';
+  if (focusApp) {
+    const vendorUrl = vendorUrls.get(focusApp.toLowerCase());
+    if (vendorUrl) {
+      const content = await scrapeVendorIntegrationsPage(vendorUrl, focusApp);
+      if (content) {
+        scrapedContent = `\n\nSCRAPED VENDOR PAGE DATA for ${focusApp}:\n${content}\n\nIMPORTANT: Use the URLs found in the scraped data above as documentation_url values. These are REAL, verified URLs from the vendor's website. Prefer these over any URLs from your training data.`;
+      }
+    }
+  }
+
   const appList = appNames.join(", ");
   const focusInstruction = focusApp
     ? `\n\nFOCUS APP: ${focusApp}\nOnly return integrations where either the source or target is ${focusApp}. Ignore any integrations that do not involve ${focusApp}.`
     : '';
+
   const prompt = `You are an expert on MSP/IT software integrations. Given these tools: ${appList}${focusInstruction}
 
 ${focusApp
@@ -82,16 +174,16 @@ Be thorough — include:
 - Native/built-in integrations
 - API-based integrations
 - Integrations through platforms like Zapier, Power Automate, etc.
-- PSA/RMM integrations with documentation, cybersecurity, billing tools
+- PSA/RMM integrations
 - Vendor marketplace integrations
+${scrapedContent}
 
 CRITICAL RULES:
-1. Only include integrations where you can provide a REAL documentation URL from the vendor's actual website or knowledge base.
-2. The documentation_url MUST be from one of the two integration partners' official domains (e.g. for a HaloPSA↔ScalePad integration, the URL must be from halopsa.com, usehalo.com, scalepad.com, or similar official domains).
-3. Do NOT use third-party blog posts, review sites, or generic URLs.
-4. If you are not 100% certain a URL exists on the vendor's domain, do NOT include the integration.
-5. Prefer URLs from official knowledge bases, help centers, and marketplace listings.
-6. Do NOT include MCP or community integrations unless the GitHub repo URL is verified.`;
+1. Only include integrations where you can provide a REAL documentation URL.
+2. If scraped vendor page data is provided above, USE THOSE URLs — they are verified real URLs.
+3. The documentation_url MUST be from one of the two integration partners' official domains.
+4. Do NOT fabricate or guess URLs. If you're not certain a URL exists, do NOT include it.
+5. Prefer URLs from official knowledge bases, help centers, and marketplace listings.`;
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -105,8 +197,8 @@ CRITICAL RULES:
         {
           role: "system",
           content: focusApp
-            ? `You are an MSP/IT integration expert. Only report integrations involving ${focusApp}. Only report integrations with documentation URLs you are confident are real and accessible, and the URL must come from one of the two platforms' official domains.`
-            : "You are an MSP/IT integration expert. Only report integrations with documentation URLs you are confident are real and accessible. The documentation URL must come from one of the two platforms' official domains.",
+            ? `You are an MSP/IT integration expert. Only report integrations involving ${focusApp}. If scraped vendor page data is provided, prioritize using those real URLs as documentation_url values.`
+            : "You are an MSP/IT integration expert. If scraped vendor page data is provided, prioritize using those real URLs.",
         },
         { role: "user", content: prompt },
       ],
@@ -114,9 +206,7 @@ CRITICAL RULES:
         type: "function",
         function: {
           name: "report_integrations",
-          description: focusApp
-            ? `Report discovered integrations involving ${focusApp}. Every integration MUST have a real documentation_url from one of the two platforms' domains.`
-            : "Report discovered integrations between IT tools. Every integration MUST have a real documentation_url from one of the two platforms' domains.",
+          description: "Report discovered integrations. Use real documentation URLs from scraped vendor pages when available.",
           parameters: {
             type: "object",
             properties: {
@@ -130,7 +220,7 @@ CRITICAL RULES:
                     description: { type: "string" },
                     integration_type: { type: "string", enum: ["native", "api", "zapier", "webhook", "other"] },
                     data_shared: { type: "string" },
-                    documentation_url: { type: "string", description: "REQUIRED. A real URL from one of the two platforms' official domains." },
+                    documentation_url: { type: "string", description: "A real URL from one of the two platforms' official domains. Use URLs from scraped data when available." },
                   },
                   required: ["source", "target", "description", "integration_type", "data_shared", "documentation_url"],
                   additionalProperties: false,
@@ -222,8 +312,9 @@ serve(async (req) => {
         if (names.length < 2) continue;
 
         try {
-          const appVendorMap = buildVendorMap(orgApps || [], supabaseAdmin);
-          const result = await processDiscovery(names, LOVABLE_API_KEY, supabaseAdmin, await appVendorMap);
+          const vendorMap = buildVendorMap(orgApps || []);
+          const vendorUrls = buildVendorUrlMap(orgApps || []);
+          const result = await processDiscovery(names, LOVABLE_API_KEY, supabaseAdmin, vendorMap, vendorUrls);
           totalDiscovered += result.discovered;
           totalSaved += result.saved;
         } catch (e) {
@@ -246,18 +337,20 @@ serve(async (req) => {
 
     const { data: allApps } = await supabaseAdmin.from("applications").select("id, name, vendor_url");
     const vendorMap = new Map<string, string[]>();
+    const vendorUrls = new Map<string, string>();
     for (const app of allApps || []) {
       const domains: string[] = [];
       if (app.vendor_url) {
         const d = extractDomain(app.vendor_url);
         if (d) domains.push(d);
+        vendorUrls.set(app.name.toLowerCase(), app.vendor_url);
       }
       const nameKey = app.name.toLowerCase().replace(/[^a-z0-9]/g, '');
       domains.push(nameKey + '.com');
       vendorMap.set(app.name.toLowerCase(), domains);
     }
 
-    const result = await processDiscovery(app_names, LOVABLE_API_KEY, supabaseAdmin, vendorMap, focus_app);
+    const result = await processDiscovery(app_names, LOVABLE_API_KEY, supabaseAdmin, vendorMap, vendorUrls, focus_app);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -275,10 +368,11 @@ serve(async (req) => {
   }
 });
 
-async function buildVendorMap(orgApps: any[], supabase: any): Promise<Map<string, string[]>> {
+function buildVendorMap(orgApps: any[]): Map<string, string[]> {
   const vendorMap = new Map<string, string[]>();
-  const { data: allApps } = await supabase.from("applications").select("id, name, vendor_url");
-  for (const app of allApps || []) {
+  for (const oa of orgApps) {
+    const app = oa.applications;
+    if (!app) continue;
     const domains: string[] = [];
     if (app.vendor_url) {
       const d = extractDomain(app.vendor_url);
@@ -291,25 +385,43 @@ async function buildVendorMap(orgApps: any[], supabase: any): Promise<Map<string
   return vendorMap;
 }
 
-async function processDiscovery(appNames: string[], apiKey: string, supabase: any, vendorMap: Map<string, string[]>, focusApp?: string) {
+function buildVendorUrlMap(orgApps: any[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const oa of orgApps) {
+    const app = oa.applications;
+    if (app?.vendor_url) {
+      map.set(app.name.toLowerCase(), app.vendor_url);
+    }
+  }
+  return map;
+}
+
+async function processDiscovery(
+  appNames: string[],
+  apiKey: string,
+  supabase: any,
+  vendorMap: Map<string, string[]>,
+  vendorUrls: Map<string, string>,
+  focusApp?: string
+) {
   const BATCH_SIZE = 15;
   const allIntegrations: any[] = [];
 
   if (appNames.length <= BATCH_SIZE) {
-    const results = await discoverBatch(appNames, apiKey, focusApp);
+    const results = await discoverBatch(appNames, apiKey, vendorUrls, focusApp);
     allIntegrations.push(...results);
   } else {
     for (let i = 0; i < appNames.length; i += BATCH_SIZE - 3) {
       const batch = appNames.slice(i, i + BATCH_SIZE);
       if (batch.length < 2) break;
       try {
-        const results = await discoverBatch(batch, apiKey, focusApp);
+        const results = await discoverBatch(batch, apiKey, vendorUrls, focusApp);
         allIntegrations.push(...results);
       } catch (e: any) {
         if (e.message === "RATE_LIMITED") {
           await new Promise(r => setTimeout(r, 3000));
           try {
-            const results = await discoverBatch(batch, apiKey, focusApp);
+            const results = await discoverBatch(batch, apiKey, vendorUrls, focusApp);
             allIntegrations.push(...results);
           } catch {
             console.error("Batch failed after retry, skipping");
