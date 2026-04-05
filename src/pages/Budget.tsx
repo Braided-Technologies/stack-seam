@@ -235,7 +235,22 @@ export default function Budget() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Renewals (90 days)</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Upcoming Renewals</CardTitle>
+              <div className="flex items-center gap-0.5 rounded-md border p-0.5">
+                {([30, 60, 90] as const).map(w => (
+                  <Button
+                    key={w}
+                    size="sm"
+                    variant={renewalWindow === w ? 'default' : 'ghost'}
+                    className="h-5 text-[10px] px-1.5"
+                    onClick={() => setRenewalWindow(w)}
+                  >
+                    {w}d
+                  </Button>
+                ))}
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{upcomingRenewals}</p>

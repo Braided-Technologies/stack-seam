@@ -566,20 +566,9 @@ export default function Stack() {
                           </div>
                         ))}
                       </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="gap-2 mt-3 w-full"
-                        disabled={discoverIntegrations.isPending}
-                        onClick={handleDiscoverForInfoApp}
-                      >
-                        {discoverIntegrations.isPending ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Zap className="h-3.5 w-3.5" />
-                        )}
-                        Re-check Integrations
-                      </Button>
+                    </ScrollArea>
+                  )}
+                </TabsContent>
                     </ScrollArea>
                   )}
                 </TabsContent>
