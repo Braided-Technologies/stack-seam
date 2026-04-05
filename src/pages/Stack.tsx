@@ -514,25 +514,15 @@ export default function Stack() {
                           variant="outline"
                           className="gap-2"
                           disabled={discoverIntegrations.isPending}
-                          onClick={async () => {
-                            const stackNames = userApps
-                              .map((ua: any) => ua.applications?.name)
-                              .filter(Boolean) as string[];
-                            const allNames = stackNames.includes(infoApp.name)
-                              ? stackNames
-                              : [infoApp.name, ...stackNames];
-                            if (allNames.length < 2) {
-                              toast({ title: 'Need at least 2 apps', description: 'Add more apps to your stack first.', variant: 'destructive' });
-                              return;
-                            }
-                            try {
-                              const result = await discoverIntegrations.mutateAsync(allNames);
-                              toast({ title: `Found ${result.saved || 0} new integrations`, description: result.discovered > result.saved ? `${result.discovered - result.saved} already existed or were filtered.` : undefined });
-                            } catch (e: any) {
-                              toast({ title: 'Discovery failed', description: e.message, variant: 'destructive' });
-                            }
-                          }}
+                          onClick={handleDiscoverForInfoApp}
                         >
+                          {discoverIntegrations.isPending ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Zap className="h-3.5 w-3.5" />
+                          )}
+                          Check Integrations with My Stack
+                        </Button>
                           {discoverIntegrations.isPending ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
