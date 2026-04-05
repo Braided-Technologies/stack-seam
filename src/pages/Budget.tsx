@@ -76,15 +76,16 @@ export default function Budget() {
     const uaIdsWithContracts = new Set(allContracts.map(c => c.user_application_id));
     return uaIdsWithContracts.size;
   }, [allContracts]);
+  const [renewalWindow, setRenewalWindow] = useState<30 | 60 | 90>(90);
   const upcomingRenewals = useMemo(() => {
     const now = new Date();
-    const in90 = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+    const cutoff = new Date(now.getTime() + renewalWindow * 24 * 60 * 60 * 1000);
     return userApps.filter(ua => {
       if (!ua.renewal_date) return false;
       const d = new Date(ua.renewal_date);
-      return d >= now && d <= in90;
+      return d >= now && d <= cutoff;
     }).length;
-  }, [userApps]);
+  }, [userApps, renewalWindow]);
 
   const [spendView, setSpendView] = useState<'monthly' | 'annual'>('monthly');
 
