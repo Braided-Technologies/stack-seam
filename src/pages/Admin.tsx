@@ -515,8 +515,8 @@ export default function Admin() {
   };
 
   const statCards = [
-    { label: 'Organizations', value: stats.orgs, icon: Building2, tab: 'orgs' },
     { label: 'Users', value: stats.users, icon: Users, tab: 'users' },
+    { label: 'Organizations', value: stats.orgs, icon: Building2, tab: 'orgs' },
     { label: 'Apps', value: stats.apps, icon: Layers, tab: 'moderation' },
     { label: 'Pending Apps', value: stats.pending, icon: BarChart3, tab: 'moderation', filter: 'org_only' },
     { label: 'Open Tickets', value: stats.openTickets, icon: MessageSquare, tab: 'feedback' },
