@@ -334,7 +334,7 @@ export default function Stack() {
               <DollarSign className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">${summary.totalMonthly.toLocaleString()}</p>
+              <p className="text-2xl font-bold">{formatCompactCurrency(summary.totalMonthly)}</p>
               <p className="text-xs text-muted-foreground">Monthly Spend</p>
             </div>
           </div>
