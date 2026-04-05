@@ -30,6 +30,8 @@ const COLORS = [
 type SortKey = 'name' | 'cost_monthly' | 'cost_annual' | 'renewal_date';
 
 export default function Budget() {
+  const [searchParams] = useSearchParams();
+  const initialApp = searchParams.get('app') || '';
   const { orgId, userRole } = useAuth();
   const { data: userApps = [] } = useUserApplications();
   const updateApp = useUpdateUserApplication();
@@ -38,7 +40,7 @@ export default function Budget() {
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortAsc, setSortAsc] = useState(true);
   const [editingApp, setEditingApp] = useState<any>(null);
-  const [appSearch, setAppSearch] = useState('');
+  const [appSearch, setAppSearch] = useState(initialApp);
 
 
   const { data: allContracts = [] } = useQuery({
