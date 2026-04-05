@@ -16,6 +16,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { toast } from '@/hooks/use-toast';
 import { CATEGORY_GROUPS } from '@/lib/categoryGroups';
 import { Search, ExternalLink, Filter, Link2, CheckCircle2, Circle, Map as MapIcon, ChevronDown, ChevronRight, EyeOff, SkipForward, ChevronsDownUp, ChevronsUpDown, Plus, Zap, Loader2 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Check, ChevronsUpDown as ChevronsUpDownIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 type StatusFilter = 'all' | 'configured' | 'pending' | 'skipped' | 'hidden';
 
@@ -32,6 +36,8 @@ export default function Integrations() {
   const [submitSourceApp, setSubmitSourceApp] = useState('');
   const [submitTargetApp, setSubmitTargetApp] = useState('');
   const [submitDocUrl, setSubmitDocUrl] = useState('');
+  const [sourcePopoverOpen, setSourcePopoverOpen] = useState(false);
+  const [targetPopoverOpen, setTargetPopoverOpen] = useState(false);
   const [discoveringAppId, setDiscoveringAppId] = useState<string | null>(null);
   const [isDiscoveringAll, setIsDiscoveringAll] = useState(false);
 
@@ -577,21 +583,57 @@ export default function Integrations() {
           <div className="space-y-4 pt-2">
             <div className="space-y-2">
               <Label>Source App</Label>
-              <Select value={submitSourceApp} onValueChange={setSubmitSourceApp}>
-                <SelectTrigger><SelectValue placeholder="Select source app..." /></SelectTrigger>
-                <SelectContent>
-                  {allApps.map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Popover open={sourcePopoverOpen} onOpenChange={setSourcePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                    {submitSourceApp ? allApps.find(a => a.id === submitSourceApp)?.name : 'Select source app...'}
+                    <ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                  <Command>
+                    <CommandInput placeholder="Search apps..." />
+                    <CommandList>
+                      <CommandEmpty>No app found.</CommandEmpty>
+                      <CommandGroup>
+                        {allApps.map(a => (
+                          <CommandItem key={a.id} value={a.name} onSelect={() => { setSubmitSourceApp(a.id); setSourcePopoverOpen(false); }}>
+                            <Check className={cn("mr-2 h-4 w-4", submitSourceApp === a.id ? "opacity-100" : "opacity-0")} />
+                            {a.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <Label>Target App</Label>
-              <Select value={submitTargetApp} onValueChange={setSubmitTargetApp}>
-                <SelectTrigger><SelectValue placeholder="Select target app..." /></SelectTrigger>
-                <SelectContent>
-                  {allApps.filter(a => a.id !== submitSourceApp).map(a => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Popover open={targetPopoverOpen} onOpenChange={setTargetPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                    {submitTargetApp ? allApps.find(a => a.id === submitTargetApp)?.name : 'Select target app...'}
+                    <ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                  <Command>
+                    <CommandInput placeholder="Search apps..." />
+                    <CommandList>
+                      <CommandEmpty>No app found.</CommandEmpty>
+                      <CommandGroup>
+                        {allApps.filter(a => a.id !== submitSourceApp).map(a => (
+                          <CommandItem key={a.id} value={a.name} onSelect={() => { setSubmitTargetApp(a.id); setTargetPopoverOpen(false); }}>
+                            <Check className={cn("mr-2 h-4 w-4", submitTargetApp === a.id ? "opacity-100" : "opacity-0")} />
+                            {a.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <Label>Documentation URL</Label>
