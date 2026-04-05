@@ -502,9 +502,9 @@ export default function Stack() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="integrations" className="pt-2 flex-1 overflow-hidden">
+                <TabsContent value="integrations" className="pt-2 flex-1 flex flex-col overflow-hidden">
                   {userApps.length > 0 && (
-                    <div className="mb-3">
+                    <div className="mb-3 flex-shrink-0">
                       <Button
                         size="sm"
                         variant="outline"
@@ -531,7 +531,7 @@ export default function Stack() {
                       )}
                     </div>
                   ) : (
-                    <ScrollArea className="max-h-[calc(85vh-200px)]">
+                    <div className="flex-1 min-h-0 overflow-y-auto">
                       <div className="space-y-2 pr-2">
                         {infoAppIntegrations.map((integ: any) => (
                           <div key={integ.id} className="rounded-lg border p-3 space-y-1.5">
@@ -566,7 +566,7 @@ export default function Stack() {
                           </div>
                         ))}
                       </div>
-                    </ScrollArea>
+                    </div>
                   )}
                 </TabsContent>
 
