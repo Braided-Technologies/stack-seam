@@ -32,6 +32,7 @@ export default function Integrations() {
   const [submitSourceApp, setSubmitSourceApp] = useState('');
   const [submitTargetApp, setSubmitTargetApp] = useState('');
   const [submitDocUrl, setSubmitDocUrl] = useState('');
+  const [discoveringAppId, setDiscoveringAppId] = useState<string | null>(null);
 
   const { orgId, userRole, user } = useAuth();
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
@@ -435,13 +436,14 @@ export default function Integrations() {
                               variant="ghost"
                               size="sm"
                               className="h-6 text-[10px] gap-1 px-2"
-                              disabled={discoverIntegrations.isPending}
+                              disabled={discoveringAppId === app.appId}
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 const stackNames = userApps
                                   .map((ua: any) => ua.applications?.name)
                                   .filter(Boolean) as string[];
                                 if (stackNames.length < 2) return;
+                                setDiscoveringAppId(app.appId);
                                 try {
                                   const result = await discoverIntegrations.mutateAsync({
                                     appNames: stackNames.includes(app.appName) ? stackNames : [app.appName, ...stackNames],
@@ -450,10 +452,12 @@ export default function Integrations() {
                                   toast({ title: `Found ${result.saved || 0} new integrations for ${app.appName}` });
                                 } catch (err: any) {
                                   toast({ title: 'Discovery failed', description: err.message, variant: 'destructive' });
+                                } finally {
+                                  setDiscoveringAppId(null);
                                 }
                               }}
                             >
-                              {discoverIntegrations.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                              {discoveringAppId === app.appId ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
                               Discover
                             </Button>
                           )}
