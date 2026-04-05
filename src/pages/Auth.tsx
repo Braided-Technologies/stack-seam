@@ -82,18 +82,18 @@ export default function Auth() {
         </CardHeader>
         <CardContent className="space-y-4">
           {forgotMode ? (
-            <div className="space-y-4">
+            <form onSubmit={e => { e.preventDefault(); handleForgotPassword(); }} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="forgot-email">Email</Label>
                 <Input id="forgot-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" />
               </div>
-              <Button className="w-full" disabled={forgotSubmitting} onClick={handleForgotPassword}>
+              <Button type="submit" className="w-full" disabled={forgotSubmitting}>
                 {forgotSubmitting ? 'Sending...' : 'Send Reset Link'}
               </Button>
-              <Button variant="ghost" className="w-full" onClick={() => setForgotMode(false)}>
+              <Button type="button" variant="ghost" className="w-full" onClick={() => setForgotMode(false)}>
                 Back to Sign In
               </Button>
-            </div>
+            </form>
           ) : (
             <>
               <Button
