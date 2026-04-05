@@ -24,7 +24,7 @@ export default function Stack() {
   const { data: categories = [] } = useCategories();
   const { data: applications = [] } = useApplications();
   const { data: userApps = [] } = useUserApplications();
-  const { data: allIntegrations = [] } = useIntegrations();
+  const { data: allIntegrations = [], refetch: refetchIntegrations } = useIntegrations();
   const addApp = useAddUserApplication();
   const removeApp = useRemoveUserApplication();
   const updateApp = useUpdateUserApplication();
@@ -85,6 +85,39 @@ export default function Stack() {
       return { ...i, otherApp, inStack };
     });
   }, [infoApp, allIntegrations, userAppIds]);
+
+  const handleDiscoverForInfoApp = async () => {
+    if (!infoApp) return;
+
+    const stackNames = userApps
+      .map((ua: any) => ua.applications?.name)
+      .filter(Boolean) as string[];
+    const allNames = stackNames.includes(infoApp.name)
+      ? stackNames
+      : [infoApp.name, ...stackNames];
+
+    if (allNames.length < 2) {
+      toast({ title: 'Need at least 2 apps', description: 'Add more apps to your stack first.', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      const result = await discoverIntegrations.mutateAsync({
+        appNames: allNames,
+        focusApp: infoApp.name,
+      });
+      await refetchIntegrations();
+
+      const savedCount = Number(result?.saved || 0);
+      const discoveredCount = Number(result?.discovered || 0);
+      toast({
+        title: savedCount > 0 ? `Found ${savedCount} integrations for ${infoApp.name}` : `No new integrations found for ${infoApp.name}`,
+        description: discoveredCount > savedCount ? `${discoveredCount - savedCount} already existed.` : undefined,
+      });
+    } catch (e: any) {
+      toast({ title: 'Discovery failed', description: e.message, variant: 'destructive' });
+    }
+  };
 
   const handleAdd = async (appId: string) => {
     try {
@@ -481,24 +514,7 @@ export default function Stack() {
                           variant="outline"
                           className="gap-2"
                           disabled={discoverIntegrations.isPending}
-                          onClick={async () => {
-                            const stackNames = userApps
-                              .map((ua: any) => ua.applications?.name)
-                              .filter(Boolean) as string[];
-                            const allNames = stackNames.includes(infoApp.name)
-                              ? stackNames
-                              : [infoApp.name, ...stackNames];
-                            if (allNames.length < 2) {
-                              toast({ title: 'Need at least 2 apps', description: 'Add more apps to your stack first.', variant: 'destructive' });
-                              return;
-                            }
-                            try {
-                              const result = await discoverIntegrations.mutateAsync(allNames);
-                              toast({ title: `Found ${result.saved || 0} new integrations`, description: result.discovered > result.saved ? `${result.discovered - result.saved} already existed or were filtered.` : undefined });
-                            } catch (e: any) {
-                              toast({ title: 'Discovery failed', description: e.message, variant: 'destructive' });
-                            }
-                          }}
+                          onClick={handleDiscoverForInfoApp}
                         >
                           {discoverIntegrations.isPending ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -553,20 +569,7 @@ export default function Stack() {
                         variant="ghost"
                         className="gap-2 mt-3 w-full"
                         disabled={discoverIntegrations.isPending}
-                        onClick={async () => {
-                          const stackNames = userApps
-                            .map((ua: any) => ua.applications?.name)
-                            .filter(Boolean) as string[];
-                          const allNames = stackNames.includes(infoApp.name)
-                            ? stackNames
-                            : [infoApp.name, ...stackNames];
-                          try {
-                            const result = await discoverIntegrations.mutateAsync(allNames);
-                            toast({ title: `Found ${result.saved || 0} new integrations`, description: result.discovered > result.saved ? `${result.discovered - result.saved} already existed or were filtered.` : undefined });
-                          } catch (e: any) {
-                            toast({ title: 'Discovery failed', description: e.message, variant: 'destructive' });
-                          }
-                        }}
+                        onClick={handleDiscoverForInfoApp}
                       >
                         {discoverIntegrations.isPending ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
