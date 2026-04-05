@@ -523,13 +523,6 @@ export default function Stack() {
                           )}
                           Check Integrations with My Stack
                         </Button>
-                          {discoverIntegrations.isPending ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Zap className="h-3.5 w-3.5" />
-                          )}
-                          Check Integrations with My Stack
-                        </Button>
                       )}
                       {userApps.length === 0 && (
                         <p className="text-xs text-muted-foreground">Add apps to your stack first, then check for integrations.</p>
