@@ -242,42 +242,43 @@ export default function Stack() {
     const color = CATEGORY_COLORS[cat.name] || 'hsl(221, 83%, 53%)';
 
     return (
-      <div key={cat.id} className="rounded-xl border bg-card/50 overflow-hidden" style={{ borderLeftWidth: '3px', borderLeftColor: color }}>
+      <div key={cat.id} className="overflow-hidden rounded-xl border bg-card/50" style={{ borderLeftWidth: '3px', borderLeftColor: color }}>
         <button
-          className="flex w-full items-center justify-between p-3 text-left hover:bg-accent/30 transition-colors"
+          className="flex w-full items-center justify-between p-3 text-left transition-colors hover:bg-accent/30"
           onClick={() => setExpandedCategory(isExpanded ? null : cat.id)}
         >
-          <div className="flex items-center gap-2">
-            <div className="h-2.5 w-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-            <span className="font-semibold text-sm">{cat.name}</span>
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: color }} />
+            <span className="truncate font-semibold text-sm">{cat.name}</span>
             {selectedInCat.length > 0 && (
               <Badge variant="secondary" className="text-xs">{selectedInCat.length}</Badge>
             )}
           </div>
-          {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          {isExpanded ? <ChevronUp className="h-3.5 w-3.5 flex-shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" />}
         </button>
 
         {isExpanded && (
-          <div className="border-t px-3 pt-3 pb-3">
+          <div className="border-t px-3 py-3">
             <div className="grid gap-1.5">
               {filteredApps.map(app => {
                 const userApp = userAppMap.get(app.id);
                 const isSelected = !!userApp;
+
                 return (
                   <div
                     key={app.id}
-                    className={`flex items-center justify-between rounded-md border p-2 transition-colors cursor-pointer hover:bg-accent/20 ${isSelected ? 'border-primary/30 bg-primary/5' : 'bg-background/50'}`}
+                    className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border p-2 transition-colors cursor-pointer hover:bg-accent/20 ${isSelected ? 'border-primary/30 bg-primary/5' : 'bg-background/50'}`}
                     onClick={() => handleAppClick(app)}
                   >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <p className="font-medium text-sm truncate">{app.name}</p>
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <p className="min-w-0 flex-1 truncate font-medium text-sm">{app.name}</p>
                         {app.vendor_url && (
                           <a
                             href={app.vendor_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-muted-foreground hover:text-primary flex-shrink-0"
+                            className="flex-shrink-0 text-muted-foreground hover:text-primary"
                             onClick={e => e.stopPropagation()}
                             title="Visit vendor website"
                           >
@@ -286,15 +287,21 @@ export default function Stack() {
                         )}
                       </div>
                       {app.description && (
-                        <p className="text-xs text-muted-foreground truncate">{app.description}</p>
+                        <p className="truncate pr-1 text-xs text-muted-foreground">{app.description}</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 ml-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
+
+                    <div className="flex flex-shrink-0 items-center gap-1 self-center pl-1" onClick={e => e.stopPropagation()}>
                       {isSelected && (
-                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => {
-                          handleAppClick(app);
-                          setDefaultTab('settings');
-                        }}>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6"
+                          onClick={() => {
+                            handleAppClick(app);
+                            setDefaultTab('settings');
+                          }}
+                        >
                           <Settings className="h-3 w-3" />
                         </Button>
                       )}
@@ -309,7 +316,7 @@ export default function Stack() {
                           </Button>
                         )
                       )}
-                      {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
+                      {isSelected && <Check className="h-3.5 w-3.5 flex-shrink-0 text-primary" />}
                     </div>
                   </div>
                 );
@@ -325,21 +332,21 @@ export default function Stack() {
   const ungroupedCats = categories.filter(c => !groupedCatNames.has(c.name));
 
   return (
-    <div className="p-6 space-y-6 min-w-0 overflow-x-hidden">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="min-w-0 overflow-x-hidden p-6 space-y-6">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold">My Stack</h1>
           <p className="text-muted-foreground text-sm">Select the tools in your IT stack by category</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {isAdmin && (
             <Button variant="outline" size="sm" onClick={() => setSearchToolOpen(true)}>
-              <Search className="h-4 w-4 mr-2" />
+              <Search className="mr-2 h-4 w-4" />
               Find a Tool
             </Button>
           )}
           <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={userApps.length === 0}>
-            <Download className="h-4 w-4 mr-2" />
+            <Download className="mr-2 h-4 w-4" />
             Export CSV
           </Button>
         </div>
@@ -347,8 +354,8 @@ export default function Stack() {
 
       {/* Summary bar */}
       {userApps.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="rounded-xl border bg-card p-4 flex items-center gap-3">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="flex items-center gap-3 rounded-xl border bg-card p-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
               <Layers className="h-4 w-4 text-primary" />
             </div>
@@ -357,7 +364,7 @@ export default function Stack() {
               <p className="text-xs text-muted-foreground">Total Apps</p>
             </div>
           </div>
-          <div className="rounded-xl border bg-card p-4 flex items-center gap-3">
+          <div className="flex items-center gap-3 rounded-xl border bg-card p-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
               <DollarSign className="h-4 w-4 text-primary" />
             </div>
@@ -366,7 +373,7 @@ export default function Stack() {
               <p className="text-xs text-muted-foreground">Monthly Spend</p>
             </div>
           </div>
-          <div className="rounded-xl border bg-card p-4 flex items-center gap-3">
+          <div className="flex items-center gap-3 rounded-xl border bg-card p-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
               <DollarSign className="h-4 w-4 text-primary" />
             </div>
@@ -375,7 +382,7 @@ export default function Stack() {
               <p className="text-xs text-muted-foreground">Annual Spend</p>
             </div>
           </div>
-          <div className="rounded-xl border bg-card p-4 flex items-center gap-3">
+          <div className="flex items-center gap-3 rounded-xl border bg-card p-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
               <FolderOpen className="h-4 w-4 text-primary" />
             </div>
@@ -387,9 +394,9 @@ export default function Stack() {
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search apps across all categories..."
             value={search}
@@ -399,7 +406,7 @@ export default function Stack() {
         </div>
         <Select value={filterMode} onValueChange={(v: FilterMode) => setFilterMode(v)}>
           <SelectTrigger className="w-full sm:w-[160px]">
-            <Filter className="h-4 w-4 mr-2" />
+            <Filter className="mr-2 h-4 w-4" />
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -415,7 +422,7 @@ export default function Stack() {
       </div>
 
       {/* Grouped category layout */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 2xl:grid-cols-2">
         {CATEGORY_GROUPS.map(group => {
           const groupCats = group.categories.map(name => catMap.get(name)).filter(Boolean) as typeof categories;
           const renderedCats = groupCats.map(cat => renderCategory(cat)).filter(Boolean);
@@ -429,11 +436,11 @@ export default function Stack() {
           return (
             <div key={group.label} className="space-y-3">
               <button
-                className="flex items-center gap-2 w-full text-left px-1 group"
+                className="group flex w-full items-center gap-2 px-1 text-left"
                 onClick={() => toggleGroup(group.label)}
               >
-                <div className="flex items-center gap-2 flex-1">
-                  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <div className="flex flex-1 items-center gap-2 min-w-0">
+                  <h2 className="truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     {group.label}
                   </h2>
                   <Badge variant="outline" className="text-xs font-normal">
@@ -441,8 +448,8 @@ export default function Stack() {
                   </Badge>
                 </div>
                 {collapsedGroups.has(group.label)
-                  ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                  : <ChevronUp className="h-3 w-3 text-muted-foreground" />
+                  ? <ChevronDown className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                  : <ChevronUp className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
                 }
               </button>
               {!collapsedGroups.has(group.label) && (
@@ -456,7 +463,7 @@ export default function Stack() {
 
         {ungroupedCats.length > 0 && (
           <div className="space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">
+            <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Other
             </h2>
             <div className="grid gap-3">
