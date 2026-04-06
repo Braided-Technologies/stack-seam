@@ -272,7 +272,7 @@ export default function Stack() {
                   >
                     <div className="min-w-0">
                       <div className="flex min-w-0 items-center gap-1.5">
-                        <p className="min-w-0 flex-1 truncate font-medium text-sm">{app.name}</p>
+                        <p className="min-w-0 truncate font-medium text-sm">{app.name}</p>
                         {app.vendor_url && (
                           <a
                             href={app.vendor_url}
