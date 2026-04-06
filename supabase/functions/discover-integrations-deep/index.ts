@@ -72,7 +72,7 @@ async function fetchPageText(url: string): Promise<{ text: string; links: string
 }
 
 async function callAI(apiKey: string, messages: any[], tools?: any[], toolChoice?: any) {
-  const body: any = { model: "google/gemini-2.5-flash", messages };
+  const body: any = { model: "google/gemini-2.5-flash", messages, max_tokens: 8192 };
   if (tools) { body.tools = tools; body.tool_choice = toolChoice; }
 
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
