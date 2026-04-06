@@ -121,6 +121,32 @@ export default function Stack() {
     }
   };
 
+  const handleDeepScanForInfoApp = async () => {
+    if (!infoApp) return;
+
+    const stackNames = userApps
+      .map((ua: any) => ua.applications?.name)
+      .filter(Boolean) as string[];
+
+    try {
+      const result = await deepScan.mutateAsync({
+        focusApp: infoApp.name,
+        stackAppNames: stackNames,
+      });
+      await refetchIntegrations();
+
+      const saved = Number(result?.saved || 0);
+      const removed = Number(result?.removed || 0);
+      const discovered = Number(result?.discovered || 0);
+      toast({
+        title: `Deep scan complete for ${infoApp.name}`,
+        description: `${discovered} found, ${saved} saved, ${removed} undocumented removed.`,
+      });
+    } catch (e: any) {
+      toast({ title: 'Deep scan failed', description: e.message, variant: 'destructive' });
+    }
+  };
+
   const handleAdd = async (appId: string) => {
     try {
       await addApp.mutateAsync(appId);
