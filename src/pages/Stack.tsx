@@ -289,7 +289,7 @@ export default function Stack() {
                         <p className="text-xs text-muted-foreground truncate">{app.description}</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 ml-2" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center gap-1 ml-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
                       {isSelected && (
                         <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => {
                           handleAppClick(app);
@@ -325,7 +325,7 @@ export default function Stack() {
   const ungroupedCats = categories.filter(c => !groupedCatNames.has(c.name));
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 min-w-0 overflow-x-hidden">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">My Stack</h1>
