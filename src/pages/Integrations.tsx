@@ -40,6 +40,8 @@ export default function Integrations() {
   const [targetPopoverOpen, setTargetPopoverOpen] = useState(false);
   const [discoveringAppId, setDiscoveringAppId] = useState<string | null>(null);
   const [isDiscoveringAll, setIsDiscoveringAll] = useState(false);
+  const [discoveryProgress, setDiscoveryProgress] = useState<Record<string, 'queued' | 'in_progress' | 'done' | 'error'>>({});
+  const [discoveryResults, setDiscoveryResults] = useState<Record<string, { saved?: number; error?: string }>>({});
 
   const { orgId, userRole, user } = useAuth();
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
@@ -302,15 +304,24 @@ export default function Integrations() {
                   toast({ title: 'Need at least 2 apps', description: 'Add more apps to your stack first.', variant: 'destructive' });
                   return;
                 }
+                // Initialize progress for all apps
+                const initialProgress: Record<string, 'queued' | 'in_progress' | 'done' | 'error'> = {};
+                userApps.forEach(ua => {
+                  if ((ua as any).applications?.name) {
+                    initialProgress[ua.application_id] = 'queued';
+                  }
+                });
+                setDiscoveryProgress(initialProgress);
+                setDiscoveryResults({});
                 setIsDiscoveringAll(true);
                 let totalSaved = 0;
                 let totalDiscovered = 0;
-                // Iterate through each app one by one
                 for (const ua of userApps) {
                   const appName = (ua as any).applications?.name;
                   const appId = ua.application_id;
                   if (!appName) continue;
                   setDiscoveringAppId(appId);
+                  setDiscoveryProgress(prev => ({ ...prev, [appId]: 'in_progress' }));
                   try {
                     const result = await discoverIntegrations.mutateAsync({
                       appNames: stackNames,
@@ -318,8 +329,12 @@ export default function Integrations() {
                     });
                     totalSaved += result.saved || 0;
                     totalDiscovered += result.discovered || 0;
+                    setDiscoveryProgress(prev => ({ ...prev, [appId]: 'done' }));
+                    setDiscoveryResults(prev => ({ ...prev, [appId]: { saved: result.saved || 0 } }));
                   } catch (err: any) {
                     console.error(`Discovery failed for ${appName}:`, err.message);
+                    setDiscoveryProgress(prev => ({ ...prev, [appId]: 'error' }));
+                    setDiscoveryResults(prev => ({ ...prev, [appId]: { error: err.message } }));
                   }
                 }
                 setDiscoveringAppId(null);
