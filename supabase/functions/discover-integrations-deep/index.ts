@@ -214,7 +214,7 @@ async function pass2_extractIntegrations(
 
 ${scrapedContent.slice(0, 30000)}
 
-TASK: From this scraped content, extract ALL integrations available for "${appName}".
+TASK: Extract ALL integrations available for "${appName}" from BOTH vendor-side and partner-side documentation.
 
 For context, these are the other apps in the user's stack: ${stackList}
 Prioritize integrations with these apps, but also include any other integrations found on the pages.
@@ -222,15 +222,18 @@ Prioritize integrations with these apps, but also include any other integrations
 For each integration found, provide:
 - The integration partner name
 - The direct URL to that specific integration's detail/documentation page (from the scraped links)
-- Connection type: native, api, webhook, syslog, agent-based, ztna, oauth, saml_sso, zapier, or other
+- Connection type: native, api, scim, scorm, webhook, syslog, agent-based, ztna, oauth, saml_sso, oidc, plugin, zapier, or other
 - Brief description of what the integration does
 - What data is shared
+- Who documents it: vendor, partner, or both
 
 CRITICAL RULES:
 1. ONLY include integrations you can see evidence of in the scraped content above.
 2. The documentation_url MUST be a specific page URL found in the scraped content — NOT a generic listing page.
 3. If you can't find a specific documentation URL for an integration from the scraped content, still include it but set documentation_url to empty string.
-4. Do NOT add integrations from your training data that aren't evidenced in the scraped content.`;
+4. Do NOT add integrations from your training data that aren't evidenced in the scraped content.
+5. Pay special attention to partner-side documentation — integrations documented on a partner's help site (e.g., help.drata.com documenting an Infosec IQ integration) are equally valid.
+6. Deduplicate: if both vendor and partner document the same integration, return one entry with documented_by set to "both".`;
 
   const aiData = await callAI(apiKey, [
     { role: "system", content: `You are extracting integration data from scraped web pages for ${appName}. Only report what you see in the scraped content. Be thorough but accurate.` },
