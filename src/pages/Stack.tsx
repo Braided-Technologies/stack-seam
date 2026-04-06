@@ -532,12 +532,12 @@ export default function Stack() {
 
                 <TabsContent value="integrations" className="pt-2 flex-1 flex flex-col overflow-hidden">
                   {userApps.length > 0 && (
-                    <div className="mb-3 flex-shrink-0">
+                    <div className="mb-3 flex-shrink-0 space-y-2">
                       <Button
                         size="sm"
                         variant="outline"
                         className="gap-2 w-full"
-                        disabled={discoverIntegrations.isPending}
+                        disabled={discoverIntegrations.isPending || deepScan.isPending}
                         onClick={handleDiscoverForInfoApp}
                       >
                         {discoverIntegrations.isPending ? (
@@ -545,8 +545,27 @@ export default function Stack() {
                         ) : (
                           <Zap className="h-3.5 w-3.5" />
                         )}
-                        {infoAppIntegrations.length === 0 ? 'Check Integrations with My Stack' : 'Re-check Integrations'}
+                        {infoAppIntegrations.length === 0 ? 'Quick Check' : 'Re-check Integrations'}
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="gap-2 w-full"
+                        disabled={discoverIntegrations.isPending || deepScan.isPending}
+                        onClick={handleDeepScanForInfoApp}
+                      >
+                        {deepScan.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Search className="h-3.5 w-3.5" />
+                        )}
+                        Deep Scan — Crawl Vendor Pages
+                      </Button>
+                      {deepScan.isPending && (
+                        <p className="text-xs text-muted-foreground text-center">
+                          Scraping vendor integration pages… this may take 30-60 seconds.
+                        </p>
+                      )}
                     </div>
                   )}
                   {infoAppIntegrations.length === 0 ? (
