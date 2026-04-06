@@ -45,7 +45,7 @@ export default function Integrations() {
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
   const { data: allIntegrations = [] } = useIntegrations();
   const { data: userApps = [] } = useUserApplications();
-  const { state: discoveryState, startBatchDiscovery, dismiss: dismissDiscovery, hasProgress } = useDiscovery();
+  const { state: discoveryState, startBatchDiscovery, dismiss: dismissDiscovery } = useDiscovery();
   const isDiscoveringAll = discoveryState.isRunning;
   const discoveryProgress = discoveryState.progress;
   const discoveryResults = discoveryState.results;
