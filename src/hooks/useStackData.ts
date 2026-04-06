@@ -233,3 +233,19 @@ export function useDiscoverIntegrations() {
     },
   });
 }
+
+export function useDeepScanIntegrations() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ focusApp, stackAppNames }: { focusApp: string; stackAppNames: string[] }) => {
+      const { data, error } = await supabase.functions.invoke('discover-integrations-deep', {
+        body: { focus_app: focusApp, stack_app_names: stackAppNames, remove_undocumented: true },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['integrations'] });
+    },
+  });
+}

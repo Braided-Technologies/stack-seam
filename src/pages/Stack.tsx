@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { formatCompactCurrency } from '@/lib/formatters';
 import { useNavigate } from 'react-router-dom';
-import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication, useIntegrations, useDiscoverIntegrations } from '@/hooks/useStackData';
+import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication, useIntegrations, useDiscoverIntegrations, useDeepScanIntegrations } from '@/hooks/useStackData';
 import SearchToolDialog from '@/components/SearchToolDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,7 @@ export default function Stack() {
   const removeApp = useRemoveUserApplication();
   const updateApp = useUpdateUserApplication();
   const discoverIntegrations = useDiscoverIntegrations();
+  const deepScan = useDeepScanIntegrations();
   const { userRole } = useAuth();
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
   const navigate = useNavigate();
@@ -117,6 +118,32 @@ export default function Stack() {
       });
     } catch (e: any) {
       toast({ title: 'Discovery failed', description: e.message, variant: 'destructive' });
+    }
+  };
+
+  const handleDeepScanForInfoApp = async () => {
+    if (!infoApp) return;
+
+    const stackNames = userApps
+      .map((ua: any) => ua.applications?.name)
+      .filter(Boolean) as string[];
+
+    try {
+      const result = await deepScan.mutateAsync({
+        focusApp: infoApp.name,
+        stackAppNames: stackNames,
+      });
+      await refetchIntegrations();
+
+      const saved = Number(result?.saved || 0);
+      const removed = Number(result?.removed || 0);
+      const discovered = Number(result?.discovered || 0);
+      toast({
+        title: `Deep scan complete for ${infoApp.name}`,
+        description: `${discovered} found, ${saved} saved, ${removed} undocumented removed.`,
+      });
+    } catch (e: any) {
+      toast({ title: 'Deep scan failed', description: e.message, variant: 'destructive' });
     }
   };
 
@@ -505,12 +532,12 @@ export default function Stack() {
 
                 <TabsContent value="integrations" className="pt-2 flex-1 flex flex-col overflow-hidden">
                   {userApps.length > 0 && (
-                    <div className="mb-3 flex-shrink-0">
+                    <div className="mb-3 flex-shrink-0 space-y-2">
                       <Button
                         size="sm"
                         variant="outline"
                         className="gap-2 w-full"
-                        disabled={discoverIntegrations.isPending}
+                        disabled={discoverIntegrations.isPending || deepScan.isPending}
                         onClick={handleDiscoverForInfoApp}
                       >
                         {discoverIntegrations.isPending ? (
@@ -518,8 +545,27 @@ export default function Stack() {
                         ) : (
                           <Zap className="h-3.5 w-3.5" />
                         )}
-                        {infoAppIntegrations.length === 0 ? 'Check Integrations with My Stack' : 'Re-check Integrations'}
+                        {infoAppIntegrations.length === 0 ? 'Quick Check' : 'Re-check Integrations'}
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="gap-2 w-full"
+                        disabled={discoverIntegrations.isPending || deepScan.isPending}
+                        onClick={handleDeepScanForInfoApp}
+                      >
+                        {deepScan.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Search className="h-3.5 w-3.5" />
+                        )}
+                        Deep Scan — Crawl Vendor Pages
+                      </Button>
+                      {deepScan.isPending && (
+                        <p className="text-xs text-muted-foreground text-center">
+                          Scraping vendor integration pages… this may take 30-60 seconds.
+                        </p>
+                      )}
                     </div>
                   )}
                   {infoAppIntegrations.length === 0 ? (

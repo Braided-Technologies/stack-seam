@@ -103,7 +103,10 @@ export default function AppIntegrationsPanel({ open, onClose, appName, appId, in
                         <ExternalLink className="h-3 w-3" />
                         Documentation
                       </a>
-                      <span className="text-[10px] text-muted-foreground italic">⚠ Unverified link</span>
+                      {(integ as any).link_status === 'verified'
+                        ? <span className="text-[10px] text-green-600 dark:text-green-400">✓ Verified</span>
+                        : <span className="text-[10px] text-muted-foreground italic">⚠ Unverified link</span>
+                      }
                     </div>
                   )}
                 </div>
