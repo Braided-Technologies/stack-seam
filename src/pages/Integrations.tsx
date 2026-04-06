@@ -40,15 +40,15 @@ export default function Integrations() {
   const [sourcePopoverOpen, setSourcePopoverOpen] = useState(false);
   const [targetPopoverOpen, setTargetPopoverOpen] = useState(false);
   const [discoveringAppId, setDiscoveringAppId] = useState<string | null>(null);
-  const [isDiscoveringAll, setIsDiscoveringAll] = useState(false);
-  const [discoveryProgress, setDiscoveryProgress] = useState<Record<string, 'queued' | 'in_progress' | 'done' | 'error'>>({});
-  const [discoveryResults, setDiscoveryResults] = useState<Record<string, { saved?: number; error?: string }>>({});
 
   const { orgId, userRole, user } = useAuth();
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
   const { data: allIntegrations = [] } = useIntegrations();
   const { data: userApps = [] } = useUserApplications();
-  const discoverIntegrations = useDiscoverIntegrations();
+  const { state: discoveryState, startBatchDiscovery, dismiss: dismissDiscovery, hasProgress } = useDiscovery();
+  const isDiscoveringAll = discoveryState.isRunning;
+  const discoveryProgress = discoveryState.progress;
+  const discoveryResults = discoveryState.results;
   const queryClient = useQueryClient();
 
   // Fetch all approved apps for submit integration dialog
