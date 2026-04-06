@@ -473,6 +473,22 @@ Deno.serve(async (req) => {
       }
     }
 
+    // PASS 3: Knowledge fallback if scraping found few results
+    const MAX_SCRAPE_THRESHOLD = 3;
+    if (verified.length < MAX_SCRAPE_THRESHOLD) {
+      console.log(`Only ${verified.length} integrations from scraping, running knowledge fallback...`);
+      const existingTargetNames = new Set(verified.map((i: any) => normalizeName(i.target)));
+      const knowledgeIntegrations = await pass3_knowledgeFallback(focus_app, stackNames, existingTargetNames, LOVABLE_API_KEY);
+      
+      for (const integ of knowledgeIntegrations) {
+        // Skip if we already have this target from scraping
+        if (existingTargetNames.has(normalizeName(integ.target))) continue;
+        verified.push({ ...integ, documentation_url: '', link_status: 'unchecked' });
+        existingTargetNames.add(normalizeName(integ.target));
+      }
+      console.log(`After knowledge fallback: ${verified.length} total integrations`);
+    }
+
     // Upsert into DB
     let savedCount = 0;
     let removedCount = 0;
