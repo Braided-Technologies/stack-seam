@@ -297,54 +297,7 @@ export default function Integrations() {
               size="sm"
               className="gap-2"
               disabled={isDiscoveringAll}
-              onClick={async () => {
-                const stackNames = userApps
-                  .map((ua: any) => ua.applications?.name)
-                  .filter(Boolean) as string[];
-                if (stackNames.length < 2) {
-                  toast({ title: 'Need at least 2 apps', description: 'Add more apps to your stack first.', variant: 'destructive' });
-                  return;
-                }
-                // Initialize progress for all apps
-                const initialProgress: Record<string, 'queued' | 'in_progress' | 'done' | 'error'> = {};
-                userApps.forEach(ua => {
-                  if ((ua as any).applications?.name) {
-                    initialProgress[ua.application_id] = 'queued';
-                  }
-                });
-                setDiscoveryProgress(initialProgress);
-                setDiscoveryResults({});
-                setIsDiscoveringAll(true);
-                let totalSaved = 0;
-                let totalDiscovered = 0;
-                for (const ua of userApps) {
-                  const appName = (ua as any).applications?.name;
-                  const appId = ua.application_id;
-                  if (!appName) continue;
-                  setDiscoveringAppId(appId);
-                  setDiscoveryProgress(prev => ({ ...prev, [appId]: 'in_progress' }));
-                  try {
-                    const result = await discoverIntegrations.mutateAsync({
-                      appNames: stackNames,
-                      focusApp: appName,
-                    });
-                    totalSaved += result.saved || 0;
-                    totalDiscovered += result.discovered || 0;
-                    setDiscoveryProgress(prev => ({ ...prev, [appId]: 'done' }));
-                    setDiscoveryResults(prev => ({ ...prev, [appId]: { saved: result.saved || 0 } }));
-                  } catch (err: any) {
-                    console.error(`Discovery failed for ${appName}:`, err.message);
-                    setDiscoveryProgress(prev => ({ ...prev, [appId]: 'error' }));
-                    setDiscoveryResults(prev => ({ ...prev, [appId]: { error: err.message } }));
-                  }
-                }
-                setDiscoveringAppId(null);
-                setIsDiscoveringAll(false);
-                toast({
-                  title: `Discovery complete: ${totalSaved} new integrations`,
-                  description: totalDiscovered > totalSaved ? `${totalDiscovered - totalSaved} already existed or were filtered.` : 'All apps checked.',
-                });
-              }}
+              onClick={() => startBatchDiscovery(userApps as any)}
             >
               {isDiscoveringAll ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
