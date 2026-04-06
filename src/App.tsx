@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { DiscoveryProvider } from "@/contexts/DiscoveryContext";
 import Auth from "./pages/Auth";
 import OrgSetup from "./pages/OrgSetup";
 import MfaSetup from "./pages/MfaSetup";
@@ -66,7 +67,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <AppRoutes />
+          <DiscoveryProvider>
+            <AppRoutes />
+          </DiscoveryProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

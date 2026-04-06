@@ -72,7 +72,7 @@ async function fetchPageText(url: string): Promise<{ text: string; links: string
 }
 
 async function callAI(apiKey: string, messages: any[], tools?: any[], toolChoice?: any) {
-  const body: any = { model: "google/gemini-2.5-flash", messages };
+  const body: any = { model: "google/gemini-2.5-flash", messages, max_tokens: 8192 };
   if (tools) { body.tools = tools; body.tool_choice = toolChoice; }
 
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -94,32 +94,40 @@ async function callAI(apiKey: string, messages: any[], tools?: any[], toolChoice
   return await res.json();
 }
 
-// PASS 1: Ask AI to identify the vendor's integration pages and docs subdomains
+// PASS 1: Ask AI to identify the vendor's integration pages, docs subdomains, AND reverse partner pages
 async function pass1_findIntegrationPages(
   appName: string,
   vendorUrl: string | undefined,
+  stackAppNames: string[],
   apiKey: string
 ): Promise<string[]> {
   const vendorDomain = vendorUrl ? extractDomain(vendorUrl) : `${normalizeName(appName)}.com`;
 
   const prompt = `For the software application "${appName}" (vendor domain: ${vendorDomain}):
 
-1. Find the vendor's official integrations/partnerships page. Check paths like:
-   - /integrations, /partners, /ecosystem, /marketplace, /apps, /connections, /plugins, /extensions
-2. Check documentation subdomains: docs.${vendorDomain}, support.${vendorDomain}, help.${vendorDomain}, kb.${vendorDomain}
-3. Check for integration guides sections in their docs/KB site.
+PASS 1 — Vendor site crawl:
+1. Identify the vendor's official website.
+2. Find their integrations/partnerships page (check paths like /integrations, /partners, /ecosystem, /marketplace, /apps, /connections, /plugins, /extensions, /technology-partners).
+3. Also check their support/docs site (docs.${vendorDomain}, support.${vendorDomain}, help.${vendorDomain}, kb.${vendorDomain}) for integration guides.
+
+PASS 2 — Reverse partner lookup:
+4. Search for "${appName}" integration pages on PARTNER vendor sites. Many integrations are documented on the partner's site, not the vendor's.
+   For example, if "${appName}" integrates with Drata, the docs might be at help.drata.com, not on ${vendorDomain}.
+5. Check known documentation platforms: *.zendesk.com, help.*, docs.*, support.*, kb.* for "${appName} integration" pages.
+6. For each of these apps in the user's stack, check if they document an integration with "${appName}": ${stackAppNames.join(', ')}
 
 Return ALL real URLs you know of that list integrations or contain integration documentation for ${appName}.
+Include URLs from BOTH the vendor's own site AND partner/third-party sites that document integrations with ${appName}.
 Only return URLs you are confident actually exist — do NOT fabricate URLs.`;
 
   const aiData = await callAI(apiKey, [
-    { role: "system", content: "You are an expert at finding software vendor integration pages. Only return URLs you are confident exist." },
+    { role: "system", content: "You are an expert at finding software vendor integration pages. Include both vendor-side AND partner-side documentation URLs. Many integrations are only documented on the partner's site." },
     { role: "user", content: prompt },
   ], [{
     type: "function",
     function: {
       name: "report_integration_pages",
-      description: "Report discovered integration page URLs for this vendor",
+      description: "Report discovered integration page URLs for this vendor and its partners",
       parameters: {
         type: "object",
         properties: {
@@ -129,7 +137,8 @@ Only return URLs you are confident actually exist — do NOT fabricate URLs.`;
               type: "object",
               properties: {
                 url: { type: "string", description: "Full URL of the integration page" },
-                type: { type: "string", enum: ["integrations_listing", "marketplace", "docs_hub", "partners_page", "api_docs"] },
+                type: { type: "string", enum: ["integrations_listing", "marketplace", "docs_hub", "partners_page", "api_docs", "partner_docs"] },
+                documented_by: { type: "string", enum: ["vendor", "partner"], description: "Whether this page is on the vendor's site or a partner's site" },
               },
               required: ["url", "type"],
               additionalProperties: false,
@@ -205,7 +214,7 @@ async function pass2_extractIntegrations(
 
 ${scrapedContent.slice(0, 30000)}
 
-TASK: From this scraped content, extract ALL integrations available for "${appName}".
+TASK: Extract ALL integrations available for "${appName}" from BOTH vendor-side and partner-side documentation.
 
 For context, these are the other apps in the user's stack: ${stackList}
 Prioritize integrations with these apps, but also include any other integrations found on the pages.
@@ -213,24 +222,27 @@ Prioritize integrations with these apps, but also include any other integrations
 For each integration found, provide:
 - The integration partner name
 - The direct URL to that specific integration's detail/documentation page (from the scraped links)
-- Connection type: native, api, webhook, syslog, agent-based, ztna, oauth, saml_sso, zapier, or other
+- Connection type: native, api, scim, scorm, webhook, syslog, agent-based, ztna, oauth, saml_sso, oidc, plugin, zapier, or other
 - Brief description of what the integration does
 - What data is shared
+- Who documents it: vendor, partner, or both
 
 CRITICAL RULES:
 1. ONLY include integrations you can see evidence of in the scraped content above.
 2. The documentation_url MUST be a specific page URL found in the scraped content — NOT a generic listing page.
 3. If you can't find a specific documentation URL for an integration from the scraped content, still include it but set documentation_url to empty string.
-4. Do NOT add integrations from your training data that aren't evidenced in the scraped content.`;
+4. Do NOT add integrations from your training data that aren't evidenced in the scraped content.
+5. Pay special attention to partner-side documentation — integrations documented on a partner's help site (e.g., help.drata.com documenting an Infosec IQ integration) are equally valid.
+6. Deduplicate: if both vendor and partner document the same integration, return one entry with documented_by set to "both".`;
 
   const aiData = await callAI(apiKey, [
-    { role: "system", content: `You are extracting integration data from scraped web pages for ${appName}. Only report what you see in the scraped content. Be thorough but accurate.` },
+    { role: "system", content: `You are extracting integration data from scraped web pages for ${appName}. Include integrations documented on BOTH vendor and partner sites. Only report what you see in the scraped content. Be thorough but accurate.` },
     { role: "user", content: prompt },
   ], [{
     type: "function",
     function: {
       name: "report_integrations",
-      description: "Report integrations found in the scraped vendor pages",
+      description: "Report integrations found in scraped vendor and partner pages",
       parameters: {
         type: "object",
         properties: {
@@ -244,10 +256,11 @@ CRITICAL RULES:
                 description: { type: "string" },
                 integration_type: {
                   type: "string",
-                  enum: ["native", "api", "webhook", "syslog", "agent-based", "ztna", "oauth", "saml_sso", "zapier", "other"],
+                  enum: ["native", "api", "scim", "scorm", "webhook", "syslog", "agent-based", "ztna", "oauth", "saml_sso", "oidc", "plugin", "zapier", "other"],
                 },
                 data_shared: { type: "string" },
                 documentation_url: { type: "string", description: "Specific page URL from scraped content, or empty if not found" },
+                documented_by: { type: "string", enum: ["vendor", "partner", "both"], description: "Who documents this integration" },
               },
               required: ["source", "target", "description", "integration_type", "data_shared", "documentation_url"],
               additionalProperties: false,
@@ -363,7 +376,7 @@ Deno.serve(async (req) => {
     console.log(`Deep scan starting for "${focus_app}" (vendor: ${vendorUrl || 'unknown'})`);
 
     // PASS 1: Find integration pages
-    const integrationPageUrls = await pass1_findIntegrationPages(focus_app, vendorUrl, LOVABLE_API_KEY);
+    const integrationPageUrls = await pass1_findIntegrationPages(focus_app, vendorUrl, stackNames, LOVABLE_API_KEY);
 
     // Also try scraping common paths directly as fallback
     const vendorDomain = vendorUrl ? extractDomain(vendorUrl) : '';

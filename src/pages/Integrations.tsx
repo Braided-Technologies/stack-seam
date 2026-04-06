@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { useIntegrations, useUserApplications, useDiscoverIntegrations } from '@/hooks/useStackData';
+import { useIntegrations, useUserApplications } from '@/hooks/useStackData';
+import { useDiscovery } from '@/contexts/DiscoveryContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -39,15 +40,15 @@ export default function Integrations() {
   const [sourcePopoverOpen, setSourcePopoverOpen] = useState(false);
   const [targetPopoverOpen, setTargetPopoverOpen] = useState(false);
   const [discoveringAppId, setDiscoveringAppId] = useState<string | null>(null);
-  const [isDiscoveringAll, setIsDiscoveringAll] = useState(false);
-  const [discoveryProgress, setDiscoveryProgress] = useState<Record<string, 'queued' | 'in_progress' | 'done' | 'error'>>({});
-  const [discoveryResults, setDiscoveryResults] = useState<Record<string, { saved?: number; error?: string }>>({});
 
   const { orgId, userRole, user } = useAuth();
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
   const { data: allIntegrations = [] } = useIntegrations();
   const { data: userApps = [] } = useUserApplications();
-  const discoverIntegrations = useDiscoverIntegrations();
+  const { state: discoveryState, startBatchDiscovery, dismiss: dismissDiscovery } = useDiscovery();
+  const isDiscoveringAll = discoveryState.isRunning;
+  const discoveryProgress = discoveryState.progress;
+  const discoveryResults = discoveryState.results;
   const queryClient = useQueryClient();
 
   // Fetch all approved apps for submit integration dialog
@@ -296,54 +297,7 @@ export default function Integrations() {
               size="sm"
               className="gap-2"
               disabled={isDiscoveringAll}
-              onClick={async () => {
-                const stackNames = userApps
-                  .map((ua: any) => ua.applications?.name)
-                  .filter(Boolean) as string[];
-                if (stackNames.length < 2) {
-                  toast({ title: 'Need at least 2 apps', description: 'Add more apps to your stack first.', variant: 'destructive' });
-                  return;
-                }
-                // Initialize progress for all apps
-                const initialProgress: Record<string, 'queued' | 'in_progress' | 'done' | 'error'> = {};
-                userApps.forEach(ua => {
-                  if ((ua as any).applications?.name) {
-                    initialProgress[ua.application_id] = 'queued';
-                  }
-                });
-                setDiscoveryProgress(initialProgress);
-                setDiscoveryResults({});
-                setIsDiscoveringAll(true);
-                let totalSaved = 0;
-                let totalDiscovered = 0;
-                for (const ua of userApps) {
-                  const appName = (ua as any).applications?.name;
-                  const appId = ua.application_id;
-                  if (!appName) continue;
-                  setDiscoveringAppId(appId);
-                  setDiscoveryProgress(prev => ({ ...prev, [appId]: 'in_progress' }));
-                  try {
-                    const result = await discoverIntegrations.mutateAsync({
-                      appNames: stackNames,
-                      focusApp: appName,
-                    });
-                    totalSaved += result.saved || 0;
-                    totalDiscovered += result.discovered || 0;
-                    setDiscoveryProgress(prev => ({ ...prev, [appId]: 'done' }));
-                    setDiscoveryResults(prev => ({ ...prev, [appId]: { saved: result.saved || 0 } }));
-                  } catch (err: any) {
-                    console.error(`Discovery failed for ${appName}:`, err.message);
-                    setDiscoveryProgress(prev => ({ ...prev, [appId]: 'error' }));
-                    setDiscoveryResults(prev => ({ ...prev, [appId]: { error: err.message } }));
-                  }
-                }
-                setDiscoveringAppId(null);
-                setIsDiscoveringAll(false);
-                toast({
-                  title: `Discovery complete: ${totalSaved} new integrations`,
-                  description: totalDiscovered > totalSaved ? `${totalDiscovered - totalSaved} already existed or were filtered.` : 'All apps checked.',
-                });
-              }}
+              onClick={() => startBatchDiscovery(userApps as any)}
             >
               {isDiscoveringAll ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -413,7 +367,7 @@ export default function Integrations() {
                 Integration Discovery Progress
               </CardTitle>
               {!isDiscoveringAll && Object.keys(discoveryProgress).length > 0 && (
-                <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { setDiscoveryProgress({}); setDiscoveryResults({}); }}>
+                <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={dismissDiscovery}>
                   Dismiss
                 </Button>
               )}
@@ -421,14 +375,11 @@ export default function Integrations() {
           </CardHeader>
           <CardContent>
             <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
-              {userApps
-                .filter(ua => discoveryProgress[ua.application_id])
-                .map(ua => {
-                  const appName = (ua as any).applications?.name || 'Unknown';
-                  const status = discoveryProgress[ua.application_id];
-                  const result = discoveryResults[ua.application_id];
+              {Object.entries(discoveryProgress).map(([appId, status]) => {
+                  const appName = discoveryState.appNames[appId] || userApps.find(ua => ua.application_id === appId)?.applications?.name || 'Unknown';
+                  const result = discoveryResults[appId];
                   return (
-                    <div key={ua.application_id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                    <div key={appId} className="flex items-center justify-between rounded-md border px-3 py-2">
                       <span className="text-sm font-medium truncate mr-3">{appName}</span>
                       <div className="flex items-center gap-2 shrink-0">
                         {status === 'queued' && (
@@ -547,11 +498,12 @@ export default function Integrations() {
                                 if (stackNames.length < 2) return;
                                 setDiscoveringAppId(app.appId);
                                 try {
-                                  const result = await discoverIntegrations.mutateAsync({
-                                    appNames: stackNames.includes(app.appName) ? stackNames : [app.appName, ...stackNames],
-                                    focusApp: app.appName,
+                                  const { data: result, error } = await supabase.functions.invoke('discover-integrations', {
+                                    body: { app_names: stackNames.includes(app.appName) ? stackNames : [app.appName, ...stackNames], focus_app: app.appName },
                                   });
+                                  if (error) throw error;
                                   toast({ title: `Found ${result.saved || 0} new integrations for ${app.appName}` });
+                                  queryClient.invalidateQueries({ queryKey: ['integrations'] });
                                 } catch (err: any) {
                                   toast({ title: 'Discovery failed', description: err.message, variant: 'destructive' });
                                 } finally {
