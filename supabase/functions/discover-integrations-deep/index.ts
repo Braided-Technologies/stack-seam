@@ -376,7 +376,7 @@ Deno.serve(async (req) => {
     console.log(`Deep scan starting for "${focus_app}" (vendor: ${vendorUrl || 'unknown'})`);
 
     // PASS 1: Find integration pages
-    const integrationPageUrls = await pass1_findIntegrationPages(focus_app, vendorUrl, LOVABLE_API_KEY);
+    const integrationPageUrls = await pass1_findIntegrationPages(focus_app, vendorUrl, stackNames, LOVABLE_API_KEY);
 
     // Also try scraping common paths directly as fallback
     const vendorDomain = vendorUrl ? extractDomain(vendorUrl) : '';
