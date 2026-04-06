@@ -375,14 +375,11 @@ export default function Integrations() {
           </CardHeader>
           <CardContent>
             <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
-              {userApps
-                .filter(ua => discoveryProgress[ua.application_id])
-                .map(ua => {
-                  const appName = (ua as any).applications?.name || 'Unknown';
-                  const status = discoveryProgress[ua.application_id];
-                  const result = discoveryResults[ua.application_id];
+              {Object.entries(discoveryProgress).map(([appId, status]) => {
+                  const appName = discoveryState.appNames[appId] || userApps.find(ua => ua.application_id === appId)?.applications?.name || 'Unknown';
+                  const result = discoveryResults[appId];
                   return (
-                    <div key={ua.application_id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                    <div key={appId} className="flex items-center justify-between rounded-md border px-3 py-2">
                       <span className="text-sm font-medium truncate mr-3">{appName}</span>
                       <div className="flex items-center gap-2 shrink-0">
                         {status === 'queued' && (
