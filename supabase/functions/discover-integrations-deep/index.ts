@@ -173,10 +173,12 @@ async function pass2_extractIntegrations(
 
   let scrapedContent = '';
   const allSubLinks: string[] = [];
+  let pagesScraped = 0;
 
   for (let i = 0; i < fetchResults.length; i++) {
     const result = fetchResults[i];
     if (result.status === 'fulfilled' && result.value) {
+      pagesScraped++;
       const { text, links } = result.value;
       scrapedContent += `\n\n=== PAGE: ${pagesToFetch[i]} ===\n${text}`;
 
@@ -198,16 +200,18 @@ async function pass2_extractIntegrations(
     for (let i = 0; i < subResults.length; i++) {
       const result = subResults[i];
       if (result.status === 'fulfilled' && result.value) {
+        pagesScraped++;
         scrapedContent += `\n\n=== SUB-PAGE: ${uniqueSubLinks[i]} ===\n${result.value.text.slice(0, 4000)}`;
       }
     }
   }
 
   if (!scrapedContent) {
-    console.log(`Pass 2: No pages could be scraped for ${appName}`);
+    console.log(`Pass 2: No pages could be scraped for ${appName}, skipping to knowledge pass`);
     return [];
   }
 
+  console.log(`Pass 2: Scraped ${pagesScraped} pages for ${appName}`);
   const stackList = stackAppNames.join(', ');
 
   const prompt = `I've scraped the integration/partnership pages for "${appName}". Here's the content:
@@ -220,7 +224,8 @@ For context, these are the other apps in the user's stack: ${stackList}
 Prioritize integrations with these apps, but also include any other integrations found on the pages.
 
 For each integration found, provide:
-- The integration partner name
+- source: ALWAYS set to "${appName}" (the focus app)
+- target: The name of the PARTNER application that integrates with "${appName}" (this must NOT be "${appName}")
 - The direct URL to that specific integration's detail/documentation page (from the scraped links)
 - Connection type: native, api, scim, scorm, webhook, syslog, agent-based, ztna, oauth, saml_sso, oidc, plugin, zapier, or other
 - Brief description of what the integration does
@@ -228,21 +233,60 @@ For each integration found, provide:
 - Who documents it: vendor, partner, or both
 
 CRITICAL RULES:
-1. ONLY include integrations you can see evidence of in the scraped content above.
-2. The documentation_url MUST be a specific page URL found in the scraped content — NOT a generic listing page.
-3. If you can't find a specific documentation URL for an integration from the scraped content, still include it but set documentation_url to empty string.
-4. Do NOT add integrations from your training data that aren't evidenced in the scraped content.
-5. Pay special attention to partner-side documentation — integrations documented on a partner's help site (e.g., help.drata.com documenting an Infosec IQ integration) are equally valid.
-6. Deduplicate: if both vendor and partner document the same integration, return one entry with documented_by set to "both".`;
+1. source MUST always be "${appName}". target must be the OTHER app — never "${appName}" itself.
+2. ONLY include integrations you can see evidence of in the scraped content above.
+3. The documentation_url MUST be a specific page URL found in the scraped content — NOT a generic listing page.
+4. If you can't find a specific documentation URL for an integration from the scraped content, still include it but set documentation_url to empty string.
+5. Do NOT add integrations from your training data that aren't evidenced in the scraped content.
+6. Pay special attention to partner-side documentation.
+7. Deduplicate: if both vendor and partner document the same integration, return one entry with documented_by set to "both".`;
 
+  return await callAIForIntegrations(appName, prompt, apiKey);
+}
+
+// PASS 3: Knowledge-based fallback when scraping yields few/no results
+async function pass3_knowledgeFallback(
+  appName: string,
+  stackAppNames: string[],
+  existingTargets: Set<string>,
+  apiKey: string
+): Promise<any[]> {
+  console.log(`Pass 3: Knowledge fallback for ${appName} (${existingTargets.size} already found)`);
+
+  const stackList = stackAppNames.join(', ');
+  const alreadyFound = [...existingTargets].join(', ');
+
+  const prompt = `You are an expert on software integrations. List ALL known integrations and connections for "${appName}".
+
+${alreadyFound ? `Already discovered (do NOT repeat these): ${alreadyFound}` : ''}
+
+The user's stack includes these apps: ${stackList}
+Pay special attention to integrations with apps in their stack.
+
+For EACH integration, provide:
+- source: ALWAYS "${appName}"
+- target: The partner app name (NEVER "${appName}" itself)
+- description: What the integration does
+- integration_type: native, api, scim, scorm, webhook, syslog, agent-based, ztna, oauth, saml_sso, oidc, plugin, zapier, or other
+- data_shared: What data flows between them
+- documentation_url: Leave empty (we'll verify later)
+- documented_by: vendor, partner, or both
+
+IMPORTANT: Only include integrations you are confident exist. Do NOT fabricate integrations.
+source MUST always be "${appName}". target must be the OTHER app name.`;
+
+  return await callAIForIntegrations(appName, prompt, apiKey);
+}
+
+async function callAIForIntegrations(appName: string, prompt: string, apiKey: string): Promise<any[]> {
   const aiData = await callAI(apiKey, [
-    { role: "system", content: `You are extracting integration data from scraped web pages for ${appName}. Include integrations documented on BOTH vendor and partner sites. Only report what you see in the scraped content. Be thorough but accurate.` },
+    { role: "system", content: `You are extracting integration data for ${appName}. source must ALWAYS be "${appName}". target must be the partner app name, NEVER "${appName}".` },
     { role: "user", content: prompt },
   ], [{
     type: "function",
     function: {
       name: "report_integrations",
-      description: "Report integrations found in scraped vendor and partner pages",
+      description: "Report integrations found",
       parameters: {
         type: "object",
         properties: {
@@ -251,16 +295,16 @@ CRITICAL RULES:
             items: {
               type: "object",
               properties: {
-                source: { type: "string", description: "Always the focus app name" },
-                target: { type: "string", description: "The integration partner name" },
+                source: { type: "string", description: `Always "${appName}"` },
+                target: { type: "string", description: "The integration partner name — must NOT be the focus app" },
                 description: { type: "string" },
                 integration_type: {
                   type: "string",
                   enum: ["native", "api", "scim", "scorm", "webhook", "syslog", "agent-based", "ztna", "oauth", "saml_sso", "oidc", "plugin", "zapier", "other"],
                 },
                 data_shared: { type: "string" },
-                documentation_url: { type: "string", description: "Specific page URL from scraped content, or empty if not found" },
-                documented_by: { type: "string", enum: ["vendor", "partner", "both"], description: "Who documents this integration" },
+                documentation_url: { type: "string", description: "Specific page URL or empty string" },
+                documented_by: { type: "string", enum: ["vendor", "partner", "both"] },
               },
               required: ["source", "target", "description", "integration_type", "data_shared", "documentation_url"],
               additionalProperties: false,
@@ -277,8 +321,21 @@ CRITICAL RULES:
   if (!toolCall) return [];
 
   const parsed = JSON.parse(toolCall.function.arguments);
-  const integrations = parsed.integrations || [];
-  console.log(`Pass 2: AI extracted ${integrations.length} integrations for ${appName}`);
+  const integrations = (parsed.integrations || []).filter((i: any) => {
+    // Fix swapped source/target
+    if (normalizeName(i.target) === normalizeName(appName) && normalizeName(i.source) !== normalizeName(appName)) {
+      const tmp = i.target;
+      i.target = i.source;
+      i.source = tmp;
+    }
+    // Skip self-references
+    if (normalizeName(i.target) === normalizeName(appName)) {
+      console.log(`Skipping self-reference: ${i.target}`);
+      return false;
+    }
+    return true;
+  });
+  console.log(`AI extracted ${integrations.length} integrations for ${appName}`);
   return integrations;
 }
 
