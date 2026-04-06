@@ -325,7 +325,7 @@ export default function Stack() {
   const ungroupedCats = categories.filter(c => !groupedCatNames.has(c.name));
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 min-w-0 overflow-x-hidden">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">My Stack</h1>
