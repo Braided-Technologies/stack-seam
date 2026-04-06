@@ -94,32 +94,40 @@ async function callAI(apiKey: string, messages: any[], tools?: any[], toolChoice
   return await res.json();
 }
 
-// PASS 1: Ask AI to identify the vendor's integration pages and docs subdomains
+// PASS 1: Ask AI to identify the vendor's integration pages, docs subdomains, AND reverse partner pages
 async function pass1_findIntegrationPages(
   appName: string,
   vendorUrl: string | undefined,
+  stackAppNames: string[],
   apiKey: string
 ): Promise<string[]> {
   const vendorDomain = vendorUrl ? extractDomain(vendorUrl) : `${normalizeName(appName)}.com`;
 
   const prompt = `For the software application "${appName}" (vendor domain: ${vendorDomain}):
 
-1. Find the vendor's official integrations/partnerships page. Check paths like:
-   - /integrations, /partners, /ecosystem, /marketplace, /apps, /connections, /plugins, /extensions
-2. Check documentation subdomains: docs.${vendorDomain}, support.${vendorDomain}, help.${vendorDomain}, kb.${vendorDomain}
-3. Check for integration guides sections in their docs/KB site.
+PASS 1 — Vendor site crawl:
+1. Identify the vendor's official website.
+2. Find their integrations/partnerships page (check paths like /integrations, /partners, /ecosystem, /marketplace, /apps, /connections, /plugins, /extensions, /technology-partners).
+3. Also check their support/docs site (docs.${vendorDomain}, support.${vendorDomain}, help.${vendorDomain}, kb.${vendorDomain}) for integration guides.
+
+PASS 2 — Reverse partner lookup:
+4. Search for "${appName}" integration pages on PARTNER vendor sites. Many integrations are documented on the partner's site, not the vendor's.
+   For example, if "${appName}" integrates with Drata, the docs might be at help.drata.com, not on ${vendorDomain}.
+5. Check known documentation platforms: *.zendesk.com, help.*, docs.*, support.*, kb.* for "${appName} integration" pages.
+6. For each of these apps in the user's stack, check if they document an integration with "${appName}": ${stackAppNames.join(', ')}
 
 Return ALL real URLs you know of that list integrations or contain integration documentation for ${appName}.
+Include URLs from BOTH the vendor's own site AND partner/third-party sites that document integrations with ${appName}.
 Only return URLs you are confident actually exist — do NOT fabricate URLs.`;
 
   const aiData = await callAI(apiKey, [
-    { role: "system", content: "You are an expert at finding software vendor integration pages. Only return URLs you are confident exist." },
+    { role: "system", content: "You are an expert at finding software vendor integration pages. Include both vendor-side AND partner-side documentation URLs. Many integrations are only documented on the partner's site." },
     { role: "user", content: prompt },
   ], [{
     type: "function",
     function: {
       name: "report_integration_pages",
-      description: "Report discovered integration page URLs for this vendor",
+      description: "Report discovered integration page URLs for this vendor and its partners",
       parameters: {
         type: "object",
         properties: {
@@ -129,7 +137,8 @@ Only return URLs you are confident actually exist — do NOT fabricate URLs.`;
               type: "object",
               properties: {
                 url: { type: "string", description: "Full URL of the integration page" },
-                type: { type: "string", enum: ["integrations_listing", "marketplace", "docs_hub", "partners_page", "api_docs"] },
+                type: { type: "string", enum: ["integrations_listing", "marketplace", "docs_hub", "partners_page", "api_docs", "partner_docs"] },
+                documented_by: { type: "string", enum: ["vendor", "partner"], description: "Whether this page is on the vendor's site or a partner's site" },
               },
               required: ["url", "type"],
               additionalProperties: false,
