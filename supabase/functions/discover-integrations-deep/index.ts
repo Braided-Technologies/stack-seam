@@ -242,7 +242,7 @@ CRITICAL RULES:
     type: "function",
     function: {
       name: "report_integrations",
-      description: "Report integrations found in the scraped vendor pages",
+      description: "Report integrations found in scraped vendor and partner pages",
       parameters: {
         type: "object",
         properties: {
@@ -256,10 +256,11 @@ CRITICAL RULES:
                 description: { type: "string" },
                 integration_type: {
                   type: "string",
-                  enum: ["native", "api", "webhook", "syslog", "agent-based", "ztna", "oauth", "saml_sso", "zapier", "other"],
+                  enum: ["native", "api", "scim", "scorm", "webhook", "syslog", "agent-based", "ztna", "oauth", "saml_sso", "oidc", "plugin", "zapier", "other"],
                 },
                 data_shared: { type: "string" },
                 documentation_url: { type: "string", description: "Specific page URL from scraped content, or empty if not found" },
+                documented_by: { type: "string", enum: ["vendor", "partner", "both"], description: "Who documents this integration" },
               },
               required: ["source", "target", "description", "integration_type", "data_shared", "documentation_url"],
               additionalProperties: false,
