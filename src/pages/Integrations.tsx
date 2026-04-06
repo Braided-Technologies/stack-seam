@@ -367,7 +367,7 @@ export default function Integrations() {
                 Integration Discovery Progress
               </CardTitle>
               {!isDiscoveringAll && Object.keys(discoveryProgress).length > 0 && (
-                <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { setDiscoveryProgress({}); setDiscoveryResults({}); }}>
+                <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={dismissDiscovery}>
                   Dismiss
                 </Button>
               )}
