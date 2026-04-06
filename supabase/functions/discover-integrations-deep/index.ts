@@ -236,7 +236,7 @@ CRITICAL RULES:
 6. Deduplicate: if both vendor and partner document the same integration, return one entry with documented_by set to "both".`;
 
   const aiData = await callAI(apiKey, [
-    { role: "system", content: `You are extracting integration data from scraped web pages for ${appName}. Only report what you see in the scraped content. Be thorough but accurate.` },
+    { role: "system", content: `You are extracting integration data from scraped web pages for ${appName}. Include integrations documented on BOTH vendor and partner sites. Only report what you see in the scraped content. Be thorough but accurate.` },
     { role: "user", content: prompt },
   ], [{
     type: "function",
