@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useIntegrations, useUserApplications, useDiscoverIntegrations } from '@/hooks/useStackData';
 import { useAuth } from '@/contexts/AuthContext';
