@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { useIntegrations, useUserApplications, useDiscoverIntegrations } from '@/hooks/useStackData';
+import { useIntegrations, useUserApplications } from '@/hooks/useStackData';
+import { useDiscovery } from '@/contexts/DiscoveryContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
