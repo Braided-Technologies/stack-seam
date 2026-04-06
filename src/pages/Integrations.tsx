@@ -40,6 +40,8 @@ export default function Integrations() {
   const [targetPopoverOpen, setTargetPopoverOpen] = useState(false);
   const [discoveringAppId, setDiscoveringAppId] = useState<string | null>(null);
   const [isDiscoveringAll, setIsDiscoveringAll] = useState(false);
+  const [discoveryProgress, setDiscoveryProgress] = useState<Record<string, 'queued' | 'in_progress' | 'done' | 'error'>>({});
+  const [discoveryResults, setDiscoveryResults] = useState<Record<string, { saved?: number; error?: string }>>({});
 
   const { orgId, userRole, user } = useAuth();
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
@@ -302,15 +304,24 @@ export default function Integrations() {
                   toast({ title: 'Need at least 2 apps', description: 'Add more apps to your stack first.', variant: 'destructive' });
                   return;
                 }
+                // Initialize progress for all apps
+                const initialProgress: Record<string, 'queued' | 'in_progress' | 'done' | 'error'> = {};
+                userApps.forEach(ua => {
+                  if ((ua as any).applications?.name) {
+                    initialProgress[ua.application_id] = 'queued';
+                  }
+                });
+                setDiscoveryProgress(initialProgress);
+                setDiscoveryResults({});
                 setIsDiscoveringAll(true);
                 let totalSaved = 0;
                 let totalDiscovered = 0;
-                // Iterate through each app one by one
                 for (const ua of userApps) {
                   const appName = (ua as any).applications?.name;
                   const appId = ua.application_id;
                   if (!appName) continue;
                   setDiscoveringAppId(appId);
+                  setDiscoveryProgress(prev => ({ ...prev, [appId]: 'in_progress' }));
                   try {
                     const result = await discoverIntegrations.mutateAsync({
                       appNames: stackNames,
@@ -318,8 +329,12 @@ export default function Integrations() {
                     });
                     totalSaved += result.saved || 0;
                     totalDiscovered += result.discovered || 0;
+                    setDiscoveryProgress(prev => ({ ...prev, [appId]: 'done' }));
+                    setDiscoveryResults(prev => ({ ...prev, [appId]: { saved: result.saved || 0 } }));
                   } catch (err: any) {
                     console.error(`Discovery failed for ${appName}:`, err.message);
+                    setDiscoveryProgress(prev => ({ ...prev, [appId]: 'error' }));
+                    setDiscoveryResults(prev => ({ ...prev, [appId]: { error: err.message } }));
                   }
                 }
                 setDiscoveringAppId(null);
@@ -388,7 +403,67 @@ export default function Integrations() {
         </Card>
       </div>
 
-      {/* Filters */}
+      {/* Discovery Progress Panel */}
+      {(isDiscoveringAll || Object.keys(discoveryProgress).length > 0) && (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Zap className="h-4 w-4 text-primary" />
+                Integration Discovery Progress
+              </CardTitle>
+              {!isDiscoveringAll && Object.keys(discoveryProgress).length > 0 && (
+                <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { setDiscoveryProgress({}); setDiscoveryResults({}); }}>
+                  Dismiss
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+              {userApps
+                .filter(ua => discoveryProgress[ua.application_id])
+                .map(ua => {
+                  const appName = (ua as any).applications?.name || 'Unknown';
+                  const status = discoveryProgress[ua.application_id];
+                  const result = discoveryResults[ua.application_id];
+                  return (
+                    <div key={ua.application_id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                      <span className="text-sm font-medium truncate mr-3">{appName}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {status === 'queued' && (
+                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Circle className="h-3 w-3" /> Queued
+                          </span>
+                        )}
+                        {status === 'in_progress' && (
+                          <span className="flex items-center gap-1.5 text-xs text-primary">
+                            <Loader2 className="h-3 w-3 animate-spin" /> In Progress
+                          </span>
+                        )}
+                        {status === 'done' && (
+                          <span className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+                            <CheckCircle2 className="h-3 w-3" /> Done{result?.saved ? ` (${result.saved} new)` : ''}
+                          </span>
+                        )}
+                        {status === 'error' && (
+                          <span className="flex items-center gap-1.5 text-xs text-destructive">
+                            <Circle className="h-3 w-3" /> Failed
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+            {isDiscoveringAll && (
+              <p className="text-xs text-muted-foreground mt-2">
+                {Object.values(discoveryProgress).filter(s => s === 'done').length} of {Object.keys(discoveryProgress).length} apps processed…
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
