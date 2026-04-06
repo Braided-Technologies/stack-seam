@@ -498,11 +498,12 @@ export default function Integrations() {
                                 if (stackNames.length < 2) return;
                                 setDiscoveringAppId(app.appId);
                                 try {
-                                  const result = await discoverIntegrations.mutateAsync({
-                                    appNames: stackNames.includes(app.appName) ? stackNames : [app.appName, ...stackNames],
-                                    focusApp: app.appName,
+                                  const { data: result, error } = await supabase.functions.invoke('discover-integrations', {
+                                    body: { app_names: stackNames.includes(app.appName) ? stackNames : [app.appName, ...stackNames], focus_app: app.appName },
                                   });
+                                  if (error) throw error;
                                   toast({ title: `Found ${result.saved || 0} new integrations for ${app.appName}` });
+                                  queryClient.invalidateQueries({ queryKey: ['integrations'] });
                                 } catch (err: any) {
                                   toast({ title: 'Discovery failed', description: err.message, variant: 'destructive' });
                                 } finally {
