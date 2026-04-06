@@ -30,6 +30,7 @@ export default function Stack() {
   const removeApp = useRemoveUserApplication();
   const updateApp = useUpdateUserApplication();
   const discoverIntegrations = useDiscoverIntegrations();
+  const deepScan = useDeepScanIntegrations();
   const { userRole } = useAuth();
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
   const navigate = useNavigate();
