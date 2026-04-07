@@ -632,17 +632,32 @@ async function processDiscovery(
   }
 
   let newCount = 0;
+  let refreshedCount = 0;
   for (const integ of focusFiltered) {
     const sourceId = getMappedValue(appMap, integ.source);
     const targetId = getMappedValue(appMap, integ.target);
     if (!sourceId || !targetId || sourceId === targetId) continue;
 
-    const { data: reverseExists } = await supabase
-      .from("integrations")
-      .select("id")
-      .eq("source_app_id", targetId)
-      .eq("target_app_id", sourceId)
-      .maybeSingle();
+    const [reverseLookup, existingLookup] = await Promise.all([
+      supabase
+        .from("integrations")
+        .select("id")
+        .eq("source_app_id", targetId)
+        .eq("target_app_id", sourceId)
+        .maybeSingle(),
+      supabase
+        .from("integrations")
+        .select("id")
+        .eq("source_app_id", sourceId)
+        .eq("target_app_id", targetId)
+        .maybeSingle(),
+    ]);
+
+    if (reverseLookup.error) throw reverseLookup.error;
+    if (existingLookup.error) throw existingLookup.error;
+
+    const reverseExists = reverseLookup.data;
+    const existingForward = existingLookup.data;
 
     if (reverseExists) continue;
 
@@ -659,8 +674,11 @@ async function processDiscovery(
         last_verified: new Date().toISOString(),
       }, { onConflict: "source_app_id,target_app_id" });
 
-    if (!error) newCount++;
+    if (!error) {
+      if (existingForward) refreshedCount++;
+      else newCount++;
+    }
   }
 
-  return { discovered: focusFiltered.length, saved: newCount, integrations: focusFiltered };
+  return { discovered: focusFiltered.length, saved: newCount, refreshed: refreshedCount, integrations: focusFiltered };
 }

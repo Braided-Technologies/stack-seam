@@ -111,10 +111,21 @@ export default function Stack() {
       await refetchIntegrations();
 
       const savedCount = Number(result?.saved || 0);
+      const refreshedCount = Number(result?.refreshed || 0);
       const discoveredCount = Number(result?.discovered || 0);
+      const skippedCount = Math.max(0, discoveredCount - savedCount - refreshedCount);
       toast({
-        title: savedCount > 0 ? `Found ${savedCount} integrations for ${infoApp.name}` : `No new integrations found for ${infoApp.name}`,
-        description: discoveredCount > savedCount ? `${discoveredCount - savedCount} already existed.` : undefined,
+        title: savedCount > 0
+          ? `Found ${savedCount} new integration${savedCount === 1 ? '' : 's'} for ${infoApp.name}`
+          : `No new integrations found for ${infoApp.name}`,
+        description: [
+          refreshedCount > 0
+            ? `${refreshedCount} ${refreshedCount === 1 ? 'already existed and was refreshed' : 'already existed and were refreshed'}.`
+            : null,
+          skippedCount > 0
+            ? `${skippedCount} ${skippedCount === 1 ? 'was skipped' : 'were skipped'}.`
+            : null,
+        ].filter(Boolean).join(' ') || undefined,
       });
     } catch (e: any) {
       toast({ title: 'Discovery failed', description: e.message, variant: 'destructive' });

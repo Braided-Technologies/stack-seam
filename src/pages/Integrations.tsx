@@ -502,7 +502,23 @@ export default function Integrations() {
                                     body: { app_names: stackNames.includes(app.appName) ? stackNames : [app.appName, ...stackNames], focus_app: app.appName },
                                   });
                                   if (error) throw error;
-                                  toast({ title: `Found ${result.saved || 0} new integrations for ${app.appName}` });
+                                  const savedCount = Number(result?.saved || 0);
+                                  const refreshedCount = Number(result?.refreshed || 0);
+                                  const discoveredCount = Number(result?.discovered || 0);
+                                  const skippedCount = Math.max(0, discoveredCount - savedCount - refreshedCount);
+                                  toast({
+                                    title: savedCount > 0
+                                      ? `Found ${savedCount} new integration${savedCount === 1 ? '' : 's'} for ${app.appName}`
+                                      : `No new integrations found for ${app.appName}`,
+                                    description: [
+                                      refreshedCount > 0
+                                        ? `${refreshedCount} ${refreshedCount === 1 ? 'already existed and was refreshed' : 'already existed and were refreshed'}.`
+                                        : null,
+                                      skippedCount > 0
+                                        ? `${skippedCount} ${skippedCount === 1 ? 'was skipped' : 'were skipped'}.`
+                                        : null,
+                                    ].filter(Boolean).join(' ') || undefined,
+                                  });
                                   queryClient.invalidateQueries({ queryKey: ['integrations'] });
                                 } catch (err: any) {
                                   toast({ title: 'Discovery failed', description: err.message, variant: 'destructive' });
