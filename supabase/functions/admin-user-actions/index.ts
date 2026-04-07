@@ -103,7 +103,8 @@ Deno.serve(async (req) => {
       });
 
       if (resetError) {
-        return new Response(JSON.stringify({ error: resetError.message }), {
+        console.error("Password reset error:", resetError.message);
+        return new Response(JSON.stringify({ error: "Failed to send password reset" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -122,7 +123,8 @@ Deno.serve(async (req) => {
       });
 
       if (factorsError) {
-        return new Response(JSON.stringify({ error: factorsError.message }), {
+        console.error("MFA list factors error:", factorsError.message);
+        return new Response(JSON.stringify({ error: "Failed to reset 2FA" }), {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
