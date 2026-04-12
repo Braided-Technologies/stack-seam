@@ -341,17 +341,19 @@ export default function Admin() {
     roleData.forEach(r => { countMap[r.organization_id] = (countMap[r.organization_id] || 0) + 1; });
     setOrgs(orgData.map(o => ({ ...o, user_count: countMap[o.id] || 0, website_url: (o as any).website_url || null })));
 
-    // Fetch user emails and names for users tab
+    // Fetch user profiles (email + name from user_metadata)
     const allUserIds = [...new Set(roleData.map(r => r.user_id))];
-    let userEmailMap: Record<string, string> = {};
+    let userProfileMap: Record<string, { email: string; first_name: string; last_name: string }> = {};
     if (allUserIds.length > 0) {
-      const { data: ueData } = await supabase.rpc('get_feedback_user_emails' as any, { _user_ids: allUserIds });
-      if (Array.isArray(ueData)) {
-        ueData.forEach((e: any) => { userEmailMap[e.user_id] = e.email; });
+      const { data: profileData } = await supabase.rpc('get_user_profiles' as any, { _user_ids: allUserIds });
+      if (Array.isArray(profileData)) {
+        profileData.forEach((p: any) => {
+          userProfileMap[p.user_id] = { email: p.email || '', first_name: p.first_name || '', last_name: p.last_name || '' };
+        });
       }
     }
 
-    // Get all invitations to derive names
+    // Fall back to invitation names if user_metadata doesn't have a name
     const allInvitations: any[] = [];
     for (const org of orgData) {
       const { data: invData } = await supabase.rpc('get_org_invitations', { _org_id: org.id });
@@ -365,9 +367,17 @@ export default function Admin() {
     });
 
     setUsers(roleData.map(r => {
-      const email = userEmailMap[r.user_id] || '';
-      const invName = email ? nameByEmail[email.toLowerCase()] : undefined;
-      const name = invName && (invName.first || invName.last) ? `${invName.first} ${invName.last}`.trim() : (email ? email.split('@')[0] : r.user_id.slice(0, 8) + '…');
+      const profile = userProfileMap[r.user_id];
+      const email = profile?.email || '';
+      let name = '';
+      if (profile?.first_name || profile?.last_name) {
+        name = `${profile.first_name} ${profile.last_name}`.trim();
+      } else if (email) {
+        const inv = nameByEmail[email.toLowerCase()];
+        name = inv && (inv.first || inv.last) ? `${inv.first} ${inv.last}`.trim() : email.split('@')[0];
+      } else {
+        name = r.user_id.slice(0, 8) + '…';
+      }
       return {
         id: r.id,
         user_id: r.user_id,

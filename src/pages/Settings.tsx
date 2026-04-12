@@ -377,16 +377,16 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
     },
   });
 
-  const { data: memberEmails = {} } = useQuery({
-    queryKey: ['member-emails', members.map(m => m.user_id)],
+  const { data: memberProfiles = {} } = useQuery({
+    queryKey: ['member-profiles', members.map(m => m.user_id)],
     enabled: members.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_feedback_user_emails', {
+      const { data, error } = await supabase.rpc('get_user_profiles', {
         _user_ids: members.map(m => m.user_id),
       });
       if (error) return {};
-      const map: Record<string, string> = {};
-      (data || []).forEach((r: any) => { map[r.user_id] = r.email; });
+      const map: Record<string, { email: string; first_name: string; last_name: string }> = {};
+      (data || []).forEach((r: any) => { map[r.user_id] = { email: r.email, first_name: r.first_name || '', last_name: r.last_name || '' }; });
       return map;
     },
   });
@@ -415,13 +415,24 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
   }, [allInvitations]);
 
   const getMemberName = (userId: string) => {
-    const email = (memberEmails as Record<string, string>)[userId];
-    if (email) {
-      const inv = nameByEmail[email.toLowerCase()];
+    const profiles = memberProfiles as Record<string, { email: string; first_name: string; last_name: string }>;
+    const profile = profiles[userId];
+    if (profile) {
+      // Prefer user_metadata name (set on signup or profile update)
+      if (profile.first_name || profile.last_name) {
+        return `${profile.first_name} ${profile.last_name}`.trim();
+      }
+      // Fall back to invitation name
+      const inv = nameByEmail[profile.email.toLowerCase()];
       if (inv && (inv.first || inv.last)) return `${inv.first} ${inv.last}`.trim();
-      return email.split('@')[0];
+      return profile.email.split('@')[0];
     }
     return userId.slice(0, 8) + '…';
+  };
+
+  const getMemberEmail = (userId: string) => {
+    const profiles = memberProfiles as Record<string, { email: string; first_name: string; last_name: string }>;
+    return profiles[userId]?.email || '—';
   };
 
   const { data: invitations = [] } = useQuery({
@@ -561,13 +572,12 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
 
   // Build combined rows for sorting/filtering
   const allRows = useMemo(() => {
-    const emailMap = memberEmails as Record<string, string>;
     const memberRows = members.map(m => ({
       type: 'member' as const,
       id: m.id,
       userId: m.user_id,
       name: getMemberName(m.user_id),
-      email: emailMap[m.user_id] || '—',
+      email: getMemberEmail(m.user_id),
       role: m.role,
       status: 'Active',
       createdAt: m.created_at,
@@ -599,7 +609,7 @@ function TeamSection({ orgId, isAdmin, orgName }: { orgId: string; isAdmin: bool
       return sortAsc ? cmp : -cmp;
     });
     return rows;
-  }, [members, invitations, memberEmails, nameByEmail, teamSearch, sortCol, sortAsc]);
+  }, [members, invitations, memberProfiles, nameByEmail, teamSearch, sortCol, sortAsc]);
 
   return (
     <div className="space-y-6">
