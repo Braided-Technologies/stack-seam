@@ -42,9 +42,8 @@ serve(async (req) => {
     }
 
     const allowedModels = [
-      "google/gemini-3-flash-preview", "google/gemini-2.5-flash", "google/gemini-2.5-pro",
-      "google/gemini-2.5-flash-lite", "google/gemini-3.1-pro-preview",
-      "openai/gpt-5", "openai/gpt-5-mini", "openai/gpt-5-nano", "openai/gpt-5.2",
+      "gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano",
+      "o4-mini", "o3", "o3-mini",
     ];
 
     // Get user's org
@@ -54,9 +53,9 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    let aiUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
-    let apiKey = Deno.env.get("LOVABLE_API_KEY");
-    let model = (requestedModel && allowedModels.includes(requestedModel)) ? requestedModel : "google/gemini-3-flash-preview";
+    let aiUrl = "https://api.openai.com/v1/chat/completions";
+    let apiKey = Deno.env.get("OPENAI_API_KEY");
+    let model = (requestedModel && allowedModels.includes(requestedModel)) ? requestedModel : "gpt-4o-mini";
 
     // Check for BYOK settings
     if (roleData?.organization_id) {
@@ -72,7 +71,7 @@ serve(async (req) => {
           if (s.setting_value) settingsMap[s.setting_key] = s.setting_value;
         }
 
-        if (settingsMap.ai_provider && settingsMap.ai_provider !== "lovable" && settingsMap.ai_api_key) {
+        if (settingsMap.ai_provider && settingsMap.ai_provider !== "builtin" && settingsMap.ai_api_key) {
           apiKey = settingsMap.ai_api_key;
           if (settingsMap.ai_provider === "openai") {
             aiUrl = "https://api.openai.com/v1/chat/completions";

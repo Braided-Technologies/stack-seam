@@ -17,26 +17,27 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const PROVIDERS = [
-  { value: 'lovable', label: 'Built-in AI (default)' },
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'builtin', label: 'Built-in AI (default)' },
+  { value: 'openai', label: 'OpenAI (BYOK)' },
+  { value: 'anthropic', label: 'Anthropic (BYOK)' },
 ];
 
 const MODELS: Record<string, { value: string; label: string }[]> = {
-  lovable: [
-    { value: 'google/gemini-3-flash-preview', label: 'Gemini 3 Flash (Fast)' },
-    { value: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro (Best)' },
-    { value: 'openai/gpt-5-mini', label: 'GPT-5 Mini (Balanced)' },
-    { value: 'openai/gpt-5', label: 'GPT-5 (Powerful)' },
+  builtin: [
+    { value: 'gpt-4o-mini', label: 'GPT-4o Mini (Fast)' },
+    { value: 'gpt-4o', label: 'GPT-4o (Balanced)' },
+    { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+    { value: 'gpt-4.1', label: 'GPT-4.1 (Powerful)' },
   ],
   openai: [
-    { value: 'gpt-4o', label: 'GPT-4o' },
     { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-    { value: 'gpt-5', label: 'GPT-5' },
+    { value: 'gpt-4o', label: 'GPT-4o' },
+    { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+    { value: 'gpt-4.1', label: 'GPT-4.1' },
   ],
   anthropic: [
     { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
-    { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
+    { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
   ],
 };
 
@@ -746,9 +747,9 @@ export default function Settings() {
   const [orgDomain, setOrgDomain] = useState('');
   const [enforceDomain, setEnforceDomain] = useState(false);
   const [savingOrg, setSavingOrg] = useState(false);
-  const [provider, setProvider] = useState('lovable');
+  const [provider, setProvider] = useState('builtin');
   const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('google/gemini-3-flash-preview');
+  const [model, setModel] = useState('gpt-4o-mini');
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 

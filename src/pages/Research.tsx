@@ -24,11 +24,10 @@ const SUGGESTED_PROMPTS = [
 ];
 
 const AI_MODELS = [
-  { value: 'google/gemini-3-flash-preview', label: 'Gemini 3 Flash (Fast)', description: 'Fast, balanced speed and capability' },
-  { value: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash', description: 'Good multimodal + reasoning' },
-  { value: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro', description: 'Top-tier reasoning, best for complex tasks' },
-  { value: 'openai/gpt-5-mini', label: 'GPT-5 Mini', description: 'Strong performance, lower cost' },
-  { value: 'openai/gpt-5', label: 'GPT-5', description: 'Most capable, best accuracy' },
+  { value: 'gpt-4o-mini', label: 'GPT-4o Mini (Fast)', description: 'Fast, cost-effective for most tasks' },
+  { value: 'gpt-4o', label: 'GPT-4o (Balanced)', description: 'Strong reasoning and accuracy' },
+  { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini', description: 'Latest mini model, great performance' },
+  { value: 'gpt-4.1', label: 'GPT-4.1 (Powerful)', description: 'Most capable, best for complex tasks' },
 ];
 
 function loadSessionMessages(): Msg[] {
@@ -47,7 +46,7 @@ export default function Research() {
   const [messages, setMessages] = useState<Msg[]>(loadSessionMessages);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState(() => sessionStorage.getItem(SESSION_MODEL_KEY) || 'google/gemini-3-flash-preview');
+  const [selectedModel, setSelectedModel] = useState(() => sessionStorage.getItem(SESSION_MODEL_KEY) || 'gpt-4o-mini');
   const scrollRef = useRef<HTMLDivElement>(null);
   const { data: userApps } = useUserApplications();
   const { toast } = useToast();
