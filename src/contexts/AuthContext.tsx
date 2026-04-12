@@ -73,25 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    let initialLoad = true;
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchOrg(session.user.id);
-        await checkMfa();
-      } else {
-        setOrgId(null);
-        setOrgName(null);
-        setUserRole(null);
-        setMfaEnrolled(false);
-        setMfaVerified(false);
-        setAal(null);
-      }
-      // Only set loading false from onAuthStateChange if getSession already ran
-      if (!initialLoad) setLoading(false);
-    });
+    let initialized = false;
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
@@ -100,8 +82,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await fetchOrg(session.user.id);
         await checkMfa();
       }
-      initialLoad = false;
+      initialized = true;
       setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      if (session?.user) {
+        fetchOrg(session.user.id);
+        checkMfa();
+      } else {
+        setOrgId(null);
+        setOrgName(null);
+        setUserRole(null);
+        setMfaEnrolled(false);
+        setMfaVerified(false);
+        setAal(null);
+      }
+      if (initialized) setLoading(false);
     });
 
     return () => subscription.unsubscribe();
