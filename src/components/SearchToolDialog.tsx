@@ -8,6 +8,7 @@ import { toast } from '@/hooks/use-toast';
 import { useAddUserApplication, useCategories } from '@/hooks/useStackData';
 import { Search, Plus, Loader2, Check, ExternalLink, BookOpen, Globe } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CategoryCombobox } from '@/components/ui/category-combobox';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -363,21 +364,11 @@ export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialo
             </div>
             <div className="space-y-1.5">
               <Label>Category</Label>
-              <Select
+              <CategoryCombobox
+                categories={categories}
                 value={confirmData.category_id}
-                onValueChange={v => setConfirmData(d => ({ ...d, category_id: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a category..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map(cat => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={v => setConfirmData(d => ({ ...d, category_id: v }))}
+              />
             </div>
 
             <div className="flex gap-2 pt-2">

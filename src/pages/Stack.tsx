@@ -20,6 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import ContactsSection from '@/components/ContactsSection';
 import ContractsSection from '@/components/ContractsSection';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CategoryCombobox } from '@/components/ui/category-combobox';
 
 type FilterMode = 'all' | 'selected' | 'available';
 
@@ -520,9 +521,10 @@ export default function Stack() {
                   )}
                   <div className="flex flex-wrap items-center gap-2">
                     {isAdmin ? (
-                      <Select
+                      <CategoryCombobox
+                        categories={categories}
                         value={infoApp.category_id || ''}
-                        onValueChange={async (newCatId) => {
+                        onChange={async (newCatId) => {
                           const { error } = await supabase
                             .from('applications')
                             .update({ category_id: newCatId })
@@ -536,16 +538,8 @@ export default function Stack() {
                             toast({ title: `Category updated to ${catName}` });
                           }
                         }}
-                      >
-                        <SelectTrigger className="h-7 w-auto min-w-[140px] text-xs">
-                          <SelectValue placeholder={infoApp.category || 'Select...'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categories.map(cat => (
-                            <SelectItem key={cat.id} value={cat.id} className="text-xs">{cat.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        triggerClassName="h-7 w-auto min-w-[160px] text-xs"
+                      />
                     ) : (
                       <Badge variant="secondary">{infoApp.category}</Badge>
                     )}
@@ -669,8 +663,7 @@ export default function Stack() {
                 </TabsContent>
 
                 {isInStack && (
-                  <TabsContent value="settings" className="pt-2">
-                    <ScrollArea className="max-h-[55vh]">
+                  <TabsContent value="settings" className="pt-2 overflow-y-auto max-h-[60vh]">
                       <div className="space-y-6 pr-2">
                         {/* Details */}
                         <div className="space-y-4">
@@ -740,7 +733,6 @@ export default function Stack() {
                           </Button>
                         </div>
                       </div>
-                    </ScrollArea>
                   </TabsContent>
                 )}
               </Tabs>
