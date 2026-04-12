@@ -628,36 +628,44 @@ export default function Admin() {
                           )}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{new Date(app.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell className="text-right space-y-1">
-                          {editingApp === app.id ? (
-                            <div className="flex gap-1 justify-end">
-                              <Button size="sm" variant="outline" onClick={() => saveAppEdit(app.id)}>Save</Button>
-                              <Button size="sm" variant="ghost" onClick={() => setEditingApp(null)}>Cancel</Button>
-                            </div>
-                          ) : (
-                            <Button size="sm" variant="ghost" onClick={() => { setEditingApp(app.id); setEditAppData({ name: app.name, description: app.description || '', category_id: app.category_id }); }}>
-                              <Pencil className="h-3 w-3 mr-1" /> Edit
-                            </Button>
-                          )}
+                        <TableCell className="text-right">
                           <div className="flex gap-1 justify-end">
-                            <Button size="sm" variant="outline" onClick={() => approveApp(app.id)}>
-                              <Check className="h-3 w-3 mr-1" /> Approve
-                            </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button size="sm" variant="ghost" className="text-destructive"><X className="h-3 w-3 mr-1" /> Reject</Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete "{app.name}"?</AlertDialogTitle>
-                                  <AlertDialogDescription>This will permanently remove this application.</AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => deleteApp(app.id)}>Delete</AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
+                            {editingApp === app.id ? (
+                              <>
+                                <Button size="icon" variant="outline" className="h-7 w-7" title="Save" onClick={() => saveAppEdit(app.id)}>
+                                  <Save className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button size="icon" variant="ghost" className="h-7 w-7" title="Cancel" onClick={() => setEditingApp(null)}>
+                                  <X className="h-3.5 w-3.5" />
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button size="icon" variant="ghost" className="h-7 w-7" title="Edit" onClick={() => { setEditingApp(app.id); setEditAppData({ name: app.name, description: app.description || '', category_id: app.category_id }); }}>
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button size="icon" variant="outline" className="h-7 w-7 text-green-500" title="Approve" onClick={() => approveApp(app.id)}>
+                                  <Check className="h-3.5 w-3.5" />
+                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="Reject">
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete "{app.name}"?</AlertDialogTitle>
+                                      <AlertDialogDescription>This will permanently remove this application.</AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => deleteApp(app.id)}>Delete</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
