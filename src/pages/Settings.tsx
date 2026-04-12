@@ -7,8 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -60,6 +62,94 @@ const MODELS: Record<string, { value: string; label: string }[]> = {
     { value: 'mistral-small-latest', label: 'Mistral Small' },
   ],
 };
+
+function ProfileSection() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [emailSaving, setEmailSaving] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setFirstName(user.user_metadata?.first_name || '');
+      setLastName(user.user_metadata?.last_name || '');
+      setEmail(user.email || '');
+    }
+  }, [user]);
+
+  const handleSaveProfile = async () => {
+    if (!firstName.trim() || !lastName.trim()) {
+      toast({ title: 'Error', description: 'First and last name are required.', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase.auth.updateUser({
+      data: { first_name: firstName.trim(), last_name: lastName.trim() },
+    });
+    setSaving(false);
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Profile updated', description: 'Your name has been updated.' });
+    }
+  };
+
+  const handleUpdateEmail = async () => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || trimmed === user?.email) return;
+    setEmailSaving(true);
+    const { error } = await supabase.auth.updateUser({ email: trimmed });
+    setEmailSaving(false);
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Confirmation sent', description: 'Check your new email to confirm the change.' });
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <User className="h-5 w-5" />
+          Profile
+        </CardTitle>
+        <CardDescription>Update your personal information.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label>First Name</Label>
+            <Input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Jane" />
+          </div>
+          <div className="space-y-2">
+            <Label>Last Name</Label>
+            <Input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Doe" />
+          </div>
+        </div>
+        <Button onClick={handleSaveProfile} disabled={saving || !firstName.trim() || !lastName.trim()}>
+          {saving ? 'Saving...' : 'Update Name'}
+        </Button>
+
+        <Separator className="my-4" />
+
+        <div className="space-y-2">
+          <Label>Email Address</Label>
+          <div className="flex gap-2">
+            <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" />
+            <Button variant="outline" onClick={handleUpdateEmail} disabled={emailSaving || !email.trim() || email.trim().toLowerCase() === user?.email}>
+              {emailSaving ? 'Sending...' : 'Change'}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">A confirmation link will be sent to your new email address.</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function ConnectorsSection() {
   const { toast } = useToast();
@@ -853,15 +943,6 @@ export default function Settings() {
     setSaving(false);
   };
 
-  if (!isAdmin) {
-    return (
-      <div className="p-6">
-        <h1 className="text-2xl font-bold mb-4">Settings</h1>
-        <p className="text-muted-foreground">Only administrators can access settings.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="p-6 max-w-2xl space-y-6">
       <div className="flex items-center gap-2">
@@ -869,13 +950,18 @@ export default function Settings() {
         <h1 className="text-2xl font-bold">Settings</h1>
       </div>
 
-      <Tabs defaultValue="team" className="w-full">
-        <TabsList data-tour="settings-tabs" className="grid w-full grid-cols-4">
-          <TabsTrigger data-tour="settings-team" value="team">Team</TabsTrigger>
-          <TabsTrigger data-tour="settings-org" value="company">Organization</TabsTrigger>
-          <TabsTrigger data-tour="settings-ai" value="ai">AI Config</TabsTrigger>
-          <TabsTrigger data-tour="settings-connectors" value="connectors">Connectors</TabsTrigger>
+      <Tabs defaultValue="profile" className="w-full">
+        <TabsList data-tour="settings-tabs" className={cn('grid w-full', isAdmin ? 'grid-cols-5' : 'grid-cols-1')}>
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+          {isAdmin && <TabsTrigger data-tour="settings-team" value="team">Team</TabsTrigger>}
+          {isAdmin && <TabsTrigger data-tour="settings-org" value="company">Organization</TabsTrigger>}
+          {isAdmin && <TabsTrigger data-tour="settings-ai" value="ai">AI Config</TabsTrigger>}
+          {isAdmin && <TabsTrigger data-tour="settings-connectors" value="connectors">Connectors</TabsTrigger>}
         </TabsList>
+
+        <TabsContent value="profile" className="mt-4">
+          <ProfileSection />
+        </TabsContent>
 
         <TabsContent value="company" className="mt-4">
           <Card>

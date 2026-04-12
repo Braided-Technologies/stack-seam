@@ -103,22 +103,20 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               {isExpanded && <span className="whitespace-nowrap">{item.label}</span>}
             </Link>
           ))}
-          {(userRole === 'admin' || userRole === 'platform_admin') && (
-            <Link
-              to="/settings"
-              title={!isExpanded ? 'Settings' : undefined}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                !isExpanded && 'justify-center px-0',
-                location.pathname === '/settings'
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-              )}
-            >
-              <Settings className="h-4 w-4 flex-shrink-0" />
-              {isExpanded && <span className="whitespace-nowrap">Settings</span>}
-            </Link>
-          )}
+          <Link
+            to="/settings"
+            title={!isExpanded ? 'Settings' : undefined}
+            className={cn(
+              'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+              !isExpanded && 'justify-center px-0',
+              location.pathname === '/settings'
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+            )}
+          >
+            <Settings className="h-4 w-4 flex-shrink-0" />
+            {isExpanded && <span className="whitespace-nowrap">Settings</span>}
+          </Link>
           {userRole === 'platform_admin' && (
             <Link
               to="/admin"
