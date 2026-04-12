@@ -73,12 +73,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    let initialLoad = true;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        setTimeout(() => fetchOrg(session.user.id), 0);
-        setTimeout(() => checkMfa(), 0);
+        await fetchOrg(session.user.id);
+        await checkMfa();
       } else {
         setOrgId(null);
         setOrgName(null);
@@ -87,7 +89,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setMfaVerified(false);
         setAal(null);
       }
-      setLoading(false);
+      // Only set loading false from onAuthStateChange if getSession already ran
+      if (!initialLoad) setLoading(false);
     });
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -97,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await fetchOrg(session.user.id);
         await checkMfa();
       }
+      initialLoad = false;
       setLoading(false);
     });
 
