@@ -7,12 +7,14 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const EXEMPT_ORG_ID = "b74b008f-68bc-4813-b3cc-2c9757b22b12";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
@@ -45,14 +47,12 @@ serve(async (req) => {
       });
     }
 
-    // Fetch KB articles for context
     const { data: articles } = await supabase
       .from("kb_articles")
       .select("title, slug, content, tags")
       .eq("is_published", true)
       .limit(50);
 
-    // Fetch user's stack for context
     const { data: roleData } = await supabase
       .from("user_roles")
       .select("organization_id")
@@ -60,14 +60,15 @@ serve(async (req) => {
       .limit(1)
       .single();
 
+    const orgId = roleData?.organization_id;
     let stackContext = "";
     let integrationContext = "";
 
-    if (roleData?.organization_id) {
+    if (orgId) {
       const { data: userApps } = await supabase
         .from("user_applications")
         .select("applications(name, vendor_url, categories(name))")
-        .eq("organization_id", roleData.organization_id);
+        .eq("organization_id", orgId);
 
       if (userApps?.length) {
         const appList = userApps
@@ -81,7 +82,6 @@ serve(async (req) => {
         stackContext = `\n\nThe user's current IT stack:\n${appList}`;
       }
 
-      // Fetch integrations with documentation URLs
       const { data: integrations } = await supabase
         .from("integrations")
         .select(`
@@ -99,13 +99,33 @@ serve(async (req) => {
           .map((i: any) => {
             const src = i.source_app?.name || "Unknown";
             const tgt = i.target_app?.name || "Unknown";
-            const desc = i.description ? ` — ${i.description}` : "";
+            const desc = i.description ? ` \u2014 ${i.description}` : "";
             const docUrl = i.documentation_url ? ` | Docs: ${i.documentation_url}` : "";
             const dataShared = i.data_shared ? ` | Data: ${i.data_shared}` : "";
-            return `${src} ↔ ${tgt}${desc}${dataShared}${docUrl}`;
+            return `${src} \u2194 ${tgt}${desc}${dataShared}${docUrl}`;
           })
           .join("\n");
         integrationContext = `\n\nKnown integrations in the catalog:\n${intList}`;
+      }
+    }
+
+    // Rate limit check
+    if (orgId) {
+      const serviceClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { data: allowed } = await serviceClient.rpc("check_and_increment_ai_usage", {
+        _org_id: orgId,
+        _daily_limit: 50,
+        _exempt_org_id: EXEMPT_ORG_ID,
+      });
+
+      if (allowed === false) {
+        return new Response(JSON.stringify({
+          error: "Daily AI limit reached. Add your own API key in Settings to continue, or try again tomorrow.",
+          code: "RATE_LIMITED",
+        }), {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     }
 
@@ -124,22 +144,22 @@ Your capabilities:
 - Guide users to submit feedback/tickets when needed
 
 IMPORTANT FORMATTING RULES:
-1. When recommending a KB article, ALWAYS use a clickable markdown link: 📄 [Article Title](/support?article=SLUG)
-2. When sharing integration documentation, use: 🔗 [Integration Name - Docs](URL)
+1. When recommending a KB article, ALWAYS use a clickable markdown link: \ud83d\udcc4 [Article Title](/support?article=SLUG)
+2. When sharing integration documentation, use: \ud83d\udd17 [Integration Name - Docs](URL)
 3. When a user asks about connecting two specific tools, search the integration data for matching pairs and share the documentation_url if available. Also check the vendor URLs for the apps involved.
 4. If the user needs human support, direct them to: [Submit Feedback](/support?tab=feedback)
-5. Always use markdown links — never just paste raw URLs.
+5. Always use markdown links \u2014 never just paste raw URLs.
 
 Be concise, helpful, and technically accurate. Use markdown formatting.${kbContext}${stackContext}${integrationContext}`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "gpt-4o-mini",
         messages: [
           { role: "system", content: systemPrompt },
           ...messages,
@@ -155,14 +175,8 @@ Be concise, helpful, and technically accurate. Use markdown formatting.${kbConte
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please contact your administrator." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
       const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
+      console.error("AI error:", response.status, t);
       return new Response(JSON.stringify({ error: "AI service error" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

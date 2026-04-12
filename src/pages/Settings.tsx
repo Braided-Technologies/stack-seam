@@ -18,8 +18,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 const PROVIDERS = [
   { value: 'builtin', label: 'Built-in AI (default)' },
-  { value: 'openai', label: 'OpenAI (BYOK)' },
-  { value: 'anthropic', label: 'Anthropic (BYOK)' },
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'gemini', label: 'Google Gemini' },
+  { value: 'grok', label: 'Grok (xAI)' },
+  { value: 'deepseek', label: 'DeepSeek' },
+  { value: 'mistral', label: 'Mistral' },
 ];
 
 const MODELS: Record<string, { value: string; label: string }[]> = {
@@ -38,6 +42,22 @@ const MODELS: Record<string, { value: string; label: string }[]> = {
   anthropic: [
     { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
     { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
+  ],
+  gemini: [
+    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+  ],
+  grok: [
+    { value: 'grok-3', label: 'Grok 3' },
+    { value: 'grok-3-mini', label: 'Grok 3 Mini' },
+  ],
+  deepseek: [
+    { value: 'deepseek-chat', label: 'DeepSeek V3' },
+    { value: 'deepseek-reasoner', label: 'DeepSeek R1' },
+  ],
+  mistral: [
+    { value: 'mistral-large-latest', label: 'Mistral Large' },
+    { value: 'mistral-small-latest', label: 'Mistral Small' },
   ],
 };
 
@@ -823,7 +843,7 @@ export default function Settings() {
     try {
       await saveSetting('ai_provider', provider);
       await saveSetting('ai_model', model);
-      if (provider !== 'lovable') {
+      if (provider !== 'builtin') {
         await saveSetting('ai_api_key', apiKey);
       }
       toast({ title: 'Settings saved', description: 'AI configuration updated successfully.' });
@@ -932,11 +952,11 @@ export default function Settings() {
                       </SelectContent>
                     </Select>
                   </div>
-                  {provider !== 'lovable' && (
+                  {provider !== 'builtin' && (
                     <div className="space-y-2">
                       <Label className="flex items-center gap-1"><Key className="h-3 w-3" /> API Key</Label>
-                      <Input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder={`Enter your ${provider === 'openai' ? 'OpenAI' : 'Anthropic'} API key`} />
-                      <p className="text-xs text-muted-foreground">Your API key is stored securely and only used for AI research queries.</p>
+                      <Input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder={`Enter your ${PROVIDERS.find(p => p.value === provider)?.label || provider} API key`} />
+                      <p className="text-xs text-muted-foreground">Your API key is stored securely and only used for AI queries from your organization.</p>
                     </div>
                   )}
                   <div className="space-y-2">
