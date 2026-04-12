@@ -53,6 +53,50 @@ export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialo
     setConfirmData({ name: '', description: '', vendor_url: '', category_id: '' });
   };
 
+  const guessCategory = (text: string): string => {
+    const t = text.toLowerCase();
+    const keywords: [string[], string][] = [
+      [['rmm', 'remote monitoring', 'remote management', 'endpoint monitoring'], 'RMM'],
+      [['psa', 'ticketing', 'helpdesk', 'help desk', 'service desk', 'itsm'], 'PSA / Ticketing'],
+      [['backup', 'disaster recovery', 'bcdr', 'data protection', 'recovery'], 'Backup & DR'],
+      [['endpoint protection', 'antivirus', 'anti-virus', 'edr', 'xdr', 'malware', 'threat'], 'Cybersecurity'],
+      [['email security', 'phishing', 'anti-phishing', 'email protection', 'spam'], 'Email Security'],
+      [['identity', 'access management', 'sso', 'single sign', 'mfa', 'multi-factor', 'password manager'], 'Identity & Access'],
+      [['documentation', 'knowledge base', 'wiki', 'it documentation'], 'Documentation'],
+      [['monitoring', 'observability', 'apm', 'infrastructure monitoring', 'network monitor'], 'Monitoring'],
+      [['firewall', 'networking', 'sd-wan', 'router', 'switch', 'wifi', 'wi-fi', 'network management'], 'Networking'],
+      [['dns filter', 'web filter', 'content filter', 'dns security'], 'DNS Filtering'],
+      [['compliance', 'grc', 'governance', 'risk', 'audit'], 'GRC / Compliance'],
+      [['security awareness', 'phishing simulation', 'training'], 'Security Awareness Training'],
+      [['vulnerability', 'penetration', 'pentest', 'security testing', 'scanner'], 'Security Testing'],
+      [['cloud', 'azure', 'aws', 'gcp', 'iaas'], 'Cloud Platforms'],
+      [['crm', 'sales', 'pipeline', 'lead'], 'Sales & CRM'],
+      [['accounting', 'bookkeeping', 'financial'], 'Accounting'],
+      [['billing', 'invoicing', 'payment', 'quoting'], 'Billing & Invoicing'],
+      [['hr', 'human resource', 'payroll', 'employee'], 'HRS / HR'],
+      [['collaboration', 'email', 'productivity', 'office 365', 'microsoft 365', 'google workspace'], 'Email & Collaboration'],
+      [['communication', 'voip', 'phone', 'video conferenc', 'ucaas'], 'Communication'],
+      [['endpoint management', 'mdm', 'device management', 'intune', 'patch'], 'Endpoint Management'],
+      [['m365', 'microsoft 365 management', 'tenant'], 'M365 Management'],
+      [['virtualization', 'hypervisor', 'vm', 'virtual machine'], 'Virtualization'],
+      [['vcio', 'lifecycle', 'qbr', 'strategy'], 'vCIO / Lifecycle Management'],
+      [['alerting', 'incident', 'on-call', 'pagerduty'], 'Alerting & Incident Management'],
+      [['client portal', 'service portal'], 'Client Portal'],
+      [['ai', 'artificial intelligence', 'llm', 'machine learning', 'automation'], 'AI & LLMs'],
+      [['distributor', 'marketplace', 'channel'], 'Distributors'],
+      [['design', 'creative', 'graphic'], 'Design & Creative'],
+      [['social media', 'social management'], 'Social Media'],
+      [['background check', 'screening'], 'Background Check'],
+    ];
+    for (const [kws, catName] of keywords) {
+      if (kws.some(kw => t.includes(kw))) {
+        const cat = categories.find(c => c.name === catName);
+        if (cat) return cat.id;
+      }
+    }
+    return '';
+  };
+
   const handleSearch = async () => {
     if (name.trim().length < 2) return;
     setSearching(true);
@@ -65,19 +109,18 @@ export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialo
       if (error) throw error;
 
       if (data.found && data.existing && data.applications?.length > 0) {
-        // Found in existing catalog
         setExistingApps(data.applications);
       } else if (!data.found && data.scraped) {
-        // Not found — show confirm step with scraped data
+        const desc = data.scraped.description || '';
+        const guessedCatId = guessCategory(`${data.scraped.name || name} ${desc}`);
         setConfirmData({
           name: data.scraped.name || name.trim(),
-          description: data.scraped.description || '',
+          description: desc,
           vendor_url: data.scraped.vendor_url || url.trim(),
-          category_id: '',
+          category_id: guessedCatId,
         });
         setStep('confirm');
       } else {
-        // Not found, no scrape (no URL provided)
         setConfirmData({
           name: name.trim(),
           description: '',
@@ -108,7 +151,7 @@ export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialo
           description: confirmData.description.trim() || null,
           vendor_url: confirmData.vendor_url.trim() || null,
           category_id: confirmData.category_id || null,
-          status: 'pending',
+          status: 'org_only',
           submitted_by_org: orgId,
         })
         .select('*, categories(name)')
