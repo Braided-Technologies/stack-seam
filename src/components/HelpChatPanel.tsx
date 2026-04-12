@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { HelpCircle, Send, Loader2, Bot, User, RotateCcw, BookOpen, MessageSquare, Search, Sparkles } from 'lucide-react';
+import { HelpCircle, Send, Loader2, Bot, User, RotateCcw, BookOpen, MessageSquare, Search, Sparkles, Compass, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { useTour } from '@/contexts/TourContext';
 
 type Msg = { role: 'user' | 'assistant'; content: string };
 
@@ -43,6 +44,7 @@ const QUICK_ACTIONS = [
 
 export default function HelpChatPanel({ onOpenFeedback }: { onOpenFeedback?: () => void }) {
   const navigate = useNavigate();
+  const { startTour, showPrompt, dismissPrompt } = useTour();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
@@ -173,6 +175,34 @@ export default function HelpChatPanel({ onOpenFeedback }: { onOpenFeedback?: () 
   };
 
   return (
+    <>
+      {/* Tour prompt bubble — outside Sheet so it doesn't trigger the panel */}
+      {showPrompt && (
+        <div className="fixed bottom-20 right-6 z-50 w-56 rounded-xl border bg-card shadow-lg p-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <button
+            onClick={() => dismissPrompt()}
+            className="absolute top-2 right-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="h-3 w-3" />
+          </button>
+          <div className="flex items-start gap-2">
+            <Compass className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium">New here?</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Take a quick site tour to see what StackSeam can do!
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => startTour()}
+            className="mt-2 w-full rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            Start Tour
+          </button>
+        </div>
+      )}
+
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
         <Button
@@ -212,6 +242,21 @@ export default function HelpChatPanel({ onOpenFeedback }: { onOpenFeedback?: () 
               </div>
 
               <div className="space-y-2 pl-8">
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    setTimeout(() => startTour(), 300);
+                  }}
+                  className="w-full flex items-start gap-3 rounded-lg border border-primary/50 bg-primary/5 p-3 text-left hover:bg-primary/10 transition-colors group"
+                >
+                  <div className="h-8 w-8 rounded-md bg-primary/15 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
+                    <Compass className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">Take the Site Tour</p>
+                    <p className="text-xs text-muted-foreground">Walk through all of StackSeam's features</p>
+                  </div>
+                </button>
                 {QUICK_ACTIONS.map((action, i) => (
                   <button
                     key={i}
@@ -278,6 +323,16 @@ export default function HelpChatPanel({ onOpenFeedback }: { onOpenFeedback?: () 
             <div className="pl-8 space-y-1.5">
               <p className="text-xs text-muted-foreground">Anything else I can help with?</p>
               <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => {
+                    setOpen(false);
+                    setTimeout(() => startTour(), 300);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-primary/50 bg-primary/5 px-3 py-1 text-xs hover:bg-primary/10 transition-colors"
+                >
+                  <Compass className="h-3 w-3 text-primary" />
+                  Site Tour
+                </button>
                 {QUICK_ACTIONS.map((action, i) => (
                   <button
                     key={i}
@@ -316,5 +371,6 @@ export default function HelpChatPanel({ onOpenFeedback }: { onOpenFeedback?: () 
         </div>
       </SheetContent>
     </Sheet>
+    </>
   );
 }

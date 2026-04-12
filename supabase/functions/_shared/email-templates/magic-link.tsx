@@ -2,7 +2,7 @@
 import * as React from 'npm:react@18.3.1'
 import { Body, Button, Container, Head, Heading, Html, Preview, Text } from 'npm:@react-email/components@0.0.22'
 
-const LOGO_URL = 'https://ivmbbnmmioeufmxtvsgs.supabase.co/storage/v1/object/public/email-assets/stackseam-logo.png'
+const LOGO_URL = 'https://yfrwpqpafoquajfxlbhk.supabase.co/storage/v1/object/public/email-assets/stackseam-logo.png'
 
 interface MagicLinkEmailProps { siteName: string; confirmationUrl: string }
 

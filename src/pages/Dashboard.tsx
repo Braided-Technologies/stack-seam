@@ -62,7 +62,7 @@ export default function Dashboard() {
         <p className="text-muted-foreground">Your IT stack at a glance</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div data-tour="dash-stats" className="grid gap-4 md:grid-cols-4">
         {[
           { to: '/stack', icon: Layers, value: formatCompact(userApps.length), label: 'Total Apps', link: true },
           { to: '/budget', icon: DollarSign, value: formatCompactCurrency(totalMonthly), label: 'Monthly Spend', link: true },
@@ -92,7 +92,7 @@ export default function Dashboard() {
       </div>
 
       {urgentRenewals.length > 0 && (
-        <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-5 space-y-3">
+        <div data-tour="dash-renewals-alert" className="rounded-xl border border-destructive/50 bg-destructive/5 p-5 space-y-3">
           <h3 className="flex items-center gap-2 font-semibold text-destructive">
             <AlertTriangle className="h-5 w-5" />
             Renewal Alerts — {urgentRenewals.length} contract{urgentRenewals.length > 1 ? 's' : ''} expiring within 30 days
@@ -119,7 +119,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="rounded-xl border bg-card p-5 space-y-3">
+      <div data-tour="dash-renewals" className="rounded-xl border bg-card p-5 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="flex items-center gap-2 font-semibold">
             <CalendarClock className="h-5 w-5" />
@@ -173,7 +173,7 @@ export default function Dashboard() {
       </div>
 
       {relevantIntegrations.length > 0 && (
-        <div className="rounded-xl border bg-card p-5 space-y-3">
+        <div data-tour="dash-integrations" className="rounded-xl border bg-card p-5 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="flex items-center gap-2 font-semibold">
               <Link2 className="h-5 w-5" />

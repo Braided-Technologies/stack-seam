@@ -345,11 +345,11 @@ export default function Stack() {
   return (
     <div className="min-w-0 overflow-x-hidden p-6 space-y-6">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0">
+        <div data-tour="stack-header" className="min-w-0">
           <h1 className="text-2xl font-bold">My Stack</h1>
           <p className="text-muted-foreground text-sm">Select the tools in your IT stack by category</p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div data-tour="stack-actions" className="flex flex-wrap gap-2">
           {isAdmin && (
             <Button variant="outline" size="sm" onClick={() => setSearchToolOpen(true)}>
               <Search className="mr-2 h-4 w-4" />
@@ -365,7 +365,7 @@ export default function Stack() {
 
       {/* Summary bar */}
       {userApps.length > 0 && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div data-tour="stack-summary" className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <div className="flex items-center gap-3 rounded-xl border bg-card p-4">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
               <Layers className="h-4 w-4 text-primary" />
@@ -405,7 +405,7 @@ export default function Stack() {
         </div>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <div data-tour="stack-search" className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -433,7 +433,7 @@ export default function Stack() {
       </div>
 
       {/* Grouped category layout */}
-      <div className="grid gap-6 2xl:grid-cols-2">
+      <div data-tour="stack-categories" className="grid gap-6 2xl:grid-cols-2">
         {CATEGORY_GROUPS.map(group => {
           const groupCats = group.categories.map(name => catMap.get(name)).filter(Boolean) as typeof categories;
           const renderedCats = groupCats.map(cat => renderCategory(cat)).filter(Boolean);

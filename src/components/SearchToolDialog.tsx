@@ -2,30 +2,144 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
-import { useSearchTool, useAddUserApplication, useCategories } from '@/hooks/useStackData';
-import { Search, Plus, Loader2, Check, ExternalLink, BookOpen } from 'lucide-react';
+import { useAddUserApplication, useCategories } from '@/hooks/useStackData';
+import { Search, Plus, Loader2, Check, ExternalLink, BookOpen, Globe } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface SearchToolDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
+type DialogStep = 'search' | 'confirm';
+
 export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialogProps) {
-  const [query, setQuery] = useState('');
-  const searchTool = useSearchTool();
-  const addApp = useAddUserApplication();
+  const { orgId } = useAuth();
   const { data: categories = [] } = useCategories();
+  const addApp = useAddUserApplication();
+  const queryClient = useQueryClient();
+
+  const [step, setStep] = useState<DialogStep>('search');
+  const [name, setName] = useState('');
+  const [url, setUrl] = useState('');
+
+  // Existing matches from catalog
+  const [existingApps, setExistingApps] = useState<any[]>([]);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
-  const [catalogOnlyIds, setCatalogOnlyIds] = useState<Set<string>>(new Set());
-  const [categoryOverrides, setCategoryOverrides] = useState<Record<string, string>>({});
+
+  // Scraped / confirm data
+  const [confirmData, setConfirmData] = useState<{
+    name: string;
+    description: string;
+    vendor_url: string;
+    category_id: string;
+  }>({ name: '', description: '', vendor_url: '', category_id: '' });
+
+  const [searching, setSearching] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const resetDialog = () => {
+    setStep('search');
+    setName('');
+    setUrl('');
+    setExistingApps([]);
+    setAddedIds(new Set());
+    setConfirmData({ name: '', description: '', vendor_url: '', category_id: '' });
+  };
 
   const handleSearch = async () => {
-    if (query.trim().length < 2) return;
-    searchTool.mutate(query.trim());
+    if (name.trim().length < 2) return;
+    setSearching(true);
+    setExistingApps([]);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('search-tool', {
+        body: { query: name.trim(), url: url.trim() || undefined },
+      });
+      if (error) throw error;
+
+      if (data.found && data.existing && data.applications?.length > 0) {
+        // Found in existing catalog
+        setExistingApps(data.applications);
+      } else if (!data.found && data.scraped) {
+        // Not found — show confirm step with scraped data
+        setConfirmData({
+          name: data.scraped.name || name.trim(),
+          description: data.scraped.description || '',
+          vendor_url: data.scraped.vendor_url || url.trim(),
+          category_id: '',
+        });
+        setStep('confirm');
+      } else {
+        // Not found, no scrape (no URL provided)
+        setConfirmData({
+          name: name.trim(),
+          description: '',
+          vendor_url: url.trim(),
+          category_id: '',
+        });
+        setStep('confirm');
+      }
+    } catch (e: any) {
+      toast({ title: 'Search failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleSubmitNewTool = async () => {
+    if (!confirmData.name.trim()) {
+      toast({ title: 'Name is required', variant: 'destructive' });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      // Insert as pending for platform admin review
+      const { data: newApp, error } = await supabase
+        .from('applications')
+        .insert({
+          name: confirmData.name.trim(),
+          description: confirmData.description.trim() || null,
+          vendor_url: confirmData.vendor_url.trim() || null,
+          category_id: confirmData.category_id || null,
+          status: 'pending',
+          submitted_by_org: orgId,
+        })
+        .select('*, categories(name)')
+        .single();
+
+      if (error) {
+        if (error.code === '23505') {
+          toast({ title: 'This tool already exists in the catalog', variant: 'destructive' });
+        } else {
+          throw error;
+        }
+        return;
+      }
+
+      toast({
+        title: 'Tool submitted for review',
+        description: 'A platform administrator will review and approve it.',
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+
+      // Offer to add to stack immediately
+      if (newApp) {
+        setExistingApps([newApp]);
+        setStep('search');
+      }
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleAddToStack = async (appId: string) => {
@@ -38,13 +152,7 @@ export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialo
     }
   };
 
-  const handleAddToCatalog = (appId: string) => {
-    setCatalogOnlyIds(prev => new Set(prev).add(appId));
-    toast({ title: 'Added to catalog', description: 'This tool is now available in your catalog for anyone to select.' });
-  };
-
   const handleCategoryChange = async (appId: string, categoryId: string) => {
-    setCategoryOverrides(prev => ({ ...prev, [appId]: categoryId }));
     try {
       const { error } = await supabase.functions.invoke('search-tool', {
         body: { updateCategory: true, appId, categoryId },
@@ -52,116 +160,203 @@ export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialo
       if (error) throw error;
       const catName = categories.find(c => c.id === categoryId)?.name;
       toast({ title: `Category updated to ${catName}` });
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
     } catch (e: any) {
       toast({ title: 'Error updating category', description: e.message, variant: 'destructive' });
     }
   };
 
-  const result = searchTool.data;
-
-  const renderAppCard = (app: any) => {
-    const currentCategoryId = categoryOverrides[app.id] || app.category_id;
-    const currentCategoryName = categories.find(c => c.id === currentCategoryId)?.name || app.categories?.name;
-    const isAdded = addedIds.has(app.id);
-    const isCatalogOnly = catalogOnlyIds.has(app.id);
-
-    return (
-      <div key={app.id} className="rounded-lg border p-3 space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <p className="font-medium text-sm">{app.name}</p>
-              {app.vendor_url && (
-                <a href={app.vendor_url} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground">
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              )}
-            </div>
-            {app.description && <p className="text-xs text-muted-foreground">{app.description}</p>}
-          </div>
-          <div className="flex gap-1">
-            {!isAdded && !isCatalogOnly && (
-              <Button
-                size="sm"
-                variant="outline"
-                title="Add to catalog without adding to your stack"
-                onClick={() => handleAddToCatalog(app.id)}
-              >
-                <BookOpen className="h-3 w-3 mr-1" /> Catalog Only
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant={isAdded ? "secondary" : "default"}
-              disabled={isAdded || addApp.isPending}
-              onClick={() => handleAddToStack(app.id)}
-            >
-              {isAdded ? <><Check className="h-3 w-3 mr-1" /> In Stack</> : <><Plus className="h-3 w-3 mr-1" /> Add to Stack</>}
-            </Button>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Category:</span>
-          <Select value={currentCategoryId || ''} onValueChange={(v) => handleCategoryChange(app.id, v)}>
-            <SelectTrigger className="h-7 text-xs w-auto min-w-[140px]">
-              <SelectValue placeholder={currentCategoryName || 'Select...'} />
-            </SelectTrigger>
-            <SelectContent>
-              {categories.map(cat => (
-                <SelectItem key={cat.id} value={cat.id} className="text-xs">{cat.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <Dialog open={open} onOpenChange={o => { onOpenChange(o); if (!o) { setQuery(''); searchTool.reset(); setAddedIds(new Set()); setCatalogOnlyIds(new Set()); setCategoryOverrides({}); } }}>
+    <Dialog
+      open={open}
+      onOpenChange={o => {
+        onOpenChange(o);
+        if (!o) resetDialog();
+      }}
+    >
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Search for a Tool</DialogTitle>
+          <DialogTitle>{step === 'confirm' ? 'Confirm Tool Details' : 'Find a Tool'}</DialogTitle>
           <DialogDescription>
-            Search by name or URL. Add to your stack or just the catalog for others to find.
+            {step === 'confirm'
+              ? 'Review and adjust the details below. The tool will be submitted for admin approval.'
+              : 'Search by name. If it\'s not in the catalog, provide the vendor URL and we\'ll look it up.'}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex gap-2">
-          <Input
-            placeholder="e.g. Drata, Vanta, or a vendor URL..."
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSearch()}
-          />
-          <Button onClick={handleSearch} disabled={searchTool.isPending || query.trim().length < 2}>
-            {searchTool.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          </Button>
-        </div>
+        {step === 'search' && (
+          <>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Tool Name <span className="text-destructive">*</span></Label>
+                <Input
+                  placeholder="e.g. Drata, Vanta, ConnectWise..."
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Vendor URL <span className="text-destructive">*</span></Label>
+                <div className="relative">
+                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="e.g. drata.com or https://www.drata.com"
+                    value={url}
+                    onChange={e => setUrl(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                    className="pl-9"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  We'll fetch the tool's description and details from this URL
+                </p>
+              </div>
+              <Button
+                onClick={handleSearch}
+                disabled={searching || name.trim().length < 2 || url.trim().length < 2}
+                className="w-full"
+              >
+                {searching ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Searching...</>
+                ) : (
+                  <><Search className="h-4 w-4 mr-2" /> Search</>
+                )}
+              </Button>
+            </div>
 
-        {searchTool.isError && (
-          <p className="text-sm text-destructive">
-            {(searchTool.error as any)?.message || 'Something went wrong. Try again.'}
-          </p>
+            {/* Existing matches */}
+            {existingApps.length > 0 && (
+              <div className="space-y-2 mt-2">
+                <p className="text-sm text-muted-foreground">
+                  {existingApps[0]?.status === 'pending' ? 'Submitted (pending review):' : 'Found in catalog:'}
+                </p>
+                {existingApps.map((app: any) => (
+                  <div key={app.id} className="rounded-lg border p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-sm">{app.name}</p>
+                          {app.status === 'pending' && (
+                            <Badge variant="outline" className="text-xs text-yellow-600">Pending</Badge>
+                          )}
+                          {app.vendor_url && (
+                            <a
+                              href={app.vendor_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          )}
+                        </div>
+                        {app.description && (
+                          <p className="text-xs text-muted-foreground">{app.description}</p>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant={addedIds.has(app.id) ? 'secondary' : 'default'}
+                        disabled={addedIds.has(app.id) || addApp.isPending}
+                        onClick={() => handleAddToStack(app.id)}
+                      >
+                        {addedIds.has(app.id) ? (
+                          <><Check className="h-3 w-3 mr-1" /> In Stack</>
+                        ) : (
+                          <><Plus className="h-3 w-3 mr-1" /> Add to Stack</>
+                        )}
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Category:</span>
+                      <Select
+                        value={app.category_id || ''}
+                        onValueChange={v => handleCategoryChange(app.id, v)}
+                      >
+                        <SelectTrigger className="h-7 text-xs w-auto min-w-[140px]">
+                          <SelectValue placeholder={app.categories?.name || 'Select...'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map(cat => (
+                            <SelectItem key={cat.id} value={cat.id} className="text-xs">
+                              {cat.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
 
-        {result && !result.found && (
-          <p className="text-sm text-muted-foreground">
-            Could not identify this tool. Try a different name or URL.
-          </p>
-        )}
+        {step === 'confirm' && (
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Name <span className="text-destructive">*</span></Label>
+              <Input
+                value={confirmData.name}
+                onChange={e => setConfirmData(d => ({ ...d, name: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description</Label>
+              <textarea
+                className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={confirmData.description}
+                onChange={e => setConfirmData(d => ({ ...d, description: e.target.value }))}
+                placeholder="Brief description of the tool..."
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Vendor URL</Label>
+              <Input
+                value={confirmData.vendor_url}
+                onChange={e => setConfirmData(d => ({ ...d, vendor_url: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Category</Label>
+              <Select
+                value={confirmData.category_id}
+                onValueChange={v => setConfirmData(d => ({ ...d, category_id: v }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a category..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map(cat => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        {result?.found && result.existing && result.applications?.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Already in the catalog:</p>
-            {result.applications.map((app: any) => renderAppCard(app))}
-          </div>
-        )}
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" onClick={() => setStep('search')} className="flex-1">
+                Back
+              </Button>
+              <Button
+                onClick={handleSubmitNewTool}
+                disabled={submitting || !confirmData.name.trim()}
+                className="flex-1"
+              >
+                {submitting ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Submitting...</>
+                ) : (
+                  'Submit for Review'
+                )}
+              </Button>
+            </div>
 
-        {result?.found && !result.existing && result.application && (
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Found and added to the catalog:</p>
-            {renderAppCard(result.application)}
+            <p className="text-xs text-muted-foreground text-center">
+              New tools require platform admin approval before appearing in the global catalog.
+            </p>
           </div>
         )}
       </DialogContent>

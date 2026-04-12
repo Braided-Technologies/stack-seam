@@ -6,7 +6,7 @@ import {
 import type { TemplateEntry } from './registry.ts'
 
 const SITE_NAME = "StackSeam"
-const LOGO_URL = 'https://ivmbbnmmioeufmxtvsgs.supabase.co/storage/v1/object/public/email-assets/stackseam-logo.png'
+const LOGO_URL = 'https://yfrwpqpafoquajfxlbhk.supabase.co/storage/v1/object/public/email-assets/stackseam-logo.png'
 
 interface TeamInvitationProps {
   firstName?: string

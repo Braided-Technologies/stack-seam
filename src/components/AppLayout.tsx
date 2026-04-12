@@ -1,6 +1,8 @@
 import { ReactNode, useEffect, useState, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import SiteTour from '@/components/tour/AppTour';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { LayoutDashboard, Layers, Map, LogOut, Building2, Moon, Sun, Sparkles, Settings, Link2, ChevronsLeft, ChevronsRight, ShieldCheck, DollarSign, LifeBuoy } from 'lucide-react';
@@ -25,10 +27,26 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [hovered, setHovered] = useState(false);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout>>();
 
+  // On login, restore theme from user metadata
+  useEffect(() => {
+    const savedTheme = user?.user_metadata?.theme;
+    if (savedTheme === 'dark' || savedTheme === 'light') {
+      setDark(savedTheme === 'dark');
+    }
+  }, [user?.id]);
+
+  // Apply theme to DOM and localStorage
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
     localStorage.setItem('theme', dark ? 'dark' : 'light');
   }, [dark]);
+
+  // Persist theme to Supabase user metadata on toggle
+  const toggleDark = () => {
+    const newDark = !dark;
+    setDark(newDark);
+    supabase.auth.updateUser({ data: { theme: newDark ? 'dark' : 'light' } });
+  };
 
   useEffect(() => {
     localStorage.setItem('sidebar-collapsed', String(collapsed));
@@ -53,6 +71,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
+      <SiteTour />
       <aside
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -66,7 +85,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           {isExpanded && <span className="font-display font-bold whitespace-nowrap">StackSeam</span>}
         </Link>
 
-        <nav className="flex-1 space-y-1 p-3">
+        <nav data-tour="sidebar-nav" className="flex-1 space-y-1 p-3">
           {navItems.map(item => (
             <Link
               key={item.to}
@@ -118,7 +137,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           )}
         </nav>
 
-        <div className="border-t p-3 space-y-2">
+        <div data-tour="sidebar-org" className="border-t p-3 space-y-2">
           {isExpanded ? (
             <>
               <div className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2">
@@ -133,6 +152,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             </div>
           )}
           <Link
+            data-tour="sidebar-support"
             to="/support"
             title={!isExpanded ? 'Support' : undefined}
             className={cn(
@@ -147,10 +167,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             {isExpanded && 'Support'}
           </Link>
           <Button
+            data-tour="sidebar-theme"
             variant="ghost"
             size="sm"
             className={cn('w-full gap-2 text-muted-foreground', isExpanded ? 'justify-start' : 'justify-center px-0')}
-            onClick={() => setDark(!dark)}
+            onClick={toggleDark}
             title={dark ? 'Light Mode' : 'Dark Mode'}
           >
             {dark ? <Sun className="h-4 w-4 flex-shrink-0" /> : <Moon className="h-4 w-4 flex-shrink-0" />}

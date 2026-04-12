@@ -289,7 +289,7 @@ async function tryFetchPage(url: string): Promise<string | null> {
 
 async function discoverBatch(
   appNames: string[],
-  LOVABLE_API_KEY: string,
+  OPENAI_API_KEY: string,
   vendorUrls: Map<string, string>,
   focusApp?: string
 ) {
@@ -331,14 +331,14 @@ CRITICAL RULES:
 6. Do NOT fabricate or guess URLs. If you're not certain a specific integration page exists, do NOT include it.
 7. Do NOT include integrations where the only evidence is a generic integrations directory page.`;
 
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
@@ -443,8 +443,8 @@ serve(async (req) => {
     const body = await req.json();
     const { app_names, scheduled, focus_app } = body;
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -468,7 +468,7 @@ serve(async (req) => {
         try {
           const vendorMap = buildVendorMap(orgApps || []);
           const vendorUrls = buildVendorUrlMap(orgApps || []);
-          const result = await processDiscovery(names, LOVABLE_API_KEY, supabaseAdmin, vendorMap, vendorUrls);
+          const result = await processDiscovery(names, OPENAI_API_KEY, supabaseAdmin, vendorMap, vendorUrls);
           totalDiscovered += result.discovered;
           totalSaved += result.saved;
         } catch (e) {
@@ -508,7 +508,7 @@ serve(async (req) => {
       }
     }
 
-    const result = await processDiscovery(app_names, LOVABLE_API_KEY, supabaseAdmin, vendorMap, vendorUrls, focus_app);
+    const result = await processDiscovery(app_names, OPENAI_API_KEY, supabaseAdmin, vendorMap, vendorUrls, focus_app);
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

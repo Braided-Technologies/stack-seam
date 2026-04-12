@@ -72,10 +72,10 @@ async function fetchPageText(url: string): Promise<{ text: string; links: string
 }
 
 async function callAI(apiKey: string, messages: any[], tools?: any[], toolChoice?: any) {
-  const body: any = { model: "google/gemini-2.5-flash", messages, max_tokens: 8192 };
+  const body: any = { model: "gpt-4o-mini", messages, max_tokens: 8192 };
   if (tools) { body.tools = tools; body.tool_choice = toolChoice; }
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -383,8 +383,8 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured");
 
     // Verify caller is authenticated
     const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
@@ -433,7 +433,7 @@ Deno.serve(async (req) => {
     console.log(`Deep scan starting for "${focus_app}" (vendor: ${vendorUrl || 'unknown'})`);
 
     // PASS 1: Find integration pages
-    const integrationPageUrls = await pass1_findIntegrationPages(focus_app, vendorUrl, stackNames, LOVABLE_API_KEY);
+    const integrationPageUrls = await pass1_findIntegrationPages(focus_app, vendorUrl, stackNames, OPENAI_API_KEY);
 
     // Also try scraping common paths directly as fallback
     const vendorDomain = vendorUrl ? extractDomain(vendorUrl) : '';
@@ -446,7 +446,7 @@ Deno.serve(async (req) => {
     const allPageUrls = [...new Set([...integrationPageUrls, ...fallbackUrls])];
 
     // PASS 2: Scrape and extract
-    const rawIntegrations = await pass2_extractIntegrations(focus_app, stackNames, allPageUrls, LOVABLE_API_KEY);
+    const rawIntegrations = await pass2_extractIntegrations(focus_app, stackNames, allPageUrls, OPENAI_API_KEY);
 
     // Verify documentation URLs in parallel batches
     console.log(`Verifying ${rawIntegrations.length} integration URLs...`);
@@ -478,7 +478,7 @@ Deno.serve(async (req) => {
     if (verified.length < MAX_SCRAPE_THRESHOLD) {
       console.log(`Only ${verified.length} integrations from scraping, running knowledge fallback...`);
       const existingTargetNames = new Set(verified.map((i: any) => normalizeName(i.target)));
-      const knowledgeIntegrations = await pass3_knowledgeFallback(focus_app, stackNames, existingTargetNames, LOVABLE_API_KEY);
+      const knowledgeIntegrations = await pass3_knowledgeFallback(focus_app, stackNames, existingTargetNames, OPENAI_API_KEY);
       
       for (const integ of knowledgeIntegrations) {
         // Skip if we already have this target from scraping

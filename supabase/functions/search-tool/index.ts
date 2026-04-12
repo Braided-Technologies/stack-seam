@@ -1,201 +1,158 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.38/deno-dom-wasm.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+/** Scrape a URL for meta tags (title, description, icon) */
+async function scrapeMeta(url: string) {
+  const result: { title: string | null; description: string | null; icon: string | null } = {
+    title: null,
+    description: null,
+    icon: null,
+  };
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    const resp = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; StackSeam/1.0)",
+        Accept: "text/html",
+      },
+      signal: controller.signal,
+      redirect: "follow",
+    });
+    clearTimeout(timeout);
+
+    if (!resp.ok) return result;
+
+    const html = await resp.text();
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    if (!doc) return result;
+
+    // Title: prefer og:title > <title>
+    const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute("content");
+    const titleTag = doc.querySelector("title")?.textContent;
+    result.title = ogTitle || titleTag || null;
+
+    // Description: prefer og:description > meta description
+    const ogDesc = doc.querySelector('meta[property="og:description"]')?.getAttribute("content");
+    const metaDesc = doc.querySelector('meta[name="description"]')?.getAttribute("content");
+    result.description = ogDesc || metaDesc || null;
+
+    // Icon: prefer apple-touch-icon > shortcut icon > favicon
+    const appleIcon = doc.querySelector('link[rel="apple-touch-icon"]')?.getAttribute("href");
+    const shortcutIcon = doc.querySelector('link[rel="shortcut icon"]')?.getAttribute("href");
+    const icon = doc.querySelector('link[rel="icon"]')?.getAttribute("href");
+    const rawIcon = appleIcon || shortcutIcon || icon || null;
+
+    if (rawIcon) {
+      try {
+        result.icon = new URL(rawIcon, url).href;
+      } catch {
+        result.icon = rawIcon;
+      }
+    }
+  } catch (e) {
+    console.warn("Scrape failed:", e.message);
+  }
+
+  return result;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    // Authenticate the caller
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!authHeader) return json({ error: "Unauthorized" }, 401);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const {
+      data: { user },
+      error: authError,
+    } = await userClient.auth.getUser();
+    if (authError || !user) return json({ error: "Unauthorized" }, 401);
 
     const body = await req.json();
 
-    // Handle category update — requires platform admin
+    // ── Handle category update (platform admin only) ──
     if (body.updateCategory && body.appId && body.categoryId) {
       const { data: isAdmin } = await userClient.rpc("is_platform_admin");
-      if (!isAdmin) {
-        return new Response(JSON.stringify({ error: "Forbidden" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      if (!isAdmin) return json({ error: "Forbidden" }, 403);
+
       const supabaseAdmin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
       const { error } = await supabaseAdmin
         .from("applications")
         .update({ category_id: body.categoryId })
         .eq("id", body.appId);
       if (error) throw error;
-      return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ success: true });
     }
 
-    const { query } = body;
+    // ── Search / scrape flow ──
+    const { query, url: vendorUrl } = body;
+
     if (!query || typeof query !== "string" || query.trim().length < 2) {
-      return new Response(JSON.stringify({ error: "Query must be at least 2 characters" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Name is required (at least 2 characters)" }, 400);
     }
 
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabaseAdmin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    // Check for existing match (case-insensitive)
+    // Check for existing match by name (case-insensitive)
     const { data: existing } = await supabaseAdmin
       .from("applications")
       .select("*, categories(name)")
       .ilike("name", `%${query.trim()}%`);
 
     if (existing && existing.length > 0) {
-      return new Response(JSON.stringify({ found: true, existing: true, applications: existing }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ found: true, existing: true, applications: existing });
     }
 
-    // Use AI to research the tool
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    // Scrape vendor URL if provided
+    let scraped: { title: string | null; description: string | null; icon: string | null } = {
+      title: null,
+      description: null,
+      icon: null,
+    };
 
-    // Get categories for matching
-    const { data: categories } = await supabaseAdmin
-      .from("categories")
-      .select("id, name");
-    const categoryNames = (categories || []).map(c => c.name);
+    if (vendorUrl && typeof vendorUrl === "string") {
+      let normalizedUrl = vendorUrl.trim();
+      if (!/^https?:\/\//i.test(normalizedUrl)) {
+        normalizedUrl = "https://" + normalizedUrl;
+      }
+      scraped = await scrapeMeta(normalizedUrl);
+    }
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
+    // Return scraped data for the user to confirm before inserting
+    return json({
+      found: false,
+      scraped: {
+        name: scraped.title || query.trim(),
+        description: scraped.description || null,
+        icon: scraped.icon || null,
+        vendor_url: vendorUrl?.trim() || null,
       },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          {
-            role: "system",
-            content: `You are an IT/MSP software expert. When given a tool name or URL, identify the software product and return structured data about it. Only return real, existing software products. If you cannot identify the tool, indicate that.`,
-          },
-          {
-            role: "user",
-            content: `Identify this IT/MSP tool: "${query.trim()}". Available categories: ${categoryNames.join(", ")}`,
-          },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "identify_tool",
-              description: "Return structured information about an identified IT/MSP tool",
-              parameters: {
-                type: "object",
-                properties: {
-                  found: { type: "boolean", description: "Whether the tool was identified as a real product" },
-                  name: { type: "string", description: "Official product name" },
-                  description: { type: "string", description: "One-line description of the tool" },
-                  category: { type: "string", description: "Best matching category from the provided list" },
-                  vendor_url: { type: "string", description: "Vendor website URL" },
-                },
-                required: ["found"],
-                additionalProperties: false,
-              },
-            },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "identify_tool" } },
-      }),
-    });
-
-    if (!aiResponse.ok) {
-      const status = aiResponse.status;
-      if (status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limited, please try again shortly" }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted" }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      throw new Error(`AI gateway error: ${status}`);
-    }
-
-    const aiData = await aiResponse.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) throw new Error("No tool call in AI response");
-
-    const toolInfo = JSON.parse(toolCall.function.arguments);
-
-    if (!toolInfo.found) {
-      return new Response(JSON.stringify({ found: false, message: "Could not identify this tool" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Match category
-    const matchedCategory = (categories || []).find(
-      c => c.name.toLowerCase() === toolInfo.category?.toLowerCase()
-    );
-
-    // Insert into applications
-    const { data: newApp, error: insertError } = await supabaseAdmin
-      .from("applications")
-      .insert({
-        name: toolInfo.name,
-        description: toolInfo.description || null,
-        category_id: matchedCategory?.id || null,
-        vendor_url: toolInfo.vendor_url || null,
-      })
-      .select("*, categories(name)")
-      .single();
-
-    if (insertError) {
-      // Could be duplicate that slipped through
-      if (insertError.code === "23505") {
-        const { data: dup } = await supabaseAdmin
-          .from("applications")
-          .select("*, categories(name)")
-          .ilike("name", toolInfo.name);
-        return new Response(JSON.stringify({ found: true, existing: true, applications: dup || [] }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      throw insertError;
-    }
-
-    return new Response(JSON.stringify({ found: true, existing: false, application: newApp }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("search-tool error:", e);
-    return new Response(JSON.stringify({ error: "An internal error occurred" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: "An internal error occurred" }, 500);
   }
 });

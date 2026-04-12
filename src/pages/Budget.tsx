@@ -205,13 +205,13 @@ export default function Budget() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center gap-2">
+      <div data-tour="budget-header" className="flex items-center gap-2">
         <DollarSign className="h-6 w-6" />
         <h1 className="text-2xl font-bold">Budget & Spend</h1>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div data-tour="budget-stats" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Monthly Spend</CardTitle>
@@ -263,7 +263,7 @@ export default function Budget() {
 
       {/* Spend by Category Chart */}
       {categorySpend.length > 0 && (
-        <Card>
+        <Card data-tour="budget-chart">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -319,7 +319,7 @@ export default function Budget() {
       )}
 
       {/* App Spend Table */}
-      <Card>
+      <Card data-tour="budget-table">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <DollarSign className="h-5 w-5" />

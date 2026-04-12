@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useTour } from '@/contexts/TourContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -740,7 +741,6 @@ export default function Settings() {
   const { orgId, orgName, userRole, refreshOrg } = useAuth();
   const { toast } = useToast();
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
-
   const [companyName, setCompanyName] = useState('');
   const [orgUrl, setOrgUrl] = useState('');
   const [orgDomain, setOrgDomain] = useState('');
@@ -849,11 +849,11 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="team" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="team">Team</TabsTrigger>
-          <TabsTrigger value="company">Organization</TabsTrigger>
-          <TabsTrigger value="ai">AI Config</TabsTrigger>
-          <TabsTrigger value="connectors">Connectors</TabsTrigger>
+        <TabsList data-tour="settings-tabs" className="grid w-full grid-cols-4">
+          <TabsTrigger data-tour="settings-team" value="team">Team</TabsTrigger>
+          <TabsTrigger data-tour="settings-org" value="company">Organization</TabsTrigger>
+          <TabsTrigger data-tour="settings-ai" value="ai">AI Config</TabsTrigger>
+          <TabsTrigger data-tour="settings-connectors" value="connectors">Connectors</TabsTrigger>
         </TabsList>
 
         <TabsContent value="company" className="mt-4">
@@ -962,6 +962,42 @@ export default function Settings() {
           {orgId && <TeamSection orgId={orgId} isAdmin={isAdmin} orgName={orgName} />}
         </TabsContent>
       </Tabs>
+
+      <GuidedToursSection />
     </div>
+  );
+}
+
+function GuidedToursSection() {
+  const { resetTour, tourCompleted, startTour } = useTour();
+  const { toast } = useToast();
+
+  const handleReset = async () => {
+    await resetTour();
+    toast({ title: 'Tour reset', description: 'The site tour prompt will appear again.' });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm font-medium">Guided Tour</CardTitle>
+        <CardDescription>
+          {tourCompleted
+            ? 'You\'ve completed the site tour. Reset it to see it again.'
+            : 'You haven\'t completed the site tour yet.'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={() => startTour()}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          {tourCompleted ? 'Replay Tour' : 'Start Tour'}
+        </Button>
+        {tourCompleted && (
+          <Button variant="ghost" size="sm" onClick={handleReset}>
+            Reset
+          </Button>
+        )}
+      </CardContent>
+    </Card>
   );
 }

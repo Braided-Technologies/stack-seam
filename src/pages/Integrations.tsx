@@ -283,14 +283,14 @@ export default function Integrations() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div data-tour="int-header" className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Integrations</h1>
           <p className="text-muted-foreground text-sm">
             Manage and track integrations between your stack tools
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div data-tour="int-discover" className="flex items-center gap-2">
           {isAdmin && userApps.length >= 2 && (
             <Button
               variant="outline"
@@ -323,7 +323,7 @@ export default function Integrations() {
       </div>
 
       {/* Summary */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div data-tour="int-stats" className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Total Active</CardTitle>
@@ -415,7 +415,7 @@ export default function Integrations() {
           </CardContent>
         </Card>
       )}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div data-tour="int-search" className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search by app name..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
@@ -453,7 +453,7 @@ export default function Integrations() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
+        <div data-tour="int-list" className="space-y-4">
           {categoryGroupedData.map(group => {
             const isOpen = openGroups.has(group.label);
             const progress = getGroupProgress(group.apps);

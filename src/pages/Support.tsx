@@ -567,7 +567,7 @@ export default function Support() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setTab}>
-        <TabsList>
+        <TabsList data-tour="support-tabs">
           <TabsTrigger value="kb" className="gap-1.5">
             <BookOpen className="h-3.5 w-3.5" /> Knowledge Base
           </TabsTrigger>
@@ -578,7 +578,7 @@ export default function Support() {
 
         <TabsContent value="kb" className="mt-6">
           {/* Hero Search */}
-          <div className="rounded-xl bg-primary/5 border border-primary/10 p-6 mb-8">
+          <div data-tour="support-search" className="rounded-xl bg-primary/5 border border-primary/10 p-6 mb-8">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold mb-1">How can we help?</h2>
@@ -641,7 +641,7 @@ export default function Support() {
           ) : (
             <div>
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Browse by topic</h2>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div data-tour="support-categories" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {categories.map((cat: any) => {
                   const CatIcon = CATEGORY_ICONS[cat.name] || BookOpen;
                   const catArticles = articlesByCategory[cat.name] || [];

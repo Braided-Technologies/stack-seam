@@ -301,7 +301,7 @@ export default function StackMap() {
   const visibleNodeCount = nodes.filter(n => !n.id.startsWith('label-') && !n.id.startsWith('zone-')).length;
 
   return (
-    <div className="h-full w-full" style={{ height: 'calc(100vh)' }}>
+    <div data-tour="map-canvas" className="h-full w-full" style={{ height: 'calc(100vh)' }}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -319,7 +319,7 @@ export default function StackMap() {
           style={{ background: 'hsl(var(--card))' }}
         />
 
-        <Panel position="top-left" className="bg-card/90 backdrop-blur rounded-lg border p-3 shadow-sm space-y-2">
+        <Panel position="top-left" data-tour="map-controls" className="bg-card/90 backdrop-blur rounded-lg border p-3 shadow-sm space-y-2">
           <p className="text-sm font-medium">{visibleNodeCount} apps · {edges.length} integrations</p>
           <p className="text-xs text-muted-foreground">Click an app to see all its integrations</p>
           <div className="flex gap-2">
@@ -354,7 +354,7 @@ export default function StackMap() {
           </div>
         </Panel>
 
-        <Panel position="top-right" className="bg-card/90 backdrop-blur rounded-lg border shadow-sm max-w-[260px]">
+        <Panel position="top-right" data-tour="map-legend" className="bg-card/90 backdrop-blur rounded-lg border shadow-sm max-w-[260px]">
           <button
             onClick={() => setLegendOpen(!legendOpen)}
             className="flex items-center gap-2 px-3 py-2 w-full text-left text-sm font-medium"

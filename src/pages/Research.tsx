@@ -157,7 +157,7 @@ export default function Research() {
     <div className="flex flex-col h-screen">
       <div className="border-b px-6 py-4">
         <div className="flex items-center justify-between">
-          <div>
+          <div data-tour="research-header">
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
               <h1 className="text-xl font-semibold">AI Research Assistant</h1>
@@ -166,7 +166,7 @@ export default function Research() {
               Ask questions about IT tools, compare vendors, and get stack recommendations
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div data-tour="research-model" className="flex items-center gap-2">
             {messages.length > 0 && (
               <Button variant="outline" size="sm" onClick={resetChat} className="gap-1">
                 <RotateCcw className="h-3.5 w-3.5" />
@@ -200,7 +200,7 @@ export default function Research() {
             <p className="text-muted-foreground text-center max-w-md">
               I can help you research IT tools, compare vendors, and optimize your MSP stack. Try one of the suggestions below or ask your own question.
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
+            <div data-tour="research-prompts" className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
               {SUGGESTED_PROMPTS.map(prompt => (
                 <Card
                   key={prompt}
@@ -255,7 +255,7 @@ export default function Research() {
         )}
       </ScrollArea>
 
-      <div className="border-t px-6 py-4">
+      <div data-tour="research-input" className="border-t px-6 py-4">
         <div className="flex gap-2 max-w-3xl mx-auto">
           <Button
             onClick={() => sendMessage(input)}
