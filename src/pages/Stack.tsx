@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { formatCompactCurrency } from '@/lib/formatters';
+import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication, useIntegrations, useDiscoverIntegrations, useDeepScanIntegrations } from '@/hooks/useStackData';
 import SearchToolDialog from '@/components/SearchToolDialog';
@@ -22,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 type FilterMode = 'all' | 'selected' | 'available';
 
 export default function Stack() {
+  const queryClient = useQueryClient();
   const { data: categories = [] } = useCategories();
   const { data: applications = [] } = useApplications();
   const { data: userApps = [] } = useUserApplications();
@@ -236,6 +239,7 @@ export default function Stack() {
       description: app.description,
       vendor_url: app.vendor_url,
       category: cat?.name || 'Uncategorized',
+      category_id: app.category_id,
     });
   };
 
@@ -507,15 +511,44 @@ export default function Stack() {
                   {isInStack && <TabsTrigger value="settings">Settings</TabsTrigger>}
                 </TabsList>
 
-                <TabsContent value="overview" className="space-y-4 pt-2">
+                <TabsContent value="overview" className="space-y-4 pt-2 overflow-y-auto">
                   {infoApp.description && (
                     <p className="text-sm text-muted-foreground">{infoApp.description}</p>
                   )}
                   {!infoApp.description && (
                     <p className="text-sm text-muted-foreground italic">No description available.</p>
                   )}
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary">{infoApp.category}</Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isAdmin ? (
+                      <Select
+                        value={infoApp.category_id || ''}
+                        onValueChange={async (newCatId) => {
+                          const { error } = await supabase
+                            .from('applications')
+                            .update({ category_id: newCatId })
+                            .eq('id', infoApp.id);
+                          if (error) {
+                            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+                          } else {
+                            const catName = categories.find(c => c.id === newCatId)?.name || '';
+                            setInfoApp({ ...infoApp, category: catName, category_id: newCatId });
+                            queryClient.invalidateQueries({ queryKey: ['applications'] });
+                            toast({ title: `Category updated to ${catName}` });
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-7 w-auto min-w-[140px] text-xs">
+                          <SelectValue placeholder={infoApp.category || 'Select...'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map(cat => (
+                            <SelectItem key={cat.id} value={cat.id} className="text-xs">{cat.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant="secondary">{infoApp.category}</Badge>
+                    )}
                     {isInStack && <Badge variant="default">In Your Stack</Badge>}
                   </div>
                   <div className="flex gap-2 pt-2">
