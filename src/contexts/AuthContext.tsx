@@ -12,7 +12,7 @@ type AuthContextType = {
   mfaEnrolled: boolean;
   mfaVerified: boolean;
   aal: any;
-  signUp: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, firstName: string, lastName: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   createOrg: (name: string, domain?: string) => Promise<{ error: any }>;
@@ -90,12 +90,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchOrg(session.user.id);
-        checkMfa();
+        await fetchOrg(session.user.id);
+        await checkMfa();
       }
       setLoading(false);
     });
@@ -103,8 +103,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: 'https://stackseam.tech' } });
+  const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: 'https://stackseam.tech',
+        data: { first_name: firstName, last_name: lastName },
+      },
+    });
     return { error };
   };
 
