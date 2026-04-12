@@ -11,6 +11,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { CategoryCombobox } from '@/components/ui/category-combobox';
 
 import { toast } from '@/hooks/use-toast';
 import { Check, X, Building2, Users, Layers, MessageSquare, BarChart3, Pencil, Trash2, Save, ArrowUpDown, KeyRound, ShieldOff, Link2 } from 'lucide-react';
@@ -598,31 +601,64 @@ export default function Admin() {
                   <TableBody>
                     {allApps.filter(a => a.status === 'org_only').map(app => (
                       <TableRow key={app.id}>
-                        <TableCell className="font-medium">{app.name}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {categories.find(c => c.id === app.category_id)?.name || '—'}
+                        <TableCell>
+                          {editingApp === app.id ? (
+                            <Input value={editAppData.name} onChange={e => setEditAppData(prev => ({ ...prev, name: e.target.value }))} className="h-8" />
+                          ) : (
+                            <span className="font-medium">{app.name}</span>
+                          )}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground max-w-xs truncate">{app.description || '—'}</TableCell>
+                        <TableCell>
+                          {editingApp === app.id ? (
+                            <CategoryCombobox
+                              categories={categories}
+                              value={editAppData.category_id || ''}
+                              onChange={v => setEditAppData(prev => ({ ...prev, category_id: v || null }))}
+                              triggerClassName="h-8 text-xs min-w-[140px]"
+                            />
+                          ) : (
+                            <span className="text-sm text-muted-foreground">{categories.find(c => c.id === app.category_id)?.name || '—'}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-xs">
+                          {editingApp === app.id ? (
+                            <Input value={editAppData.description} onChange={e => setEditAppData(prev => ({ ...prev, description: e.target.value }))} className="h-8" />
+                          ) : (
+                            <span className="text-sm text-muted-foreground truncate block">{app.description || '—'}</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{new Date(app.created_at).toLocaleDateString()}</TableCell>
-                        <TableCell className="text-right space-x-1">
-                          <Button size="sm" variant="outline" onClick={() => approveApp(app.id)}>
-                            <Check className="h-3 w-3 mr-1" /> Approve
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button size="sm" variant="ghost" className="text-destructive"><X className="h-3 w-3 mr-1" /> Reject</Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete "{app.name}"?</AlertDialogTitle>
-                                <AlertDialogDescription>This will permanently remove this application.</AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => deleteApp(app.id)}>Delete</AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                        <TableCell className="text-right space-y-1">
+                          {editingApp === app.id ? (
+                            <div className="flex gap-1 justify-end">
+                              <Button size="sm" variant="outline" onClick={() => saveAppEdit(app.id)}>Save</Button>
+                              <Button size="sm" variant="ghost" onClick={() => setEditingApp(null)}>Cancel</Button>
+                            </div>
+                          ) : (
+                            <Button size="sm" variant="ghost" onClick={() => { setEditingApp(app.id); setEditAppData({ name: app.name, description: app.description || '', category_id: app.category_id }); }}>
+                              <Pencil className="h-3 w-3 mr-1" /> Edit
+                            </Button>
+                          )}
+                          <div className="flex gap-1 justify-end">
+                            <Button size="sm" variant="outline" onClick={() => approveApp(app.id)}>
+                              <Check className="h-3 w-3 mr-1" /> Approve
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="ghost" className="text-destructive"><X className="h-3 w-3 mr-1" /> Reject</Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete "{app.name}"?</AlertDialogTitle>
+                                  <AlertDialogDescription>This will permanently remove this application.</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => deleteApp(app.id)}>Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
