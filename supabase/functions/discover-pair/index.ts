@@ -47,38 +47,73 @@ function normalizeName(name: string): string {
   return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-// Tavily Search — returns up to 10 web results with pre-extracted content (bypasses bot challenges)
-async function tavilySearch(query: string, apiKey: string): Promise<{ url: string; title: string; description: string; content: string }[]> {
-  try {
-    const res = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        api_key: apiKey,
-        query,
-        search_depth: 'advanced',
-        max_results: 10,
-        include_answer: false,
-        include_raw_content: true,  // get the full extracted page text
-      }),
-    });
-    if (!res.ok) {
-      console.error('Tavily search error:', res.status, await res.text());
-      return [];
-    }
-    const data = await res.json();
-    return (data.results || []).map((r: any) => ({
-      url: r.url,
-      title: r.title || '',
-      description: r.content || '',
-      content: (r.raw_content || r.content || '').slice(0, 12000),
-    }));
-  } catch (e) {
-    console.error('Tavily search exception:', e);
-    return [];
+// OpenAI web search: uses gpt-4o-mini-search-preview (a model with built-in
+// browsing) to find real integration docs URLs. Returns real citations via
+// `url_citation` annotations, plus the model's own response text as a fallback
+// pageText for verification when fetchPage gets bot-blocked.
+//
+// Throws on HTTP errors so the caller can distinguish "search failed" (hard
+// failure — don't cache) from "search returned no results" (cache not_found).
+interface SearchResult { url: string; title: string; description: string; content: string; }
+
+async function openaiWebSearch(
+  sourceName: string,
+  targetName: string,
+  sourceDomains: Set<string>,
+  targetDomains: Set<string>,
+  apiKey: string,
+): Promise<SearchResult[]> {
+  const allowedDomains = Array.from(new Set([...sourceDomains, ...targetDomains])).join(', ');
+  const prompt = `Find the official product documentation page describing the integration between "${sourceName}" and "${targetName}".
+
+STRICT REQUIREMENTS:
+- The URL MUST be hosted on one of these domains (or a subdomain): ${allowedDomains}
+- The page MUST be an integration documentation page (setup guide, API reference, marketplace listing, help-center article about the specific integration), NOT a blog post, press release, privacy policy, subprocessor list, or marketing comparison page.
+- Ignore third-party review sites, comparison articles, consultant blogs, and partner directories.
+- If no such official documentation page exists on those domains, say so plainly and return nothing.
+
+In your response text, for each valid page found, quote a verbatim excerpt (at least 300 words when possible) from the page that describes how the integration works.`;
+
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini-search-preview',
+      web_search_options: {},
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error('OpenAI search error:', res.status, errText.slice(0, 500));
+    throw new Error(`openai_search_failed_${res.status}`);
   }
+
+  const data = await res.json();
+  const msg = data.choices?.[0]?.message;
+  const content: string = msg?.content || '';
+  const annotations: any[] = msg?.annotations || [];
+
+  const seen = new Set<string>();
+  const results: SearchResult[] = [];
+  for (const a of annotations) {
+    if (a.type !== 'url_citation') continue;
+    const url = a.url_citation?.url;
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    results.push({
+      url,
+      title: a.url_citation?.title || '',
+      description: '',
+      // Pass the full model response as fallback content — used when
+      // fetchPage is blocked by a bot challenge. It's not the raw page
+      // but it's based on a real browse and usually contains the key
+      // verification phrases (both app names, "integration", etc.)
+      content: content.slice(0, 12000),
+    });
+  }
+  return results;
 }
 
 // Detect Cloudflare / bot-challenge pages
@@ -217,37 +252,58 @@ function isRejectPath(url: string): boolean {
   }
 }
 
-// Count occurrences of any keyword from the list in text
+// Escape a string for use inside a RegExp
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Build a word-boundary regex for a keyword. Uses lookarounds so matches like
+// "Meshed360" don't hit when searching for "Mesh", and "Checkeeper" doesn't hit
+// when searching for "Keeper". The lookarounds treat non-word chars and end/start
+// of string as valid boundaries.
+function wordBoundaryRegex(keyword: string, flags = 'gi'): RegExp {
+  const esc = escapeRegex(keyword);
+  // (?<![\w]) negative lookbehind, (?![\w]) negative lookahead
+  return new RegExp(`(?<![A-Za-z0-9])${esc}(?![A-Za-z0-9])`, flags);
+}
+
+// Count occurrences of any keyword in text, matching whole words only.
 function countOccurrences(text: string, keywords: string[]): number {
   let count = 0;
   for (const kw of keywords) {
     if (kw.length < 3) continue;
-    const matches = text.match(new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'));
+    const matches = text.match(wordBoundaryRegex(kw));
     if (matches) count += matches.length;
   }
   return count;
 }
 
-// Find the closest distance (in chars) between any source keyword and any target keyword
+// Collect all whole-word positions of any keyword in the text
+function findPositions(text: string, keywords: string[]): number[] {
+  const positions: number[] = [];
+  for (const kw of keywords) {
+    if (kw.length < 3) continue;
+    const rx = wordBoundaryRegex(kw);
+    let m: RegExpExecArray | null;
+    while ((m = rx.exec(text)) !== null) {
+      positions.push(m.index);
+    }
+  }
+  return positions.sort((a, b) => a - b);
+}
+
+// Find the closest distance (in chars) between any source keyword and any target keyword,
+// using whole-word matching so substring collisions don't count.
 function minProximity(text: string, sourceKeys: string[], targetKeys: string[]): number {
-  const lower = text.toLowerCase();
+  const sPositions = findPositions(text, sourceKeys);
+  const tPositions = findPositions(text, targetKeys);
+  if (sPositions.length === 0 || tPositions.length === 0) return Infinity;
   let minDist = Infinity;
-  for (const sk of sourceKeys) {
-    if (sk.length < 3) continue;
-    let sIdx = lower.indexOf(sk);
-    while (sIdx !== -1) {
-      for (const tk of targetKeys) {
-        if (tk.length < 3) continue;
-        // Find nearest target occurrence to this source occurrence
-        let tIdx = lower.indexOf(tk);
-        while (tIdx !== -1) {
-          const dist = Math.abs(tIdx - sIdx);
-          if (dist < minDist) minDist = dist;
-          if (dist === 0) return 0;
-          tIdx = lower.indexOf(tk, tIdx + 1);
-        }
-      }
-      sIdx = lower.indexOf(sk, sIdx + 1);
+  for (const s of sPositions) {
+    for (const t of tPositions) {
+      const d = Math.abs(t - s);
+      if (d < minDist) minDist = d;
+      if (d === 0) return 0;
     }
   }
   return minDist;
@@ -278,8 +334,8 @@ async function verifyUrl(
   // 3. Fetch page. If it hits a bot challenge, fall back to Tavily-extracted content.
   let pageText = '';
   const page = await fetchPage(url);
-  if (page.ok && pageText.length > 200) {
-    pageText = pageText;
+  if (page.ok && page.text.length > 200) {
+    pageText = page.text;
   } else if (fallbackContent && fallbackContent.length > 200) {
     pageText = fallbackContent;
   } else {
@@ -314,25 +370,18 @@ async function verifyUrl(
   }
 
   // 7. Integration keyword must appear near the app names (not just anywhere on page).
-  // Build a window around each occurrence of the source or target name and check inside it.
-  const lowerPageText = pageText.toLowerCase();
+  // Build a window around each word-boundary occurrence and check inside it.
   const integrationRegex = /integrat|\bsync\b|api integration|webhook|two-way|bidirectional|connector|workflow|automat/i;
-
-  let keywordNearMention = false;
   const allKeys = [...sourceKeys, ...targetKeys];
-  for (const k of allKeys) {
-    if (k.length < 3) continue;
-    let idx = lowerPageText.indexOf(k);
-    while (idx !== -1) {
-      const start = Math.max(0, idx - 300);
-      const end = Math.min(pageText.length, idx + 300);
-      if (integrationRegex.test(pageText.substring(start, end))) {
-        keywordNearMention = true;
-        break;
-      }
-      idx = lowerPageText.indexOf(k, idx + 1);
+  const mentionPositions = findPositions(pageText, allKeys);
+  let keywordNearMention = false;
+  for (const idx of mentionPositions) {
+    const start = Math.max(0, idx - 300);
+    const end = Math.min(pageText.length, idx + 300);
+    if (integrationRegex.test(pageText.substring(start, end))) {
+      keywordNearMention = true;
+      break;
     }
-    if (keywordNearMention) break;
   }
 
   if (!keywordNearMention) {
@@ -528,14 +577,8 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const tavilyKey = Deno.env.get('TAVILY_API_KEY');
     const openaiKey = Deno.env.get('OPENAI_API_KEY');
 
-    if (!tavilyKey) {
-      return new Response(JSON.stringify({ error: 'TAVILY_API_KEY not configured' }), {
-        status: 500, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
-      });
-    }
     if (!openaiKey) {
       return new Response(JSON.stringify({ error: 'OPENAI_API_KEY not configured' }), {
         status: 500, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
@@ -589,16 +632,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Tavily Search — try both directions to find docs on either vendor's domain.
-    // Include vendor hostnames as literal hints in the query so ambiguous names
-    // (e.g., "Mesh" the email security product vs. "mesh networking") disambiguate.
-    const allDomains = Array.from(new Set([...sourceDomains, ...targetDomains]));
-    const siteFilter = allDomains.length > 0 ? ` (${allDomains.map(d => `site:${d}`).join(' OR ')})` : '';
-    const sourceHost = sourceApp.vendor_url ? extractDomain(sourceApp.vendor_url) : '';
-    const targetHost = targetApp.vendor_url ? extractDomain(targetApp.vendor_url) : '';
-    const hints = [sourceHost, targetHost].filter(Boolean).join(' ');
-    const query = `"${sourceApp.name}" "${targetApp.name}" integration ${hints}${siteFilter}`;
-    const searchResults = await tavilySearch(query, tavilyKey);
+    // OpenAI web search (gpt-4o-mini-search-preview). Replaces Tavily — uses the
+    // model's built-in browsing to find real URLs with citation annotations.
+    // Any API-level failure (401/429/5xx) throws and bubbles up as a 500, which
+    // process-discovery-job treats as a hard job failure instead of silently
+    // caching "not_found".
+    const searchResults = await openaiWebSearch(
+      sourceApp.name, targetApp.name, sourceDomains, targetDomains, openaiKey,
+    );
+    console.log(`[discover-pair] ${sourceApp.name} + ${targetApp.name} → ${searchResults.length} citations`, searchResults.map(r => r.url));
 
     if (searchResults.length === 0) {
       // Cache the negative result
@@ -710,8 +752,14 @@ Deno.serve(async (req) => {
     });
   } catch (e: any) {
     console.error('discover-pair error:', e);
-    return new Response(JSON.stringify({ error: e.message || 'Unknown error' }), {
-      status: 500, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
+    const msg = e?.message || 'Unknown error';
+    // If the search backend is the one that failed (credit exhaustion, auth, etc),
+    // signal that distinctly so the orchestrator can fail the job loudly instead
+    // of caching a bogus "not_found".
+    const isSearchError = msg.startsWith('openai_search_failed_');
+    return new Response(JSON.stringify({ error: msg, search_error: isSearchError }), {
+      status: isSearchError ? 503 : 500,
+      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
     });
   }
 });

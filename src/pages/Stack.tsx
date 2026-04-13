@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { formatCompactCurrency } from '@/lib/formatters';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
-import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication, useIntegrations, useDiscoverIntegrations, useDeepScanIntegrations, useStartDiscoveryJob, useDiscoveryJob, useReportIntegration } from '@/hooks/useStackData';
+import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication, useIntegrations, useDiscoverIntegrations, useDeepScanIntegrations, useStartDiscoveryJob, useDiscoveryJob, useActiveDiscoveryJob, useReportIntegration } from '@/hooks/useStackData';
 import SearchToolDialog from '@/components/SearchToolDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +40,15 @@ export default function Stack() {
   const { data: activeJob } = useDiscoveryJob(activeJobId);
   const reportIntegration = useReportIntegration();
   const { userRole, orgId } = useAuth();
+
+  // Hydrate activeJobId from the cross-page active-job hook when we don't have
+  // one locally. Keeps the progress panel visible across page reloads / nav.
+  const { data: hydratedJob } = useActiveDiscoveryJob(orgId);
+  useEffect(() => {
+    if (!activeJobId && hydratedJob?.id) {
+      setActiveJobId(hydratedJob.id);
+    }
+  }, [activeJobId, hydratedJob?.id]);
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
   const navigate = useNavigate();
 

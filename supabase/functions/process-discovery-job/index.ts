@@ -22,8 +22,26 @@ function corsHeaders(req: Request): Record<string, string> {
 }
 
 const MAX_PARALLEL_PAIRS = 1;
-const DELAY_BETWEEN_BATCHES_MS = 2500;
+const DELAY_BETWEEN_BATCHES_MS = 2000;
 const CACHE_TTL_DAYS = 30;
+// Self-chain batch size: how many pairs to process per edge-function invocation
+// before re-invoking. Sized so each call stays under the ~150s wall-clock limit.
+// OpenAI web search is ~8-12s/pair, so 8 pairs × ~15s worst case ≈ 120s.
+const BATCH_PAIRS_PER_INVOCATION = 8;
+
+async function reinvokeSelf(supabaseUrl: string, serviceKey: string, jobId: string): Promise<void> {
+  // Fire-and-forget re-invoke so the next batch runs in a fresh edge-function
+  // invocation with its own wall-clock budget.
+  try {
+    await fetch(`${supabaseUrl}/functions/v1/process-discovery-job`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${serviceKey}` },
+      body: JSON.stringify({ job_id: jobId }),
+    });
+  } catch (e) {
+    console.error('Self re-invoke failed:', e);
+  }
+}
 
 interface AppPair {
   source_app_id: string;
@@ -39,6 +57,14 @@ async function discoverPair(supabaseUrl: string, serviceKey: string, pair: AppPa
     },
     body: JSON.stringify(pair),
   });
+  // 503 means the search backend itself failed (credit exhaustion, auth, etc).
+  // Throw so processJob's try/catch marks the WHOLE job failed — don't silently
+  // poison the cache with false negatives for every remaining pair.
+  if (res.status === 503) {
+    let msg = 'search_backend_failed';
+    try { const body = await res.json(); msg = body.error || msg; } catch {}
+    throw new Error(`search_backend_failed: ${msg}`);
+  }
   if (!res.ok) return { found: false };
   const data = await res.json();
   return { found: !!data.found, result: data };
@@ -48,13 +74,7 @@ async function processJob(jobId: string, supabase: any) {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-  // Mark as running
-  await supabase.from('discovery_jobs').update({
-    status: 'running',
-    started_at: new Date().toISOString(),
-  }).eq('id', jobId);
-
-  // Load job
+  // Load job first so we can decide whether to stamp started_at
   const { data: job, error: jobErr } = await supabase
     .from('discovery_jobs')
     .select('*')
@@ -64,6 +84,14 @@ async function processJob(jobId: string, supabase: any) {
   if (jobErr || !job) {
     console.error('Job not found:', jobId);
     return;
+  }
+
+  // Only stamp started_at + mark running on the very first invocation.
+  if (!job.started_at) {
+    await supabase.from('discovery_jobs').update({
+      status: 'running',
+      started_at: new Date().toISOString(),
+    }).eq('id', jobId);
   }
 
   try {
@@ -92,9 +120,19 @@ async function processJob(jobId: string, supabase: any) {
       }
     }
 
-    // Build list of pairs based on job_type
-    let pairs: AppPair[] = [];
+    // Self-chaining model:
+    //   - First invocation: build the full pair list, save to job.result.remaining_pairs,
+    //     set total_pairs.
+    //   - Every invocation (including the first): pop BATCH_PAIRS_PER_INVOCATION pairs,
+    //     process them, write back remaining_pairs + counters.
+    //   - If remaining_pairs is non-empty at the end, fire-and-forget re-invoke self.
+    //   - Else mark completed.
+    const existingResult = (job.result || {}) as any;
+    const alreadyBuilt = Array.isArray(existingResult.remaining_pairs);
+    let pairs: AppPair[] = alreadyBuilt ? existingResult.remaining_pairs : [];
+    let foundIntegrations: any[] = Array.isArray(existingResult.integrations) ? existingResult.integrations : [];
 
+    if (!alreadyBuilt) {
     const cacheCutoff = new Date(Date.now() - CACHE_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
     const { data: cachedPairs } = await supabase
       .from('discovery_cache')
@@ -199,8 +237,11 @@ async function processJob(jobId: string, supabase: any) {
       }
     }
 
-    // Update total
-    await supabase.from('discovery_jobs').update({ total_pairs: pairs.length }).eq('id', jobId);
+    // First-invocation bookkeeping: persist the freshly-built pair list + total.
+    await supabase.from('discovery_jobs').update({
+      total_pairs: pairs.length,
+      result: { remaining_pairs: pairs, integrations: [], found: 0 },
+    }).eq('id', jobId);
 
     if (pairs.length === 0) {
       await supabase.from('discovery_jobs').update({
@@ -210,14 +251,17 @@ async function processJob(jobId: string, supabase: any) {
       }).eq('id', jobId);
       return;
     }
+    } // end !alreadyBuilt
 
-    let foundCount = 0;
-    let processedCount = 0;
-    const foundIntegrations: any[] = [];
+    // Take this invocation's slice off the front of remaining_pairs
+    const batchPairs = pairs.slice(0, BATCH_PAIRS_PER_INVOCATION);
+    const leftoverPairs = pairs.slice(BATCH_PAIRS_PER_INVOCATION);
+    let foundCount = foundIntegrations.length;
+    let processedCount = job.processed_pairs || 0;
 
-    // Process in parallel batches with delay between batches to avoid rate limits
-    for (let i = 0; i < pairs.length; i += MAX_PARALLEL_PAIRS) {
-      const batch = pairs.slice(i, i + MAX_PARALLEL_PAIRS);
+    // Process this invocation's slice with MAX_PARALLEL_PAIRS + delay
+    for (let i = 0; i < batchPairs.length; i += MAX_PARALLEL_PAIRS) {
+      const batch = batchPairs.slice(i, i + MAX_PARALLEL_PAIRS);
       const results = await Promise.all(batch.map(p => discoverPair(supabaseUrl, serviceKey, p)));
 
       for (const r of results) {
@@ -289,23 +333,50 @@ async function processJob(jobId: string, supabase: any) {
         }
       }
 
-      // Update progress
+      // Update progress within this batch. Touching updated_at on every iteration
+      // is what the frontend watchdog uses to detect a truly stuck job.
       await supabase.from('discovery_jobs').update({
         processed_pairs: processedCount,
         found_count: foundCount,
+        updated_at: new Date().toISOString(),
       }).eq('id', jobId);
 
       // Throttle to avoid rate limits
-      if (i + MAX_PARALLEL_PAIRS < pairs.length) {
+      if (i + MAX_PARALLEL_PAIRS < batchPairs.length) {
         await new Promise(r => setTimeout(r, DELAY_BETWEEN_BATCHES_MS));
       }
     }
 
-    // Mark complete
+    // End-of-batch: write remaining_pairs + counters. If work remains, re-invoke self.
+    const slimIntegrations = foundIntegrations.map(i => ({
+      source_app_id: i.source_app_id,
+      target_app_id: i.target_app_id,
+      confidence: i.confidence,
+    }));
+
+    if (leftoverPairs.length > 0) {
+      await supabase.from('discovery_jobs').update({
+        processed_pairs: processedCount,
+        found_count: foundCount,
+        updated_at: new Date().toISOString(),
+        result: {
+          remaining_pairs: leftoverPairs,
+          integrations: slimIntegrations,
+          found: foundCount,
+        },
+      }).eq('id', jobId);
+      await reinvokeSelf(supabaseUrl, serviceKey, jobId);
+      return;
+    }
+
+    // No more pairs — mark complete
     await supabase.from('discovery_jobs').update({
       status: 'completed',
       completed_at: new Date().toISOString(),
-      result: { found: foundIntegrations.length, integrations: foundIntegrations.map(i => ({ source_app_id: i.source_app_id, target_app_id: i.target_app_id, confidence: i.confidence })) },
+      processed_pairs: processedCount,
+      found_count: foundCount,
+      updated_at: new Date().toISOString(),
+      result: { found: foundCount, integrations: slimIntegrations },
     }).eq('id', jobId);
 
   } catch (e: any) {

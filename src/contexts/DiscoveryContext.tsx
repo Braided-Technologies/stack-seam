@@ -137,6 +137,19 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // Pre-check: is there already an active job for this org?
+      const { data: existingJob } = await supabase
+        .from('discovery_jobs')
+        .select('id')
+        .eq('organization_id', orgId)
+        .in('status', ['pending', 'running'])
+        .neq('job_type', 'catalog_refresh')
+        .maybeSingle();
+      if (existingJob) {
+        toast({ title: 'Discovery already running', description: 'Wait for the current scan to finish.' });
+        return;
+      }
+
       const { data: job, error } = await supabase
         .from('discovery_jobs')
         .insert({
@@ -147,7 +160,14 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
         })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        // Unique-index violation — someone else (or a racing click) beat us to it.
+        if (error.code === '23505') {
+          toast({ title: 'Discovery already running', description: 'Wait for the current scan to finish.' });
+          return;
+        }
+        throw error;
+      }
 
       await supabase.functions.invoke('process-discovery-job', {
         body: { job_id: job.id },
@@ -181,6 +201,18 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      const { data: existingJob } = await supabase
+        .from('discovery_jobs')
+        .select('id')
+        .eq('organization_id', orgId)
+        .in('status', ['pending', 'running'])
+        .neq('job_type', 'catalog_refresh')
+        .maybeSingle();
+      if (existingJob) {
+        toast({ title: 'Discovery already running', description: 'Wait for the current scan to finish.' });
+        return;
+      }
+
       const { data: job, error } = await supabase
         .from('discovery_jobs')
         .insert({
@@ -192,7 +224,13 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
         })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        if (error.code === '23505') {
+          toast({ title: 'Discovery already running', description: 'Wait for the current scan to finish.' });
+          return;
+        }
+        throw error;
+      }
 
       await supabase.functions.invoke('process-discovery-job', {
         body: { job_id: job.id },
