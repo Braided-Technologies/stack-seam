@@ -45,7 +45,7 @@ export default function Integrations() {
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
   const { data: allIntegrations = [] } = useIntegrations();
   const { data: userApps = [] } = useUserApplications();
-  const { state: discoveryState, startBatchDiscovery, dismiss: dismissDiscovery } = useDiscovery();
+  const { state: discoveryState, startBatchDiscovery, startFocusedDiscovery, dismiss: dismissDiscovery } = useDiscovery();
   const isDiscoveringAll = discoveryState.isRunning;
   const discoveryProgress = discoveryState.progress;
   const discoveryResults = discoveryState.results;
@@ -496,42 +496,10 @@ export default function Integrations() {
                               variant="ghost"
                               size="sm"
                               className="h-6 text-[10px] gap-1 px-2"
-                              disabled={discoveringAppId === app.appId || isDiscoveringAll}
+                              disabled={isDiscoveringAll}
                               onClick={async (e) => {
                                 e.stopPropagation();
-                                const stackNames = userApps
-                                  .map((ua: any) => ua.applications?.name)
-                                  .filter(Boolean) as string[];
-                                if (stackNames.length < 2) return;
-                                setDiscoveringAppId(app.appId);
-                                try {
-                                  const { data: result, error } = await supabase.functions.invoke('discover-integrations', {
-                                    body: { app_names: stackNames.includes(app.appName) ? stackNames : [app.appName, ...stackNames], focus_app: app.appName },
-                                  });
-                                  if (error) throw error;
-                                  const savedCount = Number(result?.saved || 0);
-                                  const refreshedCount = Number(result?.refreshed || 0);
-                                  const discoveredCount = Number(result?.discovered || 0);
-                                  const skippedCount = Math.max(0, discoveredCount - savedCount - refreshedCount);
-                                  toast({
-                                    title: savedCount > 0
-                                      ? `Found ${savedCount} new integration${savedCount === 1 ? '' : 's'} for ${app.appName}`
-                                      : `No new integrations found for ${app.appName}`,
-                                    description: [
-                                      refreshedCount > 0
-                                        ? `${refreshedCount} ${refreshedCount === 1 ? 'already existed and was refreshed' : 'already existed and were refreshed'}.`
-                                        : null,
-                                      skippedCount > 0
-                                        ? `${skippedCount} ${skippedCount === 1 ? 'was skipped' : 'were skipped'}.`
-                                        : null,
-                                    ].filter(Boolean).join(' ') || undefined,
-                                  });
-                                  queryClient.invalidateQueries({ queryKey: ['integrations'] });
-                                } catch (err: any) {
-                                  toast({ title: 'Discovery failed', description: err.message, variant: 'destructive' });
-                                } finally {
-                                  if (!isDiscoveringAll) setDiscoveringAppId(null);
-                                }
+                                await startFocusedDiscovery(app.appId, app.appName);
                               }}
                             >
 {discoveringAppId === app.appId ? (

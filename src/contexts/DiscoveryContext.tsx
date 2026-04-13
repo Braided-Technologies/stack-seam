@@ -1,21 +1,38 @@
-import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 
 type AppStatus = 'queued' | 'in_progress' | 'done' | 'error';
 type AppResult = { saved?: number; error?: string };
 
+interface DiscoveryJob {
+  id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  job_type: string;
+  focus_app_id: string | null;
+  total_pairs: number;
+  processed_pairs: number;
+  found_count: number;
+  error_message: string | null;
+}
+
 interface DiscoveryState {
   isRunning: boolean;
   progress: Record<string, AppStatus>;
   results: Record<string, AppResult>;
-  appNames: Record<string, string>; // appId -> appName for display
+  appNames: Record<string, string>;
+  jobId: string | null;
+  totalPairs: number;
+  processedPairs: number;
+  foundCount: number;
 }
 
 interface DiscoveryContextType {
   state: DiscoveryState;
-  startBatchDiscovery: (userApps: { application_id: string; applications?: { name?: string } | null }[]) => void;
+  startBatchDiscovery: (userApps: { application_id: string; applications?: { name?: string } | null }[]) => Promise<void>;
+  startFocusedDiscovery: (focusAppId: string, focusAppName: string) => Promise<void>;
   dismiss: () => void;
   hasProgress: boolean;
 }
@@ -34,12 +51,63 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
     progress: {},
     results: {},
     appNames: {},
+    jobId: null,
+    totalPairs: 0,
+    processedPairs: 0,
+    foundCount: 0,
   });
-  const abortRef = useRef(false);
   const queryClient = useQueryClient();
+  const { orgId } = useAuth();
 
-  const startBatchDiscovery = useCallback((userApps: { application_id: string; applications?: { name?: string } | null }[]) => {
+  // Poll the job for progress while running
+  useEffect(() => {
+    if (!state.jobId || !state.isRunning) return;
+
+    const interval = setInterval(async () => {
+      const { data: job, error } = await supabase
+        .from('discovery_jobs')
+        .select('*')
+        .eq('id', state.jobId!)
+        .single();
+
+      if (error || !job) return;
+
+      const typedJob = job as unknown as DiscoveryJob;
+      setState(prev => ({
+        ...prev,
+        totalPairs: typedJob.total_pairs,
+        processedPairs: typedJob.processed_pairs,
+        foundCount: typedJob.found_count,
+      }));
+
+      if (typedJob.status === 'completed' || typedJob.status === 'failed' || typedJob.status === 'cancelled') {
+        setState(prev => ({ ...prev, isRunning: false }));
+        await queryClient.invalidateQueries({ queryKey: ['integrations'] });
+
+        if (typedJob.status === 'completed') {
+          toast({
+            title: `Discovery complete: ${typedJob.found_count} integration${typedJob.found_count === 1 ? '' : 's'} found`,
+            description: `Scanned ${typedJob.processed_pairs} pair${typedJob.processed_pairs === 1 ? '' : 's'}.`,
+          });
+        } else {
+          toast({
+            title: 'Discovery failed',
+            description: typedJob.error_message || 'Unknown error',
+            variant: 'destructive',
+          });
+        }
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [state.jobId, state.isRunning, queryClient]);
+
+  const startBatchDiscovery = useCallback(async (userApps: { application_id: string; applications?: { name?: string } | null }[]) => {
     if (state.isRunning) return;
+    if (!orgId) {
+      toast({ title: 'No organization', variant: 'destructive' });
+      return;
+    }
 
     const stackNames = userApps
       .map(ua => ua.applications?.name)
@@ -59,72 +127,107 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    abortRef.current = false;
-    setState({ isRunning: true, progress: initialProgress, results: {}, appNames });
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
 
-    // Run in background - not tied to any component lifecycle
-    (async () => {
-      let totalSaved = 0;
-      let totalDiscovered = 0;
+      const { data: job, error } = await supabase
+        .from('discovery_jobs')
+        .insert({
+          organization_id: orgId,
+          created_by: user.id,
+          job_type: 'full_scan',
+          status: 'pending',
+        })
+        .select()
+        .single();
+      if (error) throw error;
 
-      for (const ua of userApps) {
-        if (abortRef.current) break;
-        const appName = ua.applications?.name;
-        if (!appName) continue;
-        const appId = ua.application_id;
-
-        setState(prev => ({
-          ...prev,
-          progress: { ...prev.progress, [appId]: 'in_progress' },
-        }));
-
-        try {
-          const { data, error } = await supabase.functions.invoke('discover-integrations', {
-            body: { app_names: stackNames, focus_app: appName },
-          });
-          if (error) throw error;
-
-          totalSaved += data.saved || 0;
-          totalDiscovered += data.discovered || 0;
-
-          setState(prev => ({
-            ...prev,
-            progress: { ...prev.progress, [appId]: 'done' },
-            results: { ...prev.results, [appId]: { saved: data.saved || 0 } },
-          }));
-        } catch (err: any) {
-          console.error(`Discovery failed for ${appName}:`, err.message);
-          setState(prev => ({
-            ...prev,
-            progress: { ...prev.progress, [appId]: 'error' },
-            results: { ...prev.results, [appId]: { error: err.message } },
-          }));
-        }
-
-        // Invalidate after each app so UI updates
-        await queryClient.invalidateQueries({ queryKey: ['integrations'] });
-      }
-
-      setState(prev => ({ ...prev, isRunning: false }));
-      toast({
-        title: `Discovery complete: ${totalSaved} new integrations`,
-        description: totalDiscovered > totalSaved
-          ? `${totalDiscovered - totalSaved} already existed or were filtered.`
-          : 'All apps checked.',
+      await supabase.functions.invoke('process-discovery-job', {
+        body: { job_id: job.id },
       });
-    })();
-  }, [state.isRunning, queryClient]);
+
+      setState({
+        isRunning: true,
+        progress: initialProgress,
+        results: {},
+        appNames,
+        jobId: job.id,
+        totalPairs: 0,
+        processedPairs: 0,
+        foundCount: 0,
+      });
+
+      toast({ title: 'Discovery started', description: `Scanning ${stackNames.length} apps…` });
+    } catch (e: any) {
+      toast({ title: 'Failed to start discovery', description: e.message, variant: 'destructive' });
+    }
+  }, [state.isRunning, orgId]);
+
+  const startFocusedDiscovery = useCallback(async (focusAppId: string, focusAppName: string) => {
+    if (state.isRunning) return;
+    if (!orgId) {
+      toast({ title: 'No organization', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data: job, error } = await supabase
+        .from('discovery_jobs')
+        .insert({
+          organization_id: orgId,
+          created_by: user.id,
+          job_type: 'deep_scan',
+          focus_app_id: focusAppId,
+          status: 'pending',
+        })
+        .select()
+        .single();
+      if (error) throw error;
+
+      await supabase.functions.invoke('process-discovery-job', {
+        body: { job_id: job.id },
+      });
+
+      setState({
+        isRunning: true,
+        progress: { [focusAppId]: 'in_progress' },
+        results: {},
+        appNames: { [focusAppId]: focusAppName },
+        jobId: job.id,
+        totalPairs: 0,
+        processedPairs: 0,
+        foundCount: 0,
+      });
+
+      toast({ title: `Scanning ${focusAppName}…` });
+    } catch (e: any) {
+      toast({ title: 'Failed to start discovery', description: e.message, variant: 'destructive' });
+    }
+  }, [state.isRunning, orgId]);
 
   const dismiss = useCallback(() => {
     if (!state.isRunning) {
-      setState({ isRunning: false, progress: {}, results: {}, appNames: {} });
+      setState({
+        isRunning: false,
+        progress: {},
+        results: {},
+        appNames: {},
+        jobId: null,
+        totalPairs: 0,
+        processedPairs: 0,
+        foundCount: 0,
+      });
     }
   }, [state.isRunning]);
 
-  const hasProgress = Object.keys(state.progress).length > 0;
+  const hasProgress = Object.keys(state.progress).length > 0 || state.totalPairs > 0;
 
   return (
-    <DiscoveryContext.Provider value={{ state, startBatchDiscovery, dismiss, hasProgress }}>
+    <DiscoveryContext.Provider value={{ state, startBatchDiscovery, startFocusedDiscovery, dismiss, hasProgress }}>
       {children}
     </DiscoveryContext.Provider>
   );
