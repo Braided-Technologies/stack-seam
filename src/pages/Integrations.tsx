@@ -482,7 +482,14 @@ export default function Integrations() {
                           <div className="flex items-center gap-2">
                             {isAppOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                             <span className="text-sm font-medium">{app.appName}</span>
-                            <span className="text-xs text-muted-foreground">({filteredIntegrations.length})</span>
+                            {(() => {
+                              const configuredCount = filteredIntegrations.filter((i: any) => configuredMap[i.id]?.status === 'configured').length;
+                              return (
+                                <span className="text-xs text-muted-foreground">
+                                  ({configuredCount > 0 ? `${configuredCount}/${filteredIntegrations.length}` : filteredIntegrations.length})
+                                </span>
+                              );
+                            })()}
                           </div>
                           {isAdmin && (
                             <Button
