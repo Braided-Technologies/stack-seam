@@ -358,14 +358,38 @@ async function verifyUrl(
   };
 }
 
-// AI gate: final yes/no check that this page actually describes an integration
+interface AppContext {
+  name: string;
+  description?: string | null;
+  vendor_url?: string | null;
+  category?: string | null;
+}
+
+/// AI gate: final yes/no check that this page actually describes an integration
 async function aiGateCheck(
-  sourceName: string,
-  targetName: string,
+  sourceApp: AppContext,
+  targetApp: AppContext,
   pageText: string,
   pageUrl: string,
   openaiKey: string,
 ): Promise<{ isIntegration: boolean; reason: string }> {
+  const sourceName = sourceApp.name;
+  const targetName = targetApp.name;
+  const appContext = `
+IMPORTANT — these are the SPECIFIC products. Do not confuse them with generic terms or similarly-named products:
+
+App 1: "${sourceName}"
+  Category: ${sourceApp.category || 'unknown'}
+  Vendor URL: ${sourceApp.vendor_url || 'unknown'}
+  Description: ${sourceApp.description || '(none)'}
+
+App 2: "${targetName}"
+  Category: ${targetApp.category || 'unknown'}
+  Vendor URL: ${targetApp.vendor_url || 'unknown'}
+  Description: ${targetApp.description || '(none)'}
+
+If the page appears to be about different products that share a name (e.g., "Mesh" the email security company vs. mesh networking; "Datto" the backup company vs. an unrelated entity), REJECT it.`;
+
   try {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -393,6 +417,7 @@ Being on the vendor's domain does NOT automatically mean it's an integration pag
           {
             role: 'user',
             content: `Does this page describe an actual working product-level integration between "${sourceName}" and "${targetName}"?
+${appContext}
 
 URL: ${pageUrl}
 Content:
@@ -408,8 +433,8 @@ Answer with the tool call.`,
             parameters: {
               type: 'object',
               properties: {
-                is_integration: { type: 'boolean', description: 'true ONLY if this page describes how to connect or use a real product integration between the two named apps. FALSE if it is a subprocessor list, privacy/legal page, blog, release notes, comparison, or only mentions one app as a vendor/service provider.' },
-                page_type: { type: 'string', enum: ['integration_docs', 'marketplace_listing', 'api_reference', 'subprocessor_list', 'privacy_legal', 'blog_news', 'partner_directory', 'incidental_mention', 'other'], description: 'Classify the page type' },
+                is_integration: { type: 'boolean', description: 'true ONLY if this page describes how to connect or use a real product integration between the two SPECIFIC named apps (matching their descriptions and categories). FALSE if it is a subprocessor list, privacy/legal page, blog, release notes, comparison, only mentions one app as a vendor/service provider, OR if the page is about a DIFFERENT product that merely shares a name with one of the apps (e.g., "mesh networking" vs "Mesh Security").' },
+                page_type: { type: 'string', enum: ['integration_docs', 'marketplace_listing', 'api_reference', 'subprocessor_list', 'privacy_legal', 'blog_news', 'partner_directory', 'incidental_mention', 'name_collision', 'other'], description: 'Classify the page type' },
                 reason: { type: 'string', description: 'Brief reason for the decision' },
               },
               required: ['is_integration', 'page_type', 'reason'],
@@ -528,10 +553,10 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
-    // Load app names
+    // Load app context (name, domains, description, category) for both apps
     const { data: apps, error: appsErr } = await supabase
       .from('applications')
-      .select('id, name, vendor_url, alias_domains')
+      .select('id, name, vendor_url, alias_domains, description, categories(name)')
       .in('id', [source_app_id, target_app_id]);
 
     if (appsErr || !apps || apps.length !== 2) {
@@ -564,10 +589,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Tavily Search — try both directions to find docs on either vendor's domain
+    // Tavily Search — try both directions to find docs on either vendor's domain.
+    // Include vendor hostnames as literal hints in the query so ambiguous names
+    // (e.g., "Mesh" the email security product vs. "mesh networking") disambiguate.
     const allDomains = Array.from(new Set([...sourceDomains, ...targetDomains]));
     const siteFilter = allDomains.length > 0 ? ` (${allDomains.map(d => `site:${d}`).join(' OR ')})` : '';
-    const query = `"${sourceApp.name}" "${targetApp.name}" integration${siteFilter}`;
+    const sourceHost = sourceApp.vendor_url ? extractDomain(sourceApp.vendor_url) : '';
+    const targetHost = targetApp.vendor_url ? extractDomain(targetApp.vendor_url) : '';
+    const hints = [sourceHost, targetHost].filter(Boolean).join(' ');
+    const query = `"${sourceApp.name}" "${targetApp.name}" integration ${hints}${siteFilter}`;
     const searchResults = await tavilySearch(query, tavilyKey);
 
     if (searchResults.length === 0) {
@@ -615,7 +645,19 @@ Deno.serve(async (req) => {
     let best: typeof validResults[0] | null = null;
     let gateReason = '';
     for (const candidate of validResults.slice(0, 3)) {
-      const gate = await aiGateCheck(sourceApp.name, targetApp.name, candidate.verification.text, candidate.url, openaiKey);
+      const sourceCtx: AppContext = {
+        name: sourceApp.name,
+        description: sourceApp.description,
+        vendor_url: sourceApp.vendor_url,
+        category: (sourceApp as any).categories?.name || null,
+      };
+      const targetCtx: AppContext = {
+        name: targetApp.name,
+        description: targetApp.description,
+        vendor_url: targetApp.vendor_url,
+        category: (targetApp as any).categories?.name || null,
+      };
+      const gate = await aiGateCheck(sourceCtx, targetCtx, candidate.verification.text, candidate.url, openaiKey);
       if (gate.isIntegration) {
         best = candidate;
         break;
