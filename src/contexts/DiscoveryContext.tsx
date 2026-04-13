@@ -73,12 +73,18 @@ export function DiscoveryProvider({ children }: { children: ReactNode }) {
       if (error || !job) return;
 
       const typedJob = job as unknown as DiscoveryJob;
-      setState(prev => ({
-        ...prev,
-        totalPairs: typedJob.total_pairs,
-        processedPairs: typedJob.processed_pairs,
-        foundCount: typedJob.found_count,
-      }));
+      setState(prev => {
+        // If the found count increased, refetch the integrations list so new ones appear immediately
+        if (typedJob.found_count > prev.foundCount) {
+          queryClient.invalidateQueries({ queryKey: ['integrations'] });
+        }
+        return {
+          ...prev,
+          totalPairs: typedJob.total_pairs,
+          processedPairs: typedJob.processed_pairs,
+          foundCount: typedJob.found_count,
+        };
+      });
 
       if (typedJob.status === 'completed' || typedJob.status === 'failed' || typedJob.status === 'cancelled') {
         setState(prev => ({ ...prev, isRunning: false }));
