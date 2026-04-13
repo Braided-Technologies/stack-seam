@@ -130,65 +130,154 @@ function isDomainOwnedBy(url: string, allowedDomains: Set<string>): boolean {
   return false;
 }
 
+// URL paths that are usually NOT integration docs (release notes, blog posts, etc.)
+const REJECT_PATH_PATTERNS = [
+  /\/release[-_]?notes?(\b|\/)/i,
+  /\/changelog/i,
+  /\/whats[-_]?new/i,
+  /\/blog\b/i,
+  /\/news\b/i,
+  /\/press\b/i,
+  /\/announcement/i,
+  /\/podcast/i,
+  /\/webinar/i,
+  /\/event/i,
+  /\/case[-_]?stud/i,
+  /\/comparison/i,
+  /\/vs\b/i,
+  /\/alternative/i,
+  /\/jobs?\b/i,
+  /\/careers?\b/i,
+  /\/about\b/i,
+  /\/team\b/i,
+];
+
+function isRejectPath(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return REJECT_PATH_PATTERNS.some(p => p.test(u.pathname));
+  } catch {
+    return false;
+  }
+}
+
+// Count occurrences of any keyword from the list in text
+function countOccurrences(text: string, keywords: string[]): number {
+  let count = 0;
+  for (const kw of keywords) {
+    if (kw.length < 3) continue;
+    const matches = text.match(new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'));
+    if (matches) count += matches.length;
+  }
+  return count;
+}
+
+// Find the closest distance (in chars) between any source keyword and any target keyword
+function minProximity(text: string, sourceKeys: string[], targetKeys: string[]): number {
+  const lower = text.toLowerCase();
+  let minDist = Infinity;
+  for (const sk of sourceKeys) {
+    if (sk.length < 3) continue;
+    let sIdx = lower.indexOf(sk);
+    while (sIdx !== -1) {
+      for (const tk of targetKeys) {
+        if (tk.length < 3) continue;
+        // Find nearest target occurrence to this source occurrence
+        let tIdx = lower.indexOf(tk);
+        while (tIdx !== -1) {
+          const dist = Math.abs(tIdx - sIdx);
+          if (dist < minDist) minDist = dist;
+          if (dist === 0) return 0;
+          tIdx = lower.indexOf(tk, tIdx + 1);
+        }
+      }
+      sIdx = lower.indexOf(sk, sIdx + 1);
+    }
+  }
+  return minDist;
+}
+
 // Verification: URL MUST be on one of the two apps' official domains, AND
-// page content must mention both apps with integration context.
+// page content must clearly describe an integration between the two apps.
 async function verifyUrl(
   url: string,
   sourceName: string,
   targetName: string,
   sourceDomains: Set<string>,
   targetDomains: Set<string>,
-): Promise<{ valid: boolean; confidence: number; text: string; ownerSide: 'source' | 'target' | null }> {
-  // STRICT: reject any URL not hosted on one of the two apps' domains
+): Promise<{ valid: boolean; confidence: number; text: string; ownerSide: 'source' | 'target' | null; rejectReason?: string }> {
+  // 1. Reject URLs not on either app's domain
   const ownedBySource = isDomainOwnedBy(url, sourceDomains);
   const ownedByTarget = isDomainOwnedBy(url, targetDomains);
   if (!ownedBySource && !ownedByTarget) {
-    return { valid: false, confidence: 0, text: '', ownerSide: null };
+    return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: 'wrong_domain' };
   }
 
-  // Stage 1: HEAD check
+  // 2. Reject blog/release-notes/etc URL patterns
+  if (isRejectPath(url)) {
+    return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: 'reject_path' };
+  }
+
+  // 3. HEAD check
   try {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), 5000);
     const head = await fetch(url, { method: 'HEAD', signal: c.signal, redirect: 'follow' });
     clearTimeout(t);
     if (!head.ok && head.status !== 405) {
-      return { valid: false, confidence: 0, text: '', ownerSide: null };
+      return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: 'http_error' };
     }
   } catch {
     // Some servers reject HEAD; fall through to GET
   }
 
-  // Stage 2: GET + content check
+  // 4. GET page content
   const page = await fetchPage(url);
-  if (!page.ok) return { valid: false, confidence: 0, text: '', ownerSide: null };
+  if (!page.ok) return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: 'fetch_failed' };
 
-  const lowerText = page.text.toLowerCase();
   const sourceNorm = normalizeName(sourceName);
   const targetNorm = normalizeName(targetName);
-
   const sourceKeys = [sourceName.toLowerCase(), sourceNorm].filter(k => k.length > 2);
   const targetKeys = [targetName.toLowerCase(), targetNorm].filter(k => k.length > 2);
 
-  const hasSource = sourceKeys.some(k => lowerText.includes(k));
-  const hasTarget = targetKeys.some(k => lowerText.includes(k));
-  const hasIntegrationKeyword = /integrat|connect|sync|api|webhook|partner/i.test(page.text.substring(0, 5000));
+  // Determine which app is the "other" (not the domain owner)
+  // Pages on vendor domains naturally mention themselves a lot, so we check the OTHER app
+  const otherKeys = ownedBySource ? targetKeys : sourceKeys;
+  const ownerKeys = ownedBySource ? sourceKeys : targetKeys;
 
-  if (!hasSource || !hasTarget) {
-    return { valid: false, confidence: 0, text: '', ownerSide: null };
+  const otherCount = countOccurrences(page.text, otherKeys);
+  const ownerCount = countOccurrences(page.text, ownerKeys);
+
+  // 5. Require the OTHER app to be mentioned at least twice
+  if (otherCount < 2) {
+    return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: `other_mentioned_only_${otherCount}_times` };
   }
+  if (ownerCount < 1) {
+    return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: 'owner_not_mentioned' };
+  }
+
+  // 6. Require integration keyword to appear near the other app name
+  const proximity = minProximity(page.text, sourceKeys, targetKeys);
+  if (proximity > 500) {
+    return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: `proximity_${proximity}` };
+  }
+
+  // 7. Integration-specific keywords
+  const hasIntegrationKeyword = /integrat|connect|sync|api integration|webhook|two-way|bidirectional/i.test(page.text);
   if (!hasIntegrationKeyword) {
-    return { valid: false, confidence: 0, text: '', ownerSide: null };
+    return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: 'no_integration_keyword' };
   }
 
-  // Confidence scoring (always at least 80 since we know it's on an owned domain)
-  let confidence = 80;
+  // Confidence scoring
+  let confidence = 75;
   const domain = extractDomain(url);
-  if (domain.startsWith('docs.') || domain.startsWith('help.') || domain.startsWith('support.') || domain.startsWith('kb.')) {
+  if (domain.startsWith('docs.') || domain.startsWith('help.') || domain.startsWith('support.') || domain.startsWith('kb.') || domain.startsWith('integrations.')) {
     confidence += 15;
   } else {
     confidence += 5;
   }
+  if (otherCount >= 5) confidence += 5;
+  if (proximity < 100) confidence += 5;
 
   return {
     valid: true,
@@ -196,6 +285,66 @@ async function verifyUrl(
     text: page.text.substring(0, 8000),
     ownerSide: ownedBySource ? 'source' : 'target',
   };
+}
+
+// AI gate: final yes/no check that this page actually describes an integration
+async function aiGateCheck(
+  sourceName: string,
+  targetName: string,
+  pageText: string,
+  pageUrl: string,
+  openaiKey: string,
+): Promise<{ isIntegration: boolean; reason: string }> {
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You verify whether a documentation page actually describes a working software integration between two named applications. Reject pages that are blogs, release notes, partner directories, comparisons, or pages where one app is only mentioned in passing.',
+          },
+          {
+            role: 'user',
+            content: `Does this page describe an actual working integration between "${sourceName}" and "${targetName}"?
+
+URL: ${pageUrl}
+Content:
+${pageText.substring(0, 4000)}
+
+Answer with the tool call.`,
+          },
+        ],
+        tools: [{
+          type: 'function',
+          function: {
+            name: 'verify',
+            parameters: {
+              type: 'object',
+              properties: {
+                is_integration: { type: 'boolean', description: 'true ONLY if this page describes a real integration between the two apps. False if it is a release note, blog, comparison, or only mentions one app in passing.' },
+                reason: { type: 'string', description: 'Brief reason for the decision' },
+              },
+              required: ['is_integration', 'reason'],
+              additionalProperties: false,
+            },
+          },
+        }],
+        tool_choice: { type: 'function', function: { name: 'verify' } },
+      }),
+    });
+    if (!res.ok) return { isIntegration: false, reason: 'ai_error' };
+    const data = await res.json();
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (!toolCall) return { isIntegration: false, reason: 'no_tool_call' };
+    const parsed = JSON.parse(toolCall.function.arguments);
+    return { isIntegration: !!parsed.is_integration, reason: parsed.reason || '' };
+  } catch (e) {
+    console.error('AI gate error:', e);
+    return { isIntegration: false, reason: 'exception' };
+  }
 }
 
 // AI extraction of integration details from verified page text
@@ -377,7 +526,32 @@ Deno.serve(async (req) => {
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const best = validResults[0];
+    // Run AI gate on top candidates until one passes (max 3)
+    let best: typeof validResults[0] | null = null;
+    let gateReason = '';
+    for (const candidate of validResults.slice(0, 3)) {
+      const gate = await aiGateCheck(sourceApp.name, targetApp.name, candidate.verification.text, candidate.url, openaiKey);
+      if (gate.isIntegration) {
+        best = candidate;
+        break;
+      }
+      gateReason = gate.reason;
+      console.log(`AI gate rejected ${candidate.url}: ${gate.reason}`);
+    }
+
+    if (!best) {
+      await supabase.from('discovery_cache').upsert({
+        source_app_id, target_app_id,
+        result_status: 'not_found',
+        metadata: { found: false, confidence: 0, ai_gate_rejected: gateReason },
+        scanned_at: new Date().toISOString(),
+      }, { onConflict: 'source_app_id,target_app_id' });
+
+      return new Response(JSON.stringify({
+        found: false, source_type: 'not_found',
+        source_app_id, target_app_id, confidence: 0,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
 
     // AI extraction of details
     const details = await extractIntegrationDetails(
