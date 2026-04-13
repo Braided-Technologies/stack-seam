@@ -367,7 +367,7 @@ export default function Integrations() {
       </div>
 
       {/* Discovery Progress Panel */}
-      {(isDiscoveringAll || Object.keys(discoveryProgress).length > 0) && (
+      {activeJob && (
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -375,52 +375,25 @@ export default function Integrations() {
                 <Zap className="h-4 w-4 text-primary" />
                 Integration Discovery Progress
               </CardTitle>
-              {!isDiscoveringAll && Object.keys(discoveryProgress).length > 0 && (
-                <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={dismissDiscovery}>
-                  Dismiss
-                </Button>
-              )}
+              <span className="text-xs text-muted-foreground">
+                {activeJob.job_type === 'full_scan' ? 'Scanning full stack' : activeJob.job_type === 'deep_scan' ? 'Deep scan' : 'Scan'}
+              </span>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
-              {Object.entries(discoveryProgress).map(([appId, status]) => {
-                  const appName = discoveryState.appNames[appId] || userApps.find(ua => ua.application_id === appId)?.applications?.name || 'Unknown';
-                  const result = discoveryResults[appId];
-                  return (
-                    <div key={appId} className="flex items-center justify-between rounded-md border px-3 py-2">
-                      <span className="text-sm font-medium truncate mr-3">{appName}</span>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {status === 'queued' && (
-                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Circle className="h-3 w-3" /> Queued
-                          </span>
-                        )}
-                        {status === 'in_progress' && (
-                          <span className="flex items-center gap-1.5 text-xs text-primary">
-                            <Loader2 className="h-3 w-3 animate-spin" /> In Progress
-                          </span>
-                        )}
-                        {status === 'done' && (
-                          <span className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
-                            <CheckCircle2 className="h-3 w-3" /> Done{result?.saved ? ` (${result.saved} new)` : ''}
-                          </span>
-                        )}
-                        {status === 'error' && (
-                          <span className="flex items-center gap-1.5 text-xs text-destructive">
-                            <Circle className="h-3 w-3" /> Failed
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+          <CardContent className="space-y-2">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{activeJob.processed_pairs} of {activeJob.total_pairs} pairs checked</span>
+              <span>{activeJob.found_count} new integration{activeJob.found_count === 1 ? '' : 's'} found</span>
             </div>
-            {isDiscoveringAll && (
-              <p className="text-xs text-muted-foreground mt-2">
-                {Object.values(discoveryProgress).filter(s => s === 'done').length} of {Object.keys(discoveryProgress).length} apps processed…
-              </p>
-            )}
+            <div className="h-2 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-500"
+                style={{ width: `${activeJob.total_pairs > 0 ? (activeJob.processed_pairs / activeJob.total_pairs) * 100 : 0}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Skipping pairs already scanned in the last 30 days or already linked.
+            </p>
           </CardContent>
         </Card>
       )}

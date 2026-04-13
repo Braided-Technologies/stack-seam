@@ -21,8 +21,9 @@ function corsHeaders(req: Request): Record<string, string> {
   };
 }
 
-const MAX_PARALLEL_PAIRS = 2;
-const DELAY_BETWEEN_BATCHES_MS = 1500;
+const MAX_PARALLEL_PAIRS = 1;
+const DELAY_BETWEEN_BATCHES_MS = 2500;
+const CACHE_TTL_DAYS = 30;
 
 interface AppPair {
   source_app_id: string;
@@ -80,26 +81,65 @@ async function processJob(jobId: string, supabase: any) {
 
       const appIds = (userApps || []).map((ua: any) => ua.application_id);
 
+      let candidatePairs: AppPair[] = [];
       if (job.job_type === 'deep_scan' && job.focus_app_id) {
-        // Deep scan: focus app paired with each other app in stack
-        pairs = appIds
+        candidatePairs = appIds
           .filter((id: string) => id !== job.focus_app_id)
           .map((targetId: string) => ({
             source_app_id: job.focus_app_id,
             target_app_id: targetId,
           }));
       } else {
-        // Full scan: every unique pair
         for (let i = 0; i < appIds.length; i++) {
           for (let j = i + 1; j < appIds.length; j++) {
-            pairs.push({ source_app_id: appIds[i], target_app_id: appIds[j] });
+            candidatePairs.push({ source_app_id: appIds[i], target_app_id: appIds[j] });
           }
         }
       }
+
+      // Filter out pairs already covered: existing integration OR recent cache hit.
+      // For full_scan we skip pairs that already have any integration (any source).
+      // For deep_scan we only skip if recently cached (so user can re-check).
+      const { data: existingIntegrations } = await supabase
+        .from('integrations')
+        .select('source_app_id, target_app_id');
+      const existingSet = new Set<string>();
+      for (const i of existingIntegrations || []) {
+        existingSet.add(`${(i as any).source_app_id}|${(i as any).target_app_id}`);
+        existingSet.add(`${(i as any).target_app_id}|${(i as any).source_app_id}`);
+      }
+
+      const cacheCutoff = new Date(Date.now() - CACHE_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+      const { data: cachedPairs } = await supabase
+        .from('discovery_cache')
+        .select('source_app_id, target_app_id')
+        .gte('scanned_at', cacheCutoff);
+      const cachedSet = new Set<string>();
+      for (const c of cachedPairs || []) {
+        cachedSet.add(`${(c as any).source_app_id}|${(c as any).target_app_id}`);
+        cachedSet.add(`${(c as any).target_app_id}|${(c as any).source_app_id}`);
+      }
+
+      const skipExisting = job.job_type === 'full_scan';
+      pairs = candidatePairs.filter(p => {
+        const key = `${p.source_app_id}|${p.target_app_id}`;
+        if (cachedSet.has(key)) return false;
+        if (skipExisting && existingSet.has(key)) return false;
+        return true;
+      });
     }
 
     // Update total
     await supabase.from('discovery_jobs').update({ total_pairs: pairs.length }).eq('id', jobId);
+
+    if (pairs.length === 0) {
+      await supabase.from('discovery_jobs').update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        result: { found: 0, integrations: [], note: 'All pairs already scanned recently or have existing integrations' },
+      }).eq('id', jobId);
+      return;
+    }
 
     let foundCount = 0;
     let processedCount = 0;
