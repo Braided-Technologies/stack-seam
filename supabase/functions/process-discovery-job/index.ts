@@ -157,9 +157,10 @@ Deno.serve(async (req) => {
     const { job_id } = body;
 
     if (job_id) {
-      // Process specific job
-      // Run in background — return immediately
-      processJob(job_id, supabase).catch(e => console.error('Background job error:', e));
+      // Use EdgeRuntime.waitUntil so the job keeps running after we respond.
+      // This is the Supabase-supported pattern for long-running background work.
+      // @ts-ignore - EdgeRuntime is a Deno Deploy global available in Supabase Edge Functions
+      EdgeRuntime.waitUntil(processJob(job_id, supabase).catch(e => console.error('Background job error:', e)));
       return new Response(JSON.stringify({ accepted: true, job_id }), {
         status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -180,7 +181,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    processJob(pending.id, supabase).catch(e => console.error('Background job error:', e));
+    // @ts-ignore - EdgeRuntime is a Deno Deploy global available in Supabase Edge Functions
+    EdgeRuntime.waitUntil(processJob(pending.id, supabase).catch(e => console.error('Background job error:', e)));
     return new Response(JSON.stringify({ accepted: true, job_id: pending.id }), {
       status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

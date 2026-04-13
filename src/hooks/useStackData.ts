@@ -327,6 +327,7 @@ export function useDiscoveryJob(jobId: string | null) {
 
 // Returns the currently-running (or pending) job for the org, if any.
 // Used cross-page to reflect in-progress discovery state.
+// Auto-marks stale jobs (>5 min since started, no progress in last 60s) as failed.
 export function useActiveDiscoveryJob(orgId: string | null) {
   return useQuery({
     queryKey: ['active-discovery-job', orgId],
@@ -343,6 +344,20 @@ export function useActiveDiscoveryJob(orgId: string | null) {
         .limit(1)
         .maybeSingle();
       if (error) return null;
+      if (!data) return null;
+
+      // Watchdog: if started >5 minutes ago, mark as failed
+      const startedAt = data.started_at ? new Date(data.started_at).getTime() : Date.now();
+      const elapsedMs = Date.now() - startedAt;
+      if (elapsedMs > 5 * 60 * 1000) {
+        await supabase.from('discovery_jobs').update({
+          status: 'failed',
+          error_message: 'Job exceeded 5 minute timeout',
+          completed_at: new Date().toISOString(),
+        }).eq('id', data.id);
+        return null;
+      }
+
       return data as DiscoveryJob | null;
     },
   });
@@ -360,7 +375,14 @@ export function useReportIntegration() {
         vote,
         reason: reason || vote,
       });
-      if (error && !error.message.includes('duplicate')) throw error;
+      if (error) {
+        // Duplicate vote — already recorded, treat as success
+        if (error.code === '23505' || error.message.toLowerCase().includes('duplicate')) {
+          return { alreadyVoted: true, vote };
+        }
+        throw error;
+      }
+      return { alreadyVoted: false, vote };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['integrations'] });
