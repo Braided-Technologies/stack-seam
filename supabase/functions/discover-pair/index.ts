@@ -95,8 +95,57 @@ async function fetchPage(url: string): Promise<{ ok: boolean; text: string; stat
   }
 }
 
-// Two-stage verification: HEAD first (fast), then GET with content check
-async function verifyUrl(url: string, sourceName: string, targetName: string): Promise<{ valid: boolean; confidence: number; text: string }> {
+// Build the set of allowed root domains for an app (vendor URL + name-derived guesses)
+function buildAllowedDomains(name: string, vendorUrl: string | null): Set<string> {
+  const domains = new Set<string>();
+  if (vendorUrl) {
+    const d = extractDomain(vendorUrl);
+    if (d) {
+      // Strip leading subdomains to root
+      const parts = d.split('.');
+      const root = parts.length >= 2 ? parts.slice(-2).join('.') : d;
+      domains.add(root);
+    }
+  }
+  // Name-based guess: e.g. "N-able N-central" → "n-able.com", "ncentral.com"
+  const nameNorm = normalizeName(name);
+  if (nameNorm.length >= 3) {
+    domains.add(`${nameNorm}.com`);
+    domains.add(`${nameNorm}.io`);
+  }
+  // Also include obvious word-based guesses (first token)
+  const firstWord = name.toLowerCase().split(/\s|[/-]/)[0].replace(/[^a-z0-9]/g, '');
+  if (firstWord.length >= 4) {
+    domains.add(`${firstWord}.com`);
+  }
+  return domains;
+}
+
+function isDomainOwnedBy(url: string, allowedDomains: Set<string>): boolean {
+  const domain = extractDomain(url);
+  if (!domain) return false;
+  for (const allowed of allowedDomains) {
+    if (domain === allowed || domain.endsWith('.' + allowed)) return true;
+  }
+  return false;
+}
+
+// Verification: URL MUST be on one of the two apps' official domains, AND
+// page content must mention both apps with integration context.
+async function verifyUrl(
+  url: string,
+  sourceName: string,
+  targetName: string,
+  sourceDomains: Set<string>,
+  targetDomains: Set<string>,
+): Promise<{ valid: boolean; confidence: number; text: string; ownerSide: 'source' | 'target' | null }> {
+  // STRICT: reject any URL not hosted on one of the two apps' domains
+  const ownedBySource = isDomainOwnedBy(url, sourceDomains);
+  const ownedByTarget = isDomainOwnedBy(url, targetDomains);
+  if (!ownedBySource && !ownedByTarget) {
+    return { valid: false, confidence: 0, text: '', ownerSide: null };
+  }
+
   // Stage 1: HEAD check
   try {
     const c = new AbortController();
@@ -104,7 +153,7 @@ async function verifyUrl(url: string, sourceName: string, targetName: string): P
     const head = await fetch(url, { method: 'HEAD', signal: c.signal, redirect: 'follow' });
     clearTimeout(t);
     if (!head.ok && head.status !== 405) {
-      return { valid: false, confidence: 0, text: '' };
+      return { valid: false, confidence: 0, text: '', ownerSide: null };
     }
   } catch {
     // Some servers reject HEAD; fall through to GET
@@ -112,13 +161,12 @@ async function verifyUrl(url: string, sourceName: string, targetName: string): P
 
   // Stage 2: GET + content check
   const page = await fetchPage(url);
-  if (!page.ok) return { valid: false, confidence: 0, text: '' };
+  if (!page.ok) return { valid: false, confidence: 0, text: '', ownerSide: null };
 
   const lowerText = page.text.toLowerCase();
   const sourceNorm = normalizeName(sourceName);
   const targetNorm = normalizeName(targetName);
 
-  // Build keywords for each app (compact + spaced versions)
   const sourceKeys = [sourceName.toLowerCase(), sourceNorm].filter(k => k.length > 2);
   const targetKeys = [targetName.toLowerCase(), targetNorm].filter(k => k.length > 2);
 
@@ -127,21 +175,27 @@ async function verifyUrl(url: string, sourceName: string, targetName: string): P
   const hasIntegrationKeyword = /integrat|connect|sync|api|webhook|partner/i.test(page.text.substring(0, 5000));
 
   if (!hasSource || !hasTarget) {
-    return { valid: false, confidence: 0, text: '' };
+    return { valid: false, confidence: 0, text: '', ownerSide: null };
+  }
+  if (!hasIntegrationKeyword) {
+    return { valid: false, confidence: 0, text: '', ownerSide: null };
   }
 
-  // Confidence scoring
-  let confidence = 60; // base for both apps mentioned
-  if (hasIntegrationKeyword) confidence += 15;
-
+  // Confidence scoring (always at least 80 since we know it's on an owned domain)
+  let confidence = 80;
   const domain = extractDomain(url);
-  const sourceDomainMatch = domain.includes(sourceNorm.substring(0, 8));
-  const targetDomainMatch = domain.includes(targetNorm.substring(0, 8));
+  if (domain.startsWith('docs.') || domain.startsWith('help.') || domain.startsWith('support.') || domain.startsWith('kb.')) {
+    confidence += 15;
+  } else {
+    confidence += 5;
+  }
 
-  if (sourceDomainMatch || targetDomainMatch) confidence += 20; // on official vendor docs
-  if (domain.startsWith('docs.') || domain.startsWith('help.') || domain.startsWith('support.')) confidence += 5;
-
-  return { valid: true, confidence: Math.min(confidence, 100), text: page.text.substring(0, 8000) };
+  return {
+    valid: true,
+    confidence: Math.min(confidence, 100),
+    text: page.text.substring(0, 8000),
+    ownerSide: ownedBySource ? 'source' : 'target',
+  };
 }
 
 // AI extraction of integration details from verified page text
@@ -243,7 +297,7 @@ Deno.serve(async (req) => {
     // Load app names
     const { data: apps, error: appsErr } = await supabase
       .from('applications')
-      .select('id, name')
+      .select('id, name, vendor_url')
       .in('id', [source_app_id, target_app_id]);
 
     if (appsErr || !apps || apps.length !== 2) {
@@ -252,8 +306,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const sourceApp = apps.find(a => a.id === source_app_id)!;
-    const targetApp = apps.find(a => a.id === target_app_id)!;
+    const sourceApp = apps.find(a => a.id === source_app_id)! as any;
+    const targetApp = apps.find(a => a.id === target_app_id)! as any;
+    const sourceDomains = buildAllowedDomains(sourceApp.name, sourceApp.vendor_url);
+    const targetDomains = buildAllowedDomains(targetApp.name, targetApp.vendor_url);
 
     // Check cache
     if (!force_refresh) {
@@ -274,8 +330,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Brave Search
-    const query = `"${sourceApp.name}" "${targetApp.name}" integration`;
+    // Tavily Search — try both directions to find docs on either vendor's domain
+    const allDomains = Array.from(new Set([...sourceDomains, ...targetDomains]));
+    const siteFilter = allDomains.length > 0 ? ` (${allDomains.map(d => `site:${d}`).join(' OR ')})` : '';
+    const query = `"${sourceApp.name}" "${targetApp.name}" integration${siteFilter}`;
     const searchResults = await tavilySearch(query, tavilyKey);
 
     if (searchResults.length === 0) {
@@ -298,7 +356,7 @@ Deno.serve(async (req) => {
     const verified = await Promise.all(
       topResults.map(async r => ({
         ...r,
-        verification: await verifyUrl(r.url, sourceApp.name, targetApp.name),
+        verification: await verifyUrl(r.url, sourceApp.name, targetApp.name, sourceDomains, targetDomains),
       }))
     );
 
