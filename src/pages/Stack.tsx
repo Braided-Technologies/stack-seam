@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatCompactCurrency } from '@/lib/formatters';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
-import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication, useIntegrations, useDiscoverIntegrations, useDeepScanIntegrations } from '@/hooks/useStackData';
+import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication, useIntegrations, useDiscoverIntegrations, useDeepScanIntegrations, useStartDiscoveryJob, useDiscoveryJob, useReportIntegration } from '@/hooks/useStackData';
 import SearchToolDialog from '@/components/SearchToolDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,7 +35,11 @@ export default function Stack() {
   const updateApp = useUpdateUserApplication();
   const discoverIntegrations = useDiscoverIntegrations();
   const deepScan = useDeepScanIntegrations();
-  const { userRole } = useAuth();
+  const startJob = useStartDiscoveryJob();
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const { data: activeJob } = useDiscoveryJob(activeJobId);
+  const reportIntegration = useReportIntegration();
+  const { userRole, orgId } = useAuth();
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
   const navigate = useNavigate();
 
@@ -92,73 +96,58 @@ export default function Stack() {
     });
   }, [infoApp, allIntegrations, userAppIds]);
 
+  // When a job completes, refetch integrations and show a toast
+  useEffect(() => {
+    if (!activeJob) return;
+    if (activeJob.status === 'completed') {
+      refetchIntegrations();
+      toast({
+        title: 'Discovery complete',
+        description: `Found ${activeJob.found_count} integration${activeJob.found_count === 1 ? '' : 's'} across ${activeJob.processed_pairs} pair${activeJob.processed_pairs === 1 ? '' : 's'}.`,
+      });
+      setActiveJobId(null);
+    } else if (activeJob.status === 'failed') {
+      toast({ title: 'Discovery failed', description: activeJob.error_message || 'Unknown error', variant: 'destructive' });
+      setActiveJobId(null);
+    }
+  }, [activeJob?.status]);
+
   const handleDiscoverForInfoApp = async () => {
-    if (!infoApp) return;
-
-    const stackNames = userApps
-      .map((ua: any) => ua.applications?.name)
-      .filter(Boolean) as string[];
-    const allNames = stackNames.includes(infoApp.name)
-      ? stackNames
-      : [infoApp.name, ...stackNames];
-
-    if (allNames.length < 2) {
+    if (!infoApp || !orgId) return;
+    if (userApps.length < 2) {
       toast({ title: 'Need at least 2 apps', description: 'Add more apps to your stack first.', variant: 'destructive' });
       return;
     }
-
     try {
-      const result = await discoverIntegrations.mutateAsync({
-        appNames: allNames,
-        focusApp: infoApp.name,
+      const job = await startJob.mutateAsync({
+        organizationId: orgId,
+        jobType: 'deep_scan',
+        focusAppId: infoApp.id,
       });
-      await refetchIntegrations();
-
-      const savedCount = Number(result?.saved || 0);
-      const refreshedCount = Number(result?.refreshed || 0);
-      const discoveredCount = Number(result?.discovered || 0);
-      const skippedCount = Math.max(0, discoveredCount - savedCount - refreshedCount);
-      toast({
-        title: savedCount > 0
-          ? `Found ${savedCount} new integration${savedCount === 1 ? '' : 's'} for ${infoApp.name}`
-          : `No new integrations found for ${infoApp.name}`,
-        description: [
-          refreshedCount > 0
-            ? `${refreshedCount} ${refreshedCount === 1 ? 'already existed and was refreshed' : 'already existed and were refreshed'}.`
-            : null,
-          skippedCount > 0
-            ? `${skippedCount} ${skippedCount === 1 ? 'was skipped' : 'were skipped'}.`
-            : null,
-        ].filter(Boolean).join(' ') || undefined,
-      });
+      setActiveJobId(job.id);
+      toast({ title: 'Discovery started', description: `Scanning integrations for ${infoApp.name}…` });
     } catch (e: any) {
-      toast({ title: 'Discovery failed', description: e.message, variant: 'destructive' });
+      toast({ title: 'Failed to start discovery', description: e.message, variant: 'destructive' });
     }
   };
 
-  const handleDeepScanForInfoApp = async () => {
-    if (!infoApp) return;
+  const handleDeepScanForInfoApp = handleDiscoverForInfoApp;
 
-    const stackNames = userApps
-      .map((ua: any) => ua.applications?.name)
-      .filter(Boolean) as string[];
-
+  const handleFullStackScan = async () => {
+    if (!orgId) return;
+    if (userApps.length < 2) {
+      toast({ title: 'Need at least 2 apps', description: 'Add more apps to your stack first.', variant: 'destructive' });
+      return;
+    }
     try {
-      const result = await deepScan.mutateAsync({
-        focusApp: infoApp.name,
-        stackAppNames: stackNames,
+      const job = await startJob.mutateAsync({
+        organizationId: orgId,
+        jobType: 'full_scan',
       });
-      await refetchIntegrations();
-
-      const saved = Number(result?.saved || 0);
-      const removed = Number(result?.removed || 0);
-      const discovered = Number(result?.discovered || 0);
-      toast({
-        title: `Deep scan complete for ${infoApp.name}`,
-        description: `${discovered} found, ${saved} saved, ${removed} undocumented removed.`,
-      });
+      setActiveJobId(job.id);
+      toast({ title: 'Full scan started', description: `Scanning ${userApps.length} apps for integrations…` });
     } catch (e: any) {
-      toast({ title: 'Deep scan failed', description: e.message, variant: 'destructive' });
+      toast({ title: 'Failed to start scan', description: e.message, variant: 'destructive' });
     }
   };
 
@@ -580,36 +569,34 @@ export default function Stack() {
                     <div className="mb-3 flex-shrink-0 space-y-2">
                       <Button
                         size="sm"
-                        variant="outline"
-                        className="gap-2 w-full"
-                        disabled={discoverIntegrations.isPending || deepScan.isPending}
-                        onClick={handleDiscoverForInfoApp}
-                      >
-                        {discoverIntegrations.isPending ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Zap className="h-3.5 w-3.5" />
-                        )}
-                        {infoAppIntegrations.length === 0 ? 'Quick Check' : 'Re-check Integrations'}
-                      </Button>
-                      <Button
-                        size="sm"
                         variant="default"
                         className="gap-2 w-full"
-                        disabled={discoverIntegrations.isPending || deepScan.isPending}
-                        onClick={handleDeepScanForInfoApp}
+                        disabled={!!activeJobId || startJob.isPending}
+                        onClick={handleDiscoverForInfoApp}
                       >
-                        {deepScan.isPending ? (
+                        {activeJobId || startJob.isPending ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
                           <Search className="h-3.5 w-3.5" />
                         )}
-                        Deep Scan — Crawl Vendor Pages
+                        {activeJobId ? 'Scanning…' : infoAppIntegrations.length === 0 ? 'Discover Integrations' : 'Re-scan Integrations'}
                       </Button>
-                      {deepScan.isPending && (
-                        <p className="text-xs text-muted-foreground text-center">
-                          Scraping vendor integration pages… this may take 30-60 seconds.
-                        </p>
+                      {activeJob && activeJob.status === 'running' && (
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Progress</span>
+                            <span>{activeJob.processed_pairs} / {activeJob.total_pairs} pairs</span>
+                          </div>
+                          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-primary transition-all duration-500"
+                              style={{ width: `${activeJob.total_pairs > 0 ? (activeJob.processed_pairs / activeJob.total_pairs) * 100 : 0}%` }}
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground text-center">
+                            Found {activeJob.found_count} so far…
+                          </p>
+                        </div>
                       )}
                     </div>
                   )}
@@ -625,38 +612,70 @@ export default function Stack() {
                   ) : (
                     <div className="flex-1 min-h-0 overflow-y-auto">
                       <div className="space-y-2 pr-2">
-                        {infoAppIntegrations.map((integ: any) => (
-                          <div key={integ.id} className="rounded-lg border p-3 space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium text-sm">{integ.otherApp?.name || 'Unknown'}</span>
-                                {integ.inStack && (
-                                  <Badge variant="default" className="text-[10px] px-1.5 py-0">In Stack</Badge>
-                                )}
+                        {infoAppIntegrations.map((integ: any) => {
+                          const confidence = integ.confidence ?? 50;
+                          const confidenceColor = confidence >= 80 ? 'text-green-500' : confidence >= 60 ? 'text-yellow-500' : 'text-orange-500';
+                          const confidenceLabel = confidence >= 80 ? 'High confidence' : confidence >= 60 ? 'Medium confidence' : 'Low confidence';
+                          return (
+                            <div key={integ.id} className="rounded-lg border p-3 space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-sm">{integ.otherApp?.name || 'Unknown'}</span>
+                                  {integ.inStack && (
+                                    <Badge variant="default" className="text-[10px] px-1.5 py-0">In Stack</Badge>
+                                  )}
+                                </div>
+                                <Badge variant="outline" className="text-xs">
+                                  {integ.integration_type || 'unknown'}
+                                </Badge>
                               </div>
-                              <Badge variant="outline" className="text-xs">
-                                {integ.integration_type || 'unknown'}
-                              </Badge>
+                              {integ.description && (
+                                <p className="text-xs text-muted-foreground">{integ.description}</p>
+                              )}
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center gap-2">
+                                  {integ.documentation_url && (
+                                    <a
+                                      href={integ.documentation_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                      Documentation
+                                    </a>
+                                  )}
+                                  <span className={`text-[10px] ${confidenceColor}`} title={confidenceLabel}>
+                                    ● {confidence}%
+                                  </span>
+                                  {integ.link_status === 'dead' && (
+                                    <span className="text-[10px] text-destructive">⚠ Dead link</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-0.5">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    title="Confirm this works"
+                                    onClick={() => reportIntegration.mutate({ integrationId: integ.id, vote: 'upvote' })}
+                                  >
+                                    <Check className="h-3 w-3 text-green-500" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    title="Report as incorrect"
+                                    onClick={() => reportIntegration.mutate({ integrationId: integ.id, vote: 'report' })}
+                                  >
+                                    <X className="h-3 w-3 text-destructive" />
+                                  </Button>
+                                </div>
+                              </div>
                             </div>
-                            {integ.description && (
-                              <p className="text-xs text-muted-foreground">{integ.description}</p>
-                            )}
-                            {integ.documentation_url && (
-                              <div className="flex items-center gap-2">
-                                <a
-                                  href={integ.documentation_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                                >
-                                  <ExternalLink className="h-3 w-3" />
-                                  Documentation
-                                </a>
-                                <span className="text-[10px] text-muted-foreground italic">⚠ Unverified</span>
-                              </div>
-                            )}
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}

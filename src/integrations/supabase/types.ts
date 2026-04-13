@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_usage: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          query_count: number
+          query_date: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          query_count?: number
+          query_date?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          query_count?: number
+          query_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       applications: {
         Row: {
           category_id: string | null
@@ -174,6 +209,114 @@ export type Database = {
           },
         ]
       }
+      discovery_cache: {
+        Row: {
+          id: string
+          metadata: Json | null
+          result_status: string
+          scanned_at: string
+          source_app_id: string
+          target_app_id: string
+        }
+        Insert: {
+          id?: string
+          metadata?: Json | null
+          result_status: string
+          scanned_at?: string
+          source_app_id: string
+          target_app_id: string
+        }
+        Update: {
+          id?: string
+          metadata?: Json | null
+          result_status?: string
+          scanned_at?: string
+          source_app_id?: string
+          target_app_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discovery_cache_source_app_id_fkey"
+            columns: ["source_app_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discovery_cache_target_app_id_fkey"
+            columns: ["target_app_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discovery_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          error_message: string | null
+          focus_app_id: string | null
+          found_count: number
+          id: string
+          job_type: string
+          organization_id: string
+          processed_pairs: number
+          result: Json | null
+          started_at: string | null
+          status: string
+          total_pairs: number
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          error_message?: string | null
+          focus_app_id?: string | null
+          found_count?: number
+          id?: string
+          job_type: string
+          organization_id: string
+          processed_pairs?: number
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          total_pairs?: number
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          error_message?: string | null
+          focus_app_id?: string | null
+          found_count?: number
+          id?: string
+          job_type?: string
+          organization_id?: string
+          processed_pairs?: number
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          total_pairs?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discovery_jobs_focus_app_id_fkey"
+            columns: ["focus_app_id"]
+            isOneToOne: false
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discovery_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -311,8 +454,44 @@ export type Database = {
           },
         ]
       }
+      integration_reports: {
+        Row: {
+          created_at: string
+          id: string
+          integration_id: string
+          reason: string
+          reported_by: string
+          vote: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          integration_id: string
+          reason: string
+          reported_by: string
+          vote: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          integration_id?: string
+          reason?: string
+          reported_by?: string
+          vote?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_reports_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integrations: {
         Row: {
+          confidence: number
           created_at: string
           data_shared: string | null
           description: string | null
@@ -321,13 +500,17 @@ export type Database = {
           integration_type: string | null
           last_verified: string | null
           link_status: string
+          reports: number
+          source: string
           source_app_id: string
           status: string
           submitted_by_org: string | null
           submitted_by_user: string | null
           target_app_id: string
+          upvotes: number
         }
         Insert: {
+          confidence?: number
           created_at?: string
           data_shared?: string | null
           description?: string | null
@@ -336,13 +519,17 @@ export type Database = {
           integration_type?: string | null
           last_verified?: string | null
           link_status?: string
+          reports?: number
+          source?: string
           source_app_id: string
           status?: string
           submitted_by_org?: string | null
           submitted_by_user?: string | null
           target_app_id: string
+          upvotes?: number
         }
         Update: {
+          confidence?: number
           created_at?: string
           data_shared?: string | null
           description?: string | null
@@ -351,11 +538,14 @@ export type Database = {
           integration_type?: string | null
           last_verified?: string | null
           link_status?: string
+          reports?: number
+          source?: string
           source_app_id?: string
           status?: string
           submitted_by_org?: string | null
           submitted_by_user?: string | null
           target_app_id?: string
+          upvotes?: number
         }
         Relationships: [
           {
@@ -746,6 +936,14 @@ export type Database = {
     }
     Functions: {
       accept_invitation: { Args: { _token: string }; Returns: Json }
+      check_and_increment_ai_usage: {
+        Args: {
+          _daily_limit?: number
+          _exempt_org_id?: string
+          _org_id: string
+        }
+        Returns: boolean
+      }
       create_organization: {
         Args: { _domain?: string; _name: string }
         Returns: Json
@@ -790,6 +988,15 @@ export type Database = {
         }[]
       }
       get_user_org_id: { Args: never; Returns: string }
+      get_user_profiles: {
+        Args: { _user_ids: string[] }
+        Returns: {
+          email: string
+          first_name: string
+          last_name: string
+          user_id: string
+        }[]
+      }
       is_org_admin: { Args: { _org_id: string }; Returns: boolean }
       is_org_member: { Args: { _org_id: string }; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
