@@ -36,28 +36,36 @@ function normalizeName(name: string): string {
   return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-// Brave Search — returns up to 10 web results
-async function braveSearch(query: string, apiKey: string): Promise<{ url: string; title: string; description: string }[]> {
-  const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=10&safesearch=off`;
+// Tavily Search — AI-optimized search API, returns up to 10 web results with extracted content
+async function tavilySearch(query: string, apiKey: string): Promise<{ url: string; title: string; description: string; content: string }[]> {
   try {
-    const res = await fetch(url, {
+    const res = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
       headers: {
-        'Accept': 'application/json',
-        'X-Subscription-Token': apiKey,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        search_depth: 'advanced',
+        max_results: 10,
+        include_answer: false,
+        include_raw_content: false,
+      }),
     });
     if (!res.ok) {
-      console.error('Brave search error:', res.status, await res.text());
+      console.error('Tavily search error:', res.status, await res.text());
       return [];
     }
     const data = await res.json();
-    return (data.web?.results || []).map((r: any) => ({
+    return (data.results || []).map((r: any) => ({
       url: r.url,
       title: r.title || '',
-      description: r.description || '',
+      description: r.content || '',
+      content: r.content || '',
     }));
   } catch (e) {
-    console.error('Brave search exception:', e);
+    console.error('Tavily search exception:', e);
     return [];
   }
 }
@@ -207,11 +215,11 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const braveKey = Deno.env.get('BRAVE_API_KEY');
+    const tavilyKey = Deno.env.get('TAVILY_API_KEY');
     const openaiKey = Deno.env.get('OPENAI_API_KEY');
 
-    if (!braveKey) {
-      return new Response(JSON.stringify({ error: 'BRAVE_API_KEY not configured' }), {
+    if (!tavilyKey) {
+      return new Response(JSON.stringify({ error: 'TAVILY_API_KEY not configured' }), {
         status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -268,7 +276,7 @@ Deno.serve(async (req) => {
 
     // Brave Search
     const query = `"${sourceApp.name}" "${targetApp.name}" integration`;
-    const searchResults = await braveSearch(query, braveKey);
+    const searchResults = await tavilySearch(query, tavilyKey);
 
     if (searchResults.length === 0) {
       // Cache the negative result
