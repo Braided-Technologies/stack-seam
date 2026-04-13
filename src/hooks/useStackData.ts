@@ -325,6 +325,29 @@ export function useDiscoveryJob(jobId: string | null) {
   });
 }
 
+// Returns the currently-running (or pending) job for the org, if any.
+// Used cross-page to reflect in-progress discovery state.
+export function useActiveDiscoveryJob(orgId: string | null) {
+  return useQuery({
+    queryKey: ['active-discovery-job', orgId],
+    enabled: !!orgId,
+    refetchInterval: 2000,
+    queryFn: async () => {
+      if (!orgId) return null;
+      const { data, error } = await supabase
+        .from('discovery_jobs')
+        .select('*')
+        .eq('organization_id', orgId)
+        .in('status', ['pending', 'running'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) return null;
+      return data as DiscoveryJob | null;
+    },
+  });
+}
+
 export function useReportIntegration() {
   const qc = useQueryClient();
   return useMutation({

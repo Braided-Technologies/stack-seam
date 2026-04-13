@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { useIntegrations, useUserApplications } from '@/hooks/useStackData';
+import { useIntegrations, useUserApplications, useActiveDiscoveryJob } from '@/hooks/useStackData';
 import { useDiscovery } from '@/contexts/DiscoveryContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -46,6 +46,7 @@ export default function Integrations() {
   const { data: allIntegrations = [] } = useIntegrations();
   const { data: userApps = [] } = useUserApplications();
   const { state: discoveryState, startBatchDiscovery, startFocusedDiscovery, dismiss: dismissDiscovery } = useDiscovery();
+  const { data: activeJob } = useActiveDiscoveryJob(orgId);
   const isDiscoveringAll = discoveryState.isRunning;
   const discoveryProgress = discoveryState.progress;
   const discoveryResults = discoveryState.results;
@@ -296,15 +297,22 @@ export default function Integrations() {
               variant="outline"
               size="sm"
               className="gap-2"
-              disabled={isDiscoveringAll}
+              disabled={!!activeJob}
               onClick={() => startBatchDiscovery(userApps as any)}
             >
-              {isDiscoveringAll ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+              {activeJob ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {activeJob.total_pairs > 0
+                    ? `Scanning ${activeJob.processed_pairs}/${activeJob.total_pairs}`
+                    : 'Scanning…'}
+                </>
               ) : (
-                <Zap className="h-4 w-4" />
+                <>
+                  <Zap className="h-4 w-4" />
+                  Discover Integrations
+                </>
               )}
-              Discover Integrations
             </Button>
           )}
           <Link to="/map">
@@ -491,27 +499,44 @@ export default function Integrations() {
                               );
                             })()}
                           </div>
-                          {isAdmin && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 text-[10px] gap-1 px-2"
-                              disabled={isDiscoveringAll}
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                await startFocusedDiscovery(app.appId, app.appName);
-                              }}
-                            >
-{discoveringAppId === app.appId ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : isDiscoveringAll ? (
-                                <Loader2 className="h-3 w-3 animate-spin opacity-40" />
-                              ) : (
-                                <Zap className="h-3 w-3" />
-                              )}
-                              {discoveringAppId === app.appId ? 'Discovering...' : isDiscoveringAll ? 'Queued' : 'Discover'}
-                            </Button>
-                          )}
+                          {isAdmin && (() => {
+                            const isScanningThisApp = !!activeJob && (
+                              activeJob.job_type === 'full_scan' ||
+                              (activeJob.job_type === 'deep_scan' && activeJob.focus_app_id === app.appId)
+                            );
+                            const isOtherJobRunning = !!activeJob && !isScanningThisApp;
+                            return (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-[10px] gap-1 px-2"
+                                disabled={!!activeJob}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  await startFocusedDiscovery(app.appId, app.appName);
+                                }}
+                              >
+                                {isScanningThisApp ? (
+                                  <>
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    {activeJob!.total_pairs > 0
+                                      ? `Scanning ${activeJob!.processed_pairs}/${activeJob!.total_pairs}`
+                                      : 'Scanning…'}
+                                  </>
+                                ) : isOtherJobRunning ? (
+                                  <>
+                                    <Loader2 className="h-3 w-3 animate-spin opacity-40" />
+                                    Busy
+                                  </>
+                                ) : (
+                                  <>
+                                    <Zap className="h-3 w-3" />
+                                    Discover
+                                  </>
+                                )}
+                              </Button>
+                            );
+                          })()}
                         </CollapsibleTrigger>
                         <CollapsibleContent className="mt-1 space-y-2 pl-4">
                           {filteredIntegrations.map(i => {
