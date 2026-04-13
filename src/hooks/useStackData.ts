@@ -214,6 +214,7 @@ export function useSearchTool() {
 
 type DiscoverIntegrationsInput = string[] | { appNames: string[]; focusApp?: string };
 
+// Legacy: kept for backward compat but unused
 export function useDiscoverIntegrations() {
   const qc = useQueryClient();
   return useMutation({
@@ -246,6 +247,100 @@ export function useDeepScanIntegrations() {
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['integrations'] });
+    },
+  });
+}
+
+// New job-based discovery system
+export interface DiscoveryJob {
+  id: string;
+  organization_id: string;
+  job_type: 'full_scan' | 'deep_scan' | 'pair_scan' | 'revalidation';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  focus_app_id: string | null;
+  total_pairs: number;
+  processed_pairs: number;
+  found_count: number;
+  error_message: string | null;
+  result: any;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export function useStartDiscoveryJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ organizationId, jobType, focusAppId }: { organizationId: string; jobType: 'full_scan' | 'deep_scan'; focusAppId?: string }) => {
+      // Create the job row
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data: job, error } = await supabase
+        .from('discovery_jobs')
+        .insert({
+          organization_id: organizationId,
+          created_by: user.id,
+          job_type: jobType,
+          focus_app_id: focusAppId || null,
+          status: 'pending',
+        })
+        .select()
+        .single();
+      if (error) throw error;
+
+      // Trigger processing
+      await supabase.functions.invoke('process-discovery-job', {
+        body: { job_id: job.id },
+      });
+
+      return job as DiscoveryJob;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['discovery-jobs'] });
+    },
+  });
+}
+
+export function useDiscoveryJob(jobId: string | null) {
+  return useQuery({
+    queryKey: ['discovery-job', jobId],
+    enabled: !!jobId,
+    refetchInterval: (query) => {
+      const data = query.state.data as DiscoveryJob | undefined;
+      if (!data) return 2000;
+      if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') return false;
+      return 2000;
+    },
+    queryFn: async () => {
+      if (!jobId) return null;
+      const { data, error } = await supabase
+        .from('discovery_jobs')
+        .select('*')
+        .eq('id', jobId)
+        .single();
+      if (error) throw error;
+      return data as DiscoveryJob;
+    },
+  });
+}
+
+export function useReportIntegration() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ integrationId, vote, reason }: { integrationId: string; vote: 'upvote' | 'report' | 'dead_link'; reason?: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      const { error } = await supabase.from('integration_reports').insert({
+        integration_id: integrationId,
+        reported_by: user.id,
+        vote,
+        reason: reason || vote,
+      });
+      if (error && !error.message.includes('duplicate')) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrations'] });
     },
   });
 }

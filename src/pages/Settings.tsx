@@ -318,7 +318,7 @@ function ConnectorsSection() {
               Authentication Providers
             </CardTitle>
             <CardDescription>
-              Configure SSO for your organization. Google SSO is available now. Microsoft 365 SSO requires additional setup.
+              Sign in options available on the StackSeam login page. Both Google and Microsoft are configured at the platform level.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -334,17 +334,17 @@ function ConnectorsSection() {
               </div>
               <Badge variant="secondary">Available</Badge>
             </div>
-            <div className="flex items-center justify-between rounded-lg border p-3 opacity-60">
+            <div className="flex items-center justify-between rounded-lg border p-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
                   <span className="text-sm font-bold">M</span>
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Microsoft 365 / Azure AD</p>
-                  <p className="text-xs text-muted-foreground">Requires custom configuration</p>
+                  <p className="text-sm font-medium">Microsoft 365 / Entra ID</p>
+                  <p className="text-xs text-muted-foreground">Sign in with any Microsoft work or personal account</p>
                 </div>
               </div>
-              <Badge variant="outline">Coming Soon</Badge>
+              <Badge variant="secondary">Available</Badge>
             </div>
           </CardContent>
         </Card>
