@@ -141,7 +141,7 @@ function isDomainOwnedBy(url: string, allowedDomains: Set<string>): boolean {
   return false;
 }
 
-// URL paths that are usually NOT integration docs (release notes, blog posts, etc.)
+// URL paths that are usually NOT integration docs
 const REJECT_PATH_PATTERNS = [
   /\/release[-_]?notes?(\b|\/)/i,
   /\/changelog/i,
@@ -161,6 +161,25 @@ const REJECT_PATH_PATTERNS = [
   /\/careers?\b/i,
   /\/about\b/i,
   /\/team\b/i,
+  // Legal / compliance / trust pages — these list subprocessors, not integrations
+  /\/sub[-_]?processor/i,
+  /\/privacy/i,
+  /\/gdpr/i,
+  /\/ccpa/i,
+  /\/hipaa/i,
+  /\/security/i,
+  /\/trust/i,
+  /\/legal/i,
+  /\/terms/i,
+  /\/tos\b/i,
+  /\/dpa\b/i,
+  /\/data[-_]?processing/i,
+  /\/cookies?/i,
+  /\/policy/i,
+  /\/policies/i,
+  /\/compliance/i,
+  /\/vendor[-_]?list/i,
+  /\/partners?\/?$/i,  // generic partners directory (not /partners/specific-app)
 ];
 
 function isRejectPath(url: string): boolean {
@@ -273,10 +292,30 @@ async function verifyUrl(
     return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: `proximity_${proximity}` };
   }
 
-  // 7. Integration-specific keywords
-  const hasIntegrationKeyword = /integrat|connect|sync|api integration|webhook|two-way|bidirectional/i.test(page.text);
-  if (!hasIntegrationKeyword) {
-    return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: 'no_integration_keyword' };
+  // 7. Integration keyword must appear near the app names (not just anywhere on page).
+  // Build a window around each occurrence of the source or target name and check inside it.
+  const lowerText = page.text.toLowerCase();
+  const integrationRegex = /integrat|\bsync\b|api integration|webhook|two-way|bidirectional|connector|workflow|automat/i;
+
+  let keywordNearMention = false;
+  const allKeys = [...sourceKeys, ...targetKeys];
+  for (const k of allKeys) {
+    if (k.length < 3) continue;
+    let idx = lowerText.indexOf(k);
+    while (idx !== -1) {
+      const start = Math.max(0, idx - 300);
+      const end = Math.min(page.text.length, idx + 300);
+      if (integrationRegex.test(page.text.substring(start, end))) {
+        keywordNearMention = true;
+        break;
+      }
+      idx = lowerText.indexOf(k, idx + 1);
+    }
+    if (keywordNearMention) break;
+  }
+
+  if (!keywordNearMention) {
+    return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: 'no_integration_keyword_near_mention' };
   }
 
   // Confidence scoring
@@ -315,11 +354,24 @@ async function aiGateCheck(
         messages: [
           {
             role: 'system',
-            content: 'You verify whether a documentation page actually describes a working software integration between two named applications. Reject pages that are blogs, release notes, partner directories, comparisons, or pages where one app is only mentioned in passing.',
+            content: `You verify whether a documentation page actually describes a WORKING TECHNICAL SOFTWARE INTEGRATION between two named applications.
+
+REJECT the page if it is any of:
+- A subprocessor / vendor list / GDPR / privacy policy / DPA (lists a company as a service provider, not an integration)
+- A "trust center", compliance page, legal page, or terms of service
+- A blog post, release notes, changelog, news, or press release
+- A partner directory or comparison/vs page
+- A case study, testimonial, or customer story
+- A page where one app is only mentioned incidentally (e.g., "built on X" or "hosted by X")
+- A page listing business/operational services (billing provider, hosting provider, analytics provider) rather than product integrations
+
+ACCEPT only if the page clearly describes how to connect or technically integrate the two specific applications as a product feature — e.g., setup instructions, API docs, sync details, native integration description, webhook configuration, OAuth flow, marketplace listing for that specific integration pair.
+
+Being on the vendor's domain does NOT automatically mean it's an integration page.`,
           },
           {
             role: 'user',
-            content: `Does this page describe an actual working integration between "${sourceName}" and "${targetName}"?
+            content: `Does this page describe an actual working product-level integration between "${sourceName}" and "${targetName}"?
 
 URL: ${pageUrl}
 Content:
@@ -335,10 +387,11 @@ Answer with the tool call.`,
             parameters: {
               type: 'object',
               properties: {
-                is_integration: { type: 'boolean', description: 'true ONLY if this page describes a real integration between the two apps. False if it is a release note, blog, comparison, or only mentions one app in passing.' },
+                is_integration: { type: 'boolean', description: 'true ONLY if this page describes how to connect or use a real product integration between the two named apps. FALSE if it is a subprocessor list, privacy/legal page, blog, release notes, comparison, or only mentions one app as a vendor/service provider.' },
+                page_type: { type: 'string', enum: ['integration_docs', 'marketplace_listing', 'api_reference', 'subprocessor_list', 'privacy_legal', 'blog_news', 'partner_directory', 'incidental_mention', 'other'], description: 'Classify the page type' },
                 reason: { type: 'string', description: 'Brief reason for the decision' },
               },
-              required: ['is_integration', 'reason'],
+              required: ['is_integration', 'page_type', 'reason'],
               additionalProperties: false,
             },
           },
