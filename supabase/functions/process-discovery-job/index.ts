@@ -10,7 +10,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const MAX_PARALLEL_PAIRS = 3;
+const MAX_PARALLEL_PAIRS = 2;
+const DELAY_BETWEEN_BATCHES_MS = 1500;
 
 interface AppPair {
   source_app_id: string;
@@ -93,7 +94,7 @@ async function processJob(jobId: string, supabase: any) {
     let processedCount = 0;
     const foundIntegrations: any[] = [];
 
-    // Process in parallel batches
+    // Process in parallel batches with delay between batches to avoid rate limits
     for (let i = 0; i < pairs.length; i += MAX_PARALLEL_PAIRS) {
       const batch = pairs.slice(i, i + MAX_PARALLEL_PAIRS);
       const results = await Promise.all(batch.map(p => discoverPair(supabaseUrl, serviceKey, p)));
@@ -101,23 +102,44 @@ async function processJob(jobId: string, supabase: any) {
       for (const r of results) {
         processedCount++;
         if (r.found && r.result) {
+          // Check if reverse direction already exists — skip duplicates
+          const { data: existingReverse } = await supabase
+            .from('integrations')
+            .select('id, documentation_url')
+            .eq('source_app_id', r.result.target_app_id)
+            .eq('target_app_id', r.result.source_app_id)
+            .maybeSingle();
+
+          if (existingReverse) {
+            // Update the existing reverse-direction integration with the discovered details
+            // (keep it in its original direction to avoid moving it around)
+            await supabase.from('integrations').update({
+              description: r.result.description,
+              integration_type: r.result.integration_type,
+              data_shared: r.result.data_shared,
+              documentation_url: r.result.documentation_url || existingReverse.documentation_url,
+              link_status: 'verified',
+              confidence: r.result.confidence,
+              last_verified: new Date().toISOString(),
+            }).eq('id', existingReverse.id);
+          } else {
+            // No reverse exists, upsert in this direction
+            await supabase.from('integrations').upsert({
+              source_app_id: r.result.source_app_id,
+              target_app_id: r.result.target_app_id,
+              description: r.result.description,
+              integration_type: r.result.integration_type,
+              data_shared: r.result.data_shared,
+              documentation_url: r.result.documentation_url,
+              link_status: 'verified',
+              confidence: r.result.confidence,
+              source: 'discovery',
+              status: 'approved',
+              last_verified: new Date().toISOString(),
+            }, { onConflict: 'source_app_id,target_app_id' });
+          }
           foundCount++;
           foundIntegrations.push(r.result);
-
-          // Upsert into integrations table
-          await supabase.from('integrations').upsert({
-            source_app_id: r.result.source_app_id,
-            target_app_id: r.result.target_app_id,
-            description: r.result.description,
-            integration_type: r.result.integration_type,
-            data_shared: r.result.data_shared,
-            documentation_url: r.result.documentation_url,
-            link_status: 'verified',
-            confidence: r.result.confidence,
-            source: 'discovery',
-            status: 'approved',
-            last_verified: new Date().toISOString(),
-          }, { onConflict: 'source_app_id,target_app_id' });
         }
       }
 
@@ -126,6 +148,11 @@ async function processJob(jobId: string, supabase: any) {
         processed_pairs: processedCount,
         found_count: foundCount,
       }).eq('id', jobId);
+
+      // Throttle to avoid rate limits
+      if (i + MAX_PARALLEL_PAIRS < pairs.length) {
+        await new Promise(r => setTimeout(r, DELAY_BETWEEN_BATCHES_MS));
+      }
     }
 
     // Mark complete
