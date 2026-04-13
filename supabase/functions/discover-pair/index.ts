@@ -47,7 +47,7 @@ function normalizeName(name: string): string {
   return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-// Tavily Search — AI-optimized search API, returns up to 10 web results with extracted content
+// Tavily Search — returns up to 10 web results with pre-extracted content (bypasses bot challenges)
 async function tavilySearch(query: string, apiKey: string): Promise<{ url: string; title: string; description: string; content: string }[]> {
   try {
     const res = await fetch('https://api.tavily.com/search', {
@@ -61,7 +61,7 @@ async function tavilySearch(query: string, apiKey: string): Promise<{ url: strin
         search_depth: 'advanced',
         max_results: 10,
         include_answer: false,
-        include_raw_content: false,
+        include_raw_content: true,  // get the full extracted page text
       }),
     });
     if (!res.ok) {
@@ -73,7 +73,7 @@ async function tavilySearch(query: string, apiKey: string): Promise<{ url: strin
       url: r.url,
       title: r.title || '',
       description: r.content || '',
-      content: r.content || '',
+      content: (r.raw_content || r.content || '').slice(0, 12000),
     }));
   } catch (e) {
     console.error('Tavily search exception:', e);
@@ -81,28 +81,54 @@ async function tavilySearch(query: string, apiKey: string): Promise<{ url: strin
   }
 }
 
-// Fetch a page and extract text content
-async function fetchPage(url: string): Promise<{ ok: boolean; text: string; status: number }> {
+// Detect Cloudflare / bot-challenge pages
+function isChallengePage(html: string): boolean {
+  const sample = html.substring(0, 3000).toLowerCase();
+  return (
+    sample.includes('attention required') ||
+    sample.includes('cloudflare') && sample.includes('challenge') ||
+    sample.includes('you have been blocked') ||
+    sample.includes('cf-browser-verification') ||
+    sample.includes('just a moment') ||
+    sample.includes('ddos protection') ||
+    sample.includes('please enable cookies')
+  );
+}
+
+// Browser-like headers to avoid trivial bot blocks
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Cache-Control': 'no-cache',
+};
+
+// Fetch a page and extract text content. Returns challenge=true if a bot wall was detected.
+async function fetchPage(url: string): Promise<{ ok: boolean; text: string; status: number; challenge: boolean }> {
   try {
     const c = new AbortController();
     const t = setTimeout(() => c.abort(), 10000);
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; StackSeam/1.0; +https://stackseam.tech)' },
+      headers: BROWSER_HEADERS,
       signal: c.signal,
       redirect: 'follow',
     });
     clearTimeout(t);
-    if (!res.ok) return { ok: false, text: '', status: res.status };
+    if (!res.ok) return { ok: false, text: '', status: res.status, challenge: false };
     const html = await res.text();
+    if (isChallengePage(html)) {
+      return { ok: false, text: '', status: res.status, challenge: true };
+    }
     const text = html
       .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
       .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
       .replace(/<[^>]+>/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-    return { ok: true, text, status: res.status };
+    return { ok: true, text, status: res.status, challenge: false };
   } catch {
-    return { ok: false, text: '', status: 0 };
+    return { ok: false, text: '', status: 0, challenge: false };
   }
 }
 
@@ -235,6 +261,7 @@ async function verifyUrl(
   targetName: string,
   sourceDomains: Set<string>,
   targetDomains: Set<string>,
+  fallbackContent?: string,  // pre-extracted content from Tavily, used if fetch gets blocked
 ): Promise<{ valid: boolean; confidence: number; text: string; ownerSide: 'source' | 'target' | null; rejectReason?: string }> {
   // 1. Reject URLs not on either app's domain
   const ownedBySource = isDomainOwnedBy(url, sourceDomains);
@@ -248,22 +275,16 @@ async function verifyUrl(
     return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: 'reject_path' };
   }
 
-  // 3. HEAD check
-  try {
-    const c = new AbortController();
-    const t = setTimeout(() => c.abort(), 5000);
-    const head = await fetch(url, { method: 'HEAD', signal: c.signal, redirect: 'follow' });
-    clearTimeout(t);
-    if (!head.ok && head.status !== 405) {
-      return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: 'http_error' };
-    }
-  } catch {
-    // Some servers reject HEAD; fall through to GET
-  }
-
-  // 4. GET page content
+  // 3. Fetch page. If it hits a bot challenge, fall back to Tavily-extracted content.
+  let pageText = '';
   const page = await fetchPage(url);
-  if (!page.ok) return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: 'fetch_failed' };
+  if (page.ok && pageText.length > 200) {
+    pageText = pageText;
+  } else if (fallbackContent && fallbackContent.length > 200) {
+    pageText = fallbackContent;
+  } else {
+    return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: page.challenge ? 'bot_challenge' : 'fetch_failed' };
+  }
 
   const sourceNorm = normalizeName(sourceName);
   const targetNorm = normalizeName(targetName);
@@ -275,8 +296,8 @@ async function verifyUrl(
   const otherKeys = ownedBySource ? targetKeys : sourceKeys;
   const ownerKeys = ownedBySource ? sourceKeys : targetKeys;
 
-  const otherCount = countOccurrences(page.text, otherKeys);
-  const ownerCount = countOccurrences(page.text, ownerKeys);
+  const otherCount = countOccurrences(pageText, otherKeys);
+  const ownerCount = countOccurrences(pageText, ownerKeys);
 
   // 5. Require the OTHER app to be mentioned at least twice
   if (otherCount < 2) {
@@ -287,29 +308,29 @@ async function verifyUrl(
   }
 
   // 6. Require integration keyword to appear near the other app name
-  const proximity = minProximity(page.text, sourceKeys, targetKeys);
+  const proximity = minProximity(pageText, sourceKeys, targetKeys);
   if (proximity > 500) {
     return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: `proximity_${proximity}` };
   }
 
   // 7. Integration keyword must appear near the app names (not just anywhere on page).
   // Build a window around each occurrence of the source or target name and check inside it.
-  const lowerText = page.text.toLowerCase();
+  const lowerPageText = pageText.toLowerCase();
   const integrationRegex = /integrat|\bsync\b|api integration|webhook|two-way|bidirectional|connector|workflow|automat/i;
 
   let keywordNearMention = false;
   const allKeys = [...sourceKeys, ...targetKeys];
   for (const k of allKeys) {
     if (k.length < 3) continue;
-    let idx = lowerText.indexOf(k);
+    let idx = lowerPageText.indexOf(k);
     while (idx !== -1) {
       const start = Math.max(0, idx - 300);
-      const end = Math.min(page.text.length, idx + 300);
-      if (integrationRegex.test(page.text.substring(start, end))) {
+      const end = Math.min(pageText.length, idx + 300);
+      if (integrationRegex.test(pageText.substring(start, end))) {
         keywordNearMention = true;
         break;
       }
-      idx = lowerText.indexOf(k, idx + 1);
+      idx = lowerPageText.indexOf(k, idx + 1);
     }
     if (keywordNearMention) break;
   }
@@ -332,7 +353,7 @@ async function verifyUrl(
   return {
     valid: true,
     confidence: Math.min(confidence, 100),
-    text: page.text.substring(0, 8000),
+    text: pageText.substring(0, 8000),
     ownerSide: ownedBySource ? 'source' : 'target',
   };
 }
@@ -569,7 +590,7 @@ Deno.serve(async (req) => {
     const verified = await Promise.all(
       topResults.map(async r => ({
         ...r,
-        verification: await verifyUrl(r.url, sourceApp.name, targetApp.name, sourceDomains, targetDomains),
+        verification: await verifyUrl(r.url, sourceApp.name, targetApp.name, sourceDomains, targetDomains, r.content),
       }))
     );
 
