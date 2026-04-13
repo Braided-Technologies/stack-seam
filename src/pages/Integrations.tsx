@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { useIntegrations, useUserApplications, useActiveDiscoveryJob } from '@/hooks/useStackData';
+import { useIntegrations, useUserApplications, useActiveDiscoveryJob, useReportIntegration } from '@/hooks/useStackData';
 import { useDiscovery } from '@/contexts/DiscoveryContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from '@/hooks/use-toast';
 import { CATEGORY_GROUPS } from '@/lib/categoryGroups';
-import { Search, ExternalLink, Filter, Link2, CheckCircle2, Circle, Map as MapIcon, ChevronDown, ChevronRight, EyeOff, SkipForward, ChevronsDownUp, ChevronsUpDown, Plus, Zap, Loader2 } from 'lucide-react';
+import { Search, ExternalLink, Filter, Link2, CheckCircle2, Circle, Map as MapIcon, ChevronDown, ChevronRight, EyeOff, SkipForward, ChevronsDownUp, ChevronsUpDown, Plus, Zap, Loader2, X } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Check, ChevronsUpDown as ChevronsUpDownIcon } from 'lucide-react';
@@ -47,6 +47,7 @@ export default function Integrations() {
   const { data: userApps = [] } = useUserApplications();
   const { state: discoveryState, startBatchDiscovery, startFocusedDiscovery, dismiss: dismissDiscovery } = useDiscovery();
   const { data: activeJob } = useActiveDiscoveryJob(orgId);
+  const reportIntegration = useReportIntegration();
   const isDiscoveringAll = discoveryState.isRunning;
   const discoveryProgress = discoveryState.progress;
   const discoveryResults = discoveryState.results;
@@ -567,41 +568,75 @@ export default function Integrations() {
                                     disabled={setIntegrationStatus.isPending}
                                   />
                                 )}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm font-medium">{otherApp?.name || 'Unknown'}</span>
-                                    {getStatusBadge(i.id)}
-                                    <Badge variant="outline" className="text-[10px]">{i.integration_type || 'unknown'}</Badge>
-                                  </div>
-                                  {i.description && (
-                                    <p className="text-xs text-muted-foreground mt-0.5 truncate">{i.description}</p>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  {i.documentation_url && (
-                                    <a href={i.documentation_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                                      <ExternalLink className="h-3.5 w-3.5" />
-                                    </a>
-                                  )}
-                                  {isAdmin && status !== 'skipped' && status !== 'configured' && (
-                                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Skip"
-                                      onClick={() => setIntegrationStatus.mutate({ integrationId: i.id, status: 'skipped' })}>
-                                      <SkipForward className="h-3.5 w-3.5" />
-                                    </Button>
-                                  )}
-                                  {isAdmin && status !== 'hidden' && status !== 'configured' && (
-                                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Hide"
-                                      onClick={() => setIntegrationStatus.mutate({ integrationId: i.id, status: 'hidden' })}>
-                                      <EyeOff className="h-3.5 w-3.5" />
-                                    </Button>
-                                  )}
-                                  {isAdmin && (status === 'skipped' || status === 'hidden') && (
-                                    <Button variant="ghost" size="sm" className="h-7 text-xs"
-                                      onClick={() => setIntegrationStatus.mutate({ integrationId: i.id, status: 'pending' })}>
-                                      Restore
-                                    </Button>
-                                  )}
-                                </div>
+                                {(() => {
+                                  const confidence = (i as any).confidence ?? 50;
+                                  const linkStatus = (i as any).link_status;
+                                  const confidenceColor = confidence >= 80 ? 'text-green-500' : confidence >= 60 ? 'text-yellow-500' : 'text-orange-500';
+                                  const confidenceLabel = confidence >= 80 ? 'High confidence' : confidence >= 60 ? 'Medium confidence' : 'Low confidence';
+                                  return (
+                                    <>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="text-sm font-medium">{otherApp?.name || 'Unknown'}</span>
+                                          {getStatusBadge(i.id)}
+                                          <Badge variant="outline" className="text-[10px]">{i.integration_type || 'unknown'}</Badge>
+                                          <span className={`text-[10px] ${confidenceColor}`} title={confidenceLabel}>
+                                            ● {confidence}%
+                                          </span>
+                                          {linkStatus === 'dead' && (
+                                            <span className="text-[10px] text-destructive">⚠ Dead link</span>
+                                          )}
+                                        </div>
+                                        {i.description && (
+                                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{i.description}</p>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        {i.documentation_url && (
+                                          <a href={i.documentation_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" title="Open documentation">
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                          </a>
+                                        )}
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7"
+                                          title="Confirm this works"
+                                          onClick={() => reportIntegration.mutate({ integrationId: i.id, vote: 'upvote' })}
+                                        >
+                                          <Check className="h-3.5 w-3.5 text-green-500" />
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7"
+                                          title="Report as incorrect"
+                                          onClick={() => reportIntegration.mutate({ integrationId: i.id, vote: 'report' })}
+                                        >
+                                          <X className="h-3.5 w-3.5 text-destructive" />
+                                        </Button>
+                                        {isAdmin && status !== 'skipped' && status !== 'configured' && (
+                                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Skip"
+                                            onClick={() => setIntegrationStatus.mutate({ integrationId: i.id, status: 'skipped' })}>
+                                            <SkipForward className="h-3.5 w-3.5" />
+                                          </Button>
+                                        )}
+                                        {isAdmin && status !== 'hidden' && status !== 'configured' && (
+                                          <Button variant="ghost" size="icon" className="h-7 w-7" title="Hide"
+                                            onClick={() => setIntegrationStatus.mutate({ integrationId: i.id, status: 'hidden' })}>
+                                            <EyeOff className="h-3.5 w-3.5" />
+                                          </Button>
+                                        )}
+                                        {isAdmin && (status === 'skipped' || status === 'hidden') && (
+                                          <Button variant="ghost" size="sm" className="h-7 text-xs"
+                                            onClick={() => setIntegrationStatus.mutate({ integrationId: i.id, status: 'pending' })}>
+                                            Restore
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </>
+                                  );
+                                })()}
                               </div>
                             );
                           })}
