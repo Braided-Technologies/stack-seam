@@ -1,33 +1,51 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
+const ALLOWED_ORIGINS = [
+  "https://stackseam.tech",
+  "https://www.stackseam.tech",
+  "http://localhost:8080",
+  "http://localhost:5173",
+];
+
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Vary": "Origin",
+  };
 }
 
-function jsonResponse(data: Record<string, unknown>, status = 200): Response {
+function redactEmail(email: string | null | undefined): string {
+  if (!email) return "(none)";
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "***";
+  return `${local[0]}***@${domain}`;
+}
+
+function jsonResponse(req: Request, data: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
   })
 }
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders(req) })
   }
 
   if (req.method !== 'GET' && req.method !== 'POST') {
-    return jsonResponse({ error: 'Method not allowed' }, 405)
+    return jsonResponse(req, { error: 'Method not allowed' }, 405)
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
   if (!supabaseUrl || !supabaseServiceKey) {
-    return jsonResponse({ error: 'Server configuration error' }, 500)
+    return jsonResponse(req, { error: 'Server configuration error' }, 500)
   }
 
   // Extract token from query params (GET) or body (POST)
@@ -64,7 +82,7 @@ Deno.serve(async (req) => {
   }
 
   if (!token) {
-    return jsonResponse({ error: 'Token is required' }, 400)
+    return jsonResponse(req, { error: 'Token is required' }, 400)
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
@@ -77,16 +95,16 @@ Deno.serve(async (req) => {
     .maybeSingle()
 
   if (lookupError || !tokenRecord) {
-    return jsonResponse({ error: 'Invalid or expired token' }, 404)
+    return jsonResponse(req, { error: 'Invalid or expired token' }, 404)
   }
 
   if (tokenRecord.used_at) {
-    return jsonResponse({ valid: false, reason: 'already_unsubscribed' })
+    return jsonResponse(req, { valid: false, reason: 'already_unsubscribed' })
   }
 
   // GET: Validate token (the app's unsubscribe page calls this on load)
   if (req.method === 'GET') {
-    return jsonResponse({ valid: true })
+    return jsonResponse(req, { valid: true })
   }
 
   // POST: Process the unsubscribe
@@ -101,11 +119,11 @@ Deno.serve(async (req) => {
 
   if (updateError) {
     console.error('Failed to mark token as used', { error: updateError, token })
-    return jsonResponse({ error: 'Failed to process unsubscribe' }, 500)
+    return jsonResponse(req, { error: 'Failed to process unsubscribe' }, 500)
   }
 
   if (!updated) {
-    return jsonResponse({ success: false, reason: 'already_unsubscribed' })
+    return jsonResponse(req, { success: false, reason: 'already_unsubscribed' })
   }
 
   // Add email to suppressed list (upsert to handle duplicates)
@@ -119,12 +137,12 @@ Deno.serve(async (req) => {
   if (suppressError) {
     console.error('Failed to suppress email', {
       error: suppressError,
-      email: tokenRecord.email,
+      email: redactEmail(tokenRecord.email),
     })
-    return jsonResponse({ error: 'Failed to process unsubscribe' }, 500)
+    return jsonResponse(req, { error: 'Failed to process unsubscribe' }, 500)
   }
 
-  console.log('Email unsubscribed', { email: tokenRecord.email })
+  console.log('Email unsubscribed', { email: redactEmail(tokenRecord.email) })
 
-  return jsonResponse({ success: true })
+  return jsonResponse(req, { success: true })
 })

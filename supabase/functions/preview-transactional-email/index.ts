@@ -2,9 +2,21 @@ import * as React from 'npm:react@18.3.1'
 import { renderAsync } from 'npm:@react-email/components@0.0.22'
 import { TEMPLATES } from '../_shared/transactional-email-templates/registry.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
+const ALLOWED_ORIGINS = [
+  "https://stackseam.tech",
+  "https://www.stackseam.tech",
+  "http://localhost:8080",
+  "http://localhost:5173",
+];
+
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, content-type",
+    "Vary": "Origin",
+  };
 }
 
 // Renders all registered templates with their previewData.
@@ -12,7 +24,7 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders(req) })
   }
 
   const apiKey = Deno.env.get('LOVABLE_API_KEY')
@@ -21,7 +33,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ error: 'Server configuration error' }),
       {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       }
     )
   }
@@ -32,7 +44,7 @@ Deno.serve(async (req) => {
   if (token !== apiKey) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
     })
   }
 
@@ -95,6 +107,6 @@ Deno.serve(async (req) => {
 
   return new Response(JSON.stringify({ templates: results }), {
     status: 200,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
   })
 })

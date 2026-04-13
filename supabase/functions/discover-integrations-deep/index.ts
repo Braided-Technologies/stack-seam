@@ -1,10 +1,21 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+const ALLOWED_ORIGINS = [
+  "https://stackseam.tech",
+  "https://www.stackseam.tech",
+  "http://localhost:8080",
+  "http://localhost:5173",
+];
+
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Vary": "Origin",
+  };
+}
 
 function extractDomain(url: string): string {
   try {
@@ -371,13 +382,13 @@ async function verifyUrl(url: string, otherAppName: string): Promise<boolean> {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders(req) });
 
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Missing authorization" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401, headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -393,7 +404,7 @@ Deno.serve(async (req) => {
     const { data: claims, error: claimsErr } = await userClient.auth.getUser();
     if (claimsErr || !claims?.user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401, headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -402,7 +413,7 @@ Deno.serve(async (req) => {
 
     if (!focus_app || typeof focus_app !== 'string') {
       return new Response(JSON.stringify({ error: "focus_app is required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -424,7 +435,7 @@ Deno.serve(async (req) => {
     const focusAppId = getMappedValue(appMap, focus_app);
     if (!focusAppId) {
       return new Response(JSON.stringify({ error: `App "${focus_app}" not found` }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 404, headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -577,22 +588,22 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify(result), {
       status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...corsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (err: any) {
     console.error("discover-integrations-deep error:", err);
     if (err.message === "RATE_LIMITED") {
       return new Response(JSON.stringify({ error: "Rate limited. Please try again in a moment." }), {
-        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 429, headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
     if (err.message === "CREDITS_EXHAUSTED") {
       return new Response(JSON.stringify({ error: "AI credits exhausted. Please add funds." }), {
-        status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 402, headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
     return new Response(JSON.stringify({ error: err.message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders(req), "Content-Type": "application/json" },
     });
   }
 });

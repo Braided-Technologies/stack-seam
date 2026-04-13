@@ -22,6 +22,7 @@ import Support from "./pages/Support";
 import AppLayout from "./components/AppLayout";
 import Unsubscribe from "./pages/Unsubscribe";
 import ResetPassword from "./pages/ResetPassword";
+import Legal from "./pages/Legal";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -56,6 +57,8 @@ const AppRoutes = () => (
     <Route path="/help" element={<Navigate to="/support" replace />} />
     <Route path="/unsubscribe" element={<Unsubscribe />} />
     <Route path="/reset-password" element={<ResetPassword />} />
+    <Route path="/legal/:doc" element={<Legal />} />
+    <Route path="/legal" element={<Navigate to="/legal/privacy" replace />} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );

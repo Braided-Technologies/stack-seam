@@ -1,14 +1,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+const ALLOWED_ORIGINS = [
+  "https://stackseam.tech",
+  "https://www.stackseam.tech",
+  "http://localhost:8080",
+  "http://localhost:5173",
+];
 
-// Exempt org — Braided Technologies (no rate limits)
-const EXEMPT_ORG_ID = "b74b008f-68bc-4813-b3cc-2c9757b22b12";
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Vary": "Origin",
+  };
+}
 
 // Provider → base URL mapping (all OpenAI-compatible except Anthropic)
 const PROVIDER_URLS: Record<string, string> = {
@@ -27,14 +35,14 @@ const ALLOWED_BUILTIN_MODELS = [
 ];
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders(req) });
 
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -48,7 +56,7 @@ serve(async (req) => {
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -56,7 +64,7 @@ serve(async (req) => {
     if (!messages || !Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: "messages array required" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -74,46 +82,51 @@ serve(async (req) => {
     let model = (requestedModel && ALLOWED_BUILTIN_MODELS.includes(requestedModel)) ? requestedModel : "gpt-4o-mini";
     let usingBuiltIn = true;
 
+    const serviceClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
     // Check for BYOK settings
     if (orgId) {
       const { data: settings } = await supabase
         .from("org_settings")
         .select("setting_key, setting_value")
         .eq("organization_id", orgId)
-        .in("setting_key", ["ai_provider", "ai_api_key", "ai_model"]);
+        .in("setting_key", ["ai_provider", "ai_model"]);
 
-      if (settings && settings.length > 0) {
-        const settingsMap: Record<string, string> = {};
-        for (const s of settings) {
-          if (s.setting_value) settingsMap[s.setting_key] = s.setting_value;
-        }
+      const settingsMap: Record<string, string> = {};
+      for (const s of settings || []) {
+        if (s.setting_value) settingsMap[s.setting_key] = s.setting_value;
+      }
 
-        const provider = settingsMap.ai_provider || "builtin";
-        if (provider !== "builtin" && settingsMap.ai_api_key) {
-          apiKey = settingsMap.ai_api_key;
+      const provider = settingsMap.ai_provider || "builtin";
+      if (provider !== "builtin") {
+        // Pull the encrypted BYOK key from vault via service role
+        const { data: secretValue } = await serviceClient.rpc("get_org_secret_value", {
+          _org_id: orgId,
+          _key: "ai_api_key",
+        });
+        if (secretValue) {
+          apiKey = secretValue;
           aiUrl = PROVIDER_URLS[provider] || PROVIDER_URLS.openai;
           model = settingsMap.ai_model || model;
           usingBuiltIn = false;
-        } else if (settingsMap.ai_model && ALLOWED_BUILTIN_MODELS.includes(settingsMap.ai_model)) {
-          model = settingsMap.ai_model;
         }
+      } else if (settingsMap.ai_model && ALLOWED_BUILTIN_MODELS.includes(settingsMap.ai_model)) {
+        model = settingsMap.ai_model;
       }
     }
 
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "No AI API key configured" }), {
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
     // Rate limit check (only for built-in provider)
     if (usingBuiltIn && orgId) {
-      const serviceClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
       const { data: allowed } = await serviceClient.rpc("check_and_increment_ai_usage", {
         _org_id: orgId,
         _daily_limit: 50,
-        _exempt_org_id: EXEMPT_ORG_ID,
       });
 
       if (allowed === false) {
@@ -122,7 +135,7 @@ serve(async (req) => {
           code: "RATE_LIMITED",
         }), {
           status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...corsHeaders(req), "Content-Type": "application/json" },
         });
       }
     }
@@ -160,25 +173,25 @@ ${stackContext ? `The user's current stack includes: ${stackContext}. Reference 
       if (status === 429) {
         return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }), {
           status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...corsHeaders(req), "Content-Type": "application/json" },
         });
       }
       const errorText = await response.text();
       console.error("AI error:", status, errorText);
       return new Response(JSON.stringify({ error: "AI service error" }), {
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
     return new Response(response.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      headers: { ...corsHeaders(req), "Content-Type": "text/event-stream" },
     });
   } catch (e) {
     console.error("ai-research error:", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...corsHeaders(req), "Content-Type": "application/json" },
     });
   }
 });

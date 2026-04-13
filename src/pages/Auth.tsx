@@ -196,6 +196,12 @@ export default function Auth() {
             </>
           )}
         </CardContent>
+        <div className="px-6 pb-6 text-center text-xs text-muted-foreground">
+          By signing up, you agree to our{' '}
+          <a href="/legal/terms" className="underline hover:text-foreground">Terms of Service</a>
+          {' '}and{' '}
+          <a href="/legal/privacy" className="underline hover:text-foreground">Privacy Policy</a>.
+        </div>
       </Card>
     </div>
   );

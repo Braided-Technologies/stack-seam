@@ -10,10 +10,28 @@ import { RecoveryEmail } from '../_shared/email-templates/recovery.tsx'
 import { EmailChangeEmail } from '../_shared/email-templates/email-change.tsx'
 import { ReauthenticationEmail } from '../_shared/email-templates/reauthentication.tsx'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type, x-lovable-signature, x-lovable-timestamp, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+const ALLOWED_ORIGINS = [
+  "https://stackseam.tech",
+  "https://www.stackseam.tech",
+  "http://localhost:8080",
+  "http://localhost:5173",
+];
+
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-lovable-signature, x-lovable-timestamp, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Vary": "Origin",
+  };
+}
+
+function redactEmail(email: string | null | undefined): string {
+  if (!email) return "(none)";
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "***";
+  return `${local[0]}***@${domain}`;
 }
 
 const EMAIL_SUBJECTS: Record<string, string> = {
@@ -137,7 +155,7 @@ async function handleWebhook(req: Request): Promise<Response> {
     console.error('LOVABLE_API_KEY not configured')
     return new Response(
       JSON.stringify({ error: 'Server configuration error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } }
     )
   }
 
@@ -162,14 +180,14 @@ async function handleWebhook(req: Request): Promise<Response> {
           console.error('Invalid webhook signature', { error: error.message })
           return new Response(JSON.stringify({ error: 'Invalid signature' }), {
             status: 401,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
           })
         case 'invalid_payload':
         case 'invalid_json':
           console.error('Invalid webhook payload', { error: error.message })
           return new Response(
             JSON.stringify({ error: 'Invalid webhook payload' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { status: 400, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } }
           )
       }
     }
@@ -177,7 +195,7 @@ async function handleWebhook(req: Request): Promise<Response> {
     console.error('Webhook verification failed', { error })
     return new Response(
       JSON.stringify({ error: 'Invalid webhook payload' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 400, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } }
     )
   }
 
@@ -187,7 +205,7 @@ async function handleWebhook(req: Request): Promise<Response> {
       JSON.stringify({ error: 'Invalid webhook payload' }),
       {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       }
     )
   }
@@ -198,7 +216,7 @@ async function handleWebhook(req: Request): Promise<Response> {
       JSON.stringify({ error: `Unsupported payload version: ${payload.version}` }),
       {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       }
     )
   }
@@ -206,14 +224,14 @@ async function handleWebhook(req: Request): Promise<Response> {
   // The email action type is in payload.data.action_type (e.g., "signup", "recovery")
   // payload.type is the hook event type ("auth")
   const emailType = payload.data.action_type
-  console.log('Received auth event', { emailType, email: payload.data.email, run_id })
+  console.log('Received auth event', { emailType, email: redactEmail(payload.data.email), run_id })
 
   const EmailTemplate = EMAIL_TEMPLATES[emailType]
   if (!EmailTemplate) {
     console.error('Unknown email type', { emailType, run_id })
     return new Response(
       JSON.stringify({ error: `Unknown email type: ${emailType}` }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 400, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } }
     )
   }
 
@@ -278,15 +296,15 @@ async function handleWebhook(req: Request): Promise<Response> {
     })
     return new Response(JSON.stringify({ error: 'Failed to enqueue email' }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
     })
   }
 
-  console.log('Auth email enqueued', { emailType, email: payload.data.email, run_id })
+  console.log('Auth email enqueued', { emailType, email: redactEmail(payload.data.email), run_id })
 
   return new Response(
     JSON.stringify({ success: true, queued: true }),
-    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    { status: 200, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } }
   )
 }
 
@@ -295,7 +313,7 @@ Deno.serve(async (req) => {
 
   // Handle CORS preflight for main endpoint
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders(req) })
   }
 
   // Route to preview handler for /preview path
@@ -311,7 +329,7 @@ Deno.serve(async (req) => {
     const message = error instanceof Error ? error.message : 'Unknown error'
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
     })
   }
 })

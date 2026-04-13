@@ -1,15 +1,27 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+const ALLOWED_ORIGINS = [
+  "https://stackseam.tech",
+  "https://www.stackseam.tech",
+  "http://localhost:8080",
+  "http://localhost:5173",
+];
+
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Vary": "Origin",
+  };
+}
 
 const SCALEPAD_BASE = "https://api.scalepad.com/core/v1";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeaders(req) });
   }
 
   try {
@@ -17,7 +29,7 @@ Deno.serve(async (req: Request) => {
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Missing authorization" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -33,7 +45,7 @@ Deno.serve(async (req: Request) => {
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -42,7 +54,7 @@ Deno.serve(async (req: Request) => {
     if (!orgIdData) {
       return new Response(JSON.stringify({ error: "No organization found" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
     const orgId = orgIdData;
@@ -53,7 +65,7 @@ Deno.serve(async (req: Request) => {
     if (!isAdmin && !isPlatformAdmin) {
       return new Response(JSON.stringify({ error: "Admin access required" }), {
         status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -73,7 +85,7 @@ Deno.serve(async (req: Request) => {
     if (!scalepadApiKey) {
       return new Response(
         JSON.stringify({ error: "ScalePad API key not configured. Add it in Settings > Connectors." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...corsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -97,7 +109,7 @@ Deno.serve(async (req: Request) => {
         const errText = await res.text();
         return new Response(
           JSON.stringify({ error: `ScalePad API error: ${res.status}`, details: errText }),
-          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 502, headers: { ...corsHeaders(req), "Content-Type": "application/json" } }
         );
       }
 
@@ -115,7 +127,7 @@ Deno.serve(async (req: Request) => {
     if (!applications) {
       return new Response(
         JSON.stringify({ error: "Failed to fetch applications" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 500, headers: { ...corsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -216,12 +228,12 @@ Deno.serve(async (req: Request) => {
         updated,
         clients_found: clientCount,
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders(req), "Content-Type": "application/json" } }
     );
   } catch (err) {
     return new Response(
       JSON.stringify({ error: err.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders(req), "Content-Type": "application/json" } }
     );
   }
 });

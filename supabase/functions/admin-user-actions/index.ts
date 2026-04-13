@@ -1,14 +1,25 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+const ALLOWED_ORIGINS = [
+  "https://stackseam.tech",
+  "https://www.stackseam.tech",
+  "http://localhost:8080",
+  "http://localhost:5173",
+];
+
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Vary": "Origin",
+  };
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeaders(req) });
   }
 
   try {
@@ -16,7 +27,7 @@ Deno.serve(async (req) => {
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Not authenticated" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -31,7 +42,7 @@ Deno.serve(async (req) => {
     if (authError || !caller) {
       return new Response(JSON.stringify({ error: "Not authenticated" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -41,14 +52,14 @@ Deno.serve(async (req) => {
     if (!action || !target_user_id) {
       return new Response(JSON.stringify({ error: "Missing action or target_user_id" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
     if (!["reset_password", "reset_mfa"].includes(action)) {
       return new Response(JSON.stringify({ error: "Invalid action" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -68,7 +79,7 @@ Deno.serve(async (req) => {
       if (callerRole?.role !== "admin") {
         return new Response(JSON.stringify({ error: "Insufficient permissions" }), {
           status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...corsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -81,7 +92,7 @@ Deno.serve(async (req) => {
       if (!targetRole || targetRole.organization_id !== callerRole.organization_id) {
         return new Response(JSON.stringify({ error: "User not in your organization" }), {
           status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...corsHeaders(req), "Content-Type": "application/json" },
         });
       }
     }
@@ -92,7 +103,7 @@ Deno.serve(async (req) => {
       if (getUserError || !targetUser?.user?.email) {
         return new Response(JSON.stringify({ error: "User not found" }), {
           status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...corsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -106,13 +117,13 @@ Deno.serve(async (req) => {
         console.error("Password reset error:", resetError.message);
         return new Response(JSON.stringify({ error: "Failed to send password reset" }), {
           status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...corsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
       return new Response(
         JSON.stringify({ success: true, message: `Password reset email sent to ${targetUser.user.email}` }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { headers: { ...corsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
@@ -126,7 +137,7 @@ Deno.serve(async (req) => {
         console.error("MFA list factors error:", factorsError.message);
         return new Response(JSON.stringify({ error: "Failed to reset 2FA" }), {
           status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...corsHeaders(req), "Content-Type": "application/json" },
         });
       }
 
@@ -143,19 +154,19 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: true, message: `Reset 2FA for user. Removed ${unenrolled} factor(s).` }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { headers: { ...corsHeaders(req), "Content-Type": "application/json" } }
       );
     }
 
     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...corsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (err) {
     console.error("admin-user-actions error:", err);
     return new Response(JSON.stringify({ error: "An internal error occurred" }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...corsHeaders(req), "Content-Type": "application/json" },
     });
   }
 });

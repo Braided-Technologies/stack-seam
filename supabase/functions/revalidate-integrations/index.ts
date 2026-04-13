@@ -3,10 +3,22 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, content-type",
-};
+const ALLOWED_ORIGINS = [
+  "https://stackseam.tech",
+  "https://www.stackseam.tech",
+  "http://localhost:8080",
+  "http://localhost:5173",
+];
+
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, content-type",
+    "Vary": "Origin",
+  };
+}
 
 const BATCH_SIZE = 10;
 const REQUEST_TIMEOUT_MS = 8000;
@@ -44,7 +56,7 @@ async function checkUrl(url: string): Promise<'verified' | 'dead'> {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(req) });
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -103,11 +115,11 @@ Deno.serve(async (req) => {
       checked,
       verified,
       dead,
-    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }), { headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } });
   } catch (e: any) {
     console.error('revalidate-integrations error:', e);
     return new Response(JSON.stringify({ error: e.message || 'Unknown error' }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
     });
   }
 });

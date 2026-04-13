@@ -4,11 +4,22 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+const ALLOWED_ORIGINS = [
+  "https://stackseam.tech",
+  "https://www.stackseam.tech",
+  "http://localhost:8080",
+  "http://localhost:5173",
+];
+
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Vary": "Origin",
+  };
+}
 
 const CACHE_TTL_DAYS = 30;
 
@@ -413,7 +424,7 @@ Provide a brief, factual extraction. Only describe what is explicitly mentioned 
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(req) });
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -423,12 +434,12 @@ Deno.serve(async (req) => {
 
     if (!tavilyKey) {
       return new Response(JSON.stringify({ error: 'TAVILY_API_KEY not configured' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       });
     }
     if (!openaiKey) {
       return new Response(JSON.stringify({ error: 'OPENAI_API_KEY not configured' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       });
     }
 
@@ -437,7 +448,7 @@ Deno.serve(async (req) => {
 
     if (!source_app_id || !target_app_id) {
       return new Response(JSON.stringify({ error: 'source_app_id and target_app_id required' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       });
     }
 
@@ -451,7 +462,7 @@ Deno.serve(async (req) => {
 
     if (appsErr || !apps || apps.length !== 2) {
       return new Response(JSON.stringify({ error: 'Apps not found' }), {
-        status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 404, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       });
     }
 
@@ -475,7 +486,7 @@ Deno.serve(async (req) => {
           source_type: 'cached',
           source_app_id,
           target_app_id,
-        }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }), { headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } });
       }
     }
 
@@ -497,7 +508,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({
         found: false, source_type: 'not_found',
         source_app_id, target_app_id, confidence: 0,
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }), { headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } });
     }
 
     // Verify top results in parallel (max 3)
@@ -523,7 +534,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({
         found: false, source_type: 'not_found',
         source_app_id, target_app_id, confidence: 0,
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }), { headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } });
     }
 
     // Run AI gate on top candidates until one passes (max 3)
@@ -550,7 +561,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({
         found: false, source_type: 'not_found',
         source_app_id, target_app_id, confidence: 0,
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }), { headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } });
     }
 
     // AI extraction of details
@@ -579,12 +590,12 @@ Deno.serve(async (req) => {
     }, { onConflict: 'source_app_id,target_app_id' });
 
     return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
     });
   } catch (e: any) {
     console.error('discover-pair error:', e);
     return new Response(JSON.stringify({ error: e.message || 'Unknown error' }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
     });
   }
 });

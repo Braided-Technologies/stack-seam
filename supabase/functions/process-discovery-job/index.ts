@@ -4,11 +4,22 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+const ALLOWED_ORIGINS = [
+  "https://stackseam.tech",
+  "https://www.stackseam.tech",
+  "http://localhost:8080",
+  "http://localhost:5173",
+];
+
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Vary": "Origin",
+  };
+}
 
 const MAX_PARALLEL_PAIRS = 2;
 const DELAY_BETWEEN_BATCHES_MS = 1500;
@@ -173,7 +184,7 @@ async function processJob(jobId: string, supabase: any) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders(req) });
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -189,7 +200,7 @@ Deno.serve(async (req) => {
       // @ts-ignore - EdgeRuntime is a Deno Deploy global available in Supabase Edge Functions
       EdgeRuntime.waitUntil(processJob(job_id, supabase).catch(e => console.error('Background job error:', e)));
       return new Response(JSON.stringify({ accepted: true, job_id }), {
-        status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 202, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       });
     }
 
@@ -204,19 +215,19 @@ Deno.serve(async (req) => {
 
     if (!pending) {
       return new Response(JSON.stringify({ message: 'No pending jobs' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       });
     }
 
     // @ts-ignore - EdgeRuntime is a Deno Deploy global available in Supabase Edge Functions
     EdgeRuntime.waitUntil(processJob(pending.id, supabase).catch(e => console.error('Background job error:', e)));
     return new Response(JSON.stringify({ accepted: true, job_id: pending.id }), {
-      status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 202, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
     });
   } catch (e: any) {
     console.error('process-discovery-job error:', e);
     return new Response(JSON.stringify({ error: e.message || 'Unknown error' }), {
-      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
     });
   }
 });

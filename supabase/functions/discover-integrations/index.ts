@@ -1,10 +1,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+const ALLOWED_ORIGINS = [
+  "https://stackseam.tech",
+  "https://www.stackseam.tech",
+  "http://localhost:8080",
+  "http://localhost:5173",
+];
+
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Vary": "Origin",
+  };
+}
 
 function extractDomain(url: string): string {
   try {
@@ -437,7 +449,7 @@ CRITICAL RULES:
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders(req) });
 
   try {
     const body = await req.json();
@@ -479,13 +491,13 @@ serve(async (req) => {
       }
 
       return new Response(JSON.stringify({ scheduled: true, totalDiscovered, totalSaved }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
     if (!app_names || !Array.isArray(app_names) || app_names.length < 2) {
       return new Response(JSON.stringify({ error: "At least 2 app names required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400, headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
@@ -511,17 +523,17 @@ serve(async (req) => {
     const result = await processDiscovery(app_names, OPENAI_API_KEY, supabaseAdmin, vendorMap, vendorUrls, focus_app);
 
     return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...corsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (e: any) {
     console.error("discover-integrations error:", e);
     if (e.message === "RATE_LIMITED") {
       return new Response(JSON.stringify({ error: "Rate limited. Please try again in a moment." }), {
-        status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 429, headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders(req), "Content-Type": "application/json" },
     });
   }
 });

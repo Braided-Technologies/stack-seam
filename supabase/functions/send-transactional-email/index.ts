@@ -15,10 +15,28 @@ const SENDER_DOMAIN = "notify.stackseam.tech"
 // even though actual sending uses the subdomain above.
 const FROM_DOMAIN = "stackseam.tech"
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
+const ALLOWED_ORIGINS = [
+  "https://stackseam.tech",
+  "https://www.stackseam.tech",
+  "http://localhost:8080",
+  "http://localhost:5173",
+];
+
+function corsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get("Origin") || "";
+  const allowedOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allowedOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Vary": "Origin",
+  };
+}
+
+function redactEmail(email: string | null | undefined): string {
+  if (!email) return "(none)";
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "***";
+  return `${local[0]}***@${domain}`;
 }
 
 // Generate a cryptographically random 32-byte hex token
@@ -46,7 +64,7 @@ async function validateAuth(req: Request): Promise<boolean> {
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders(req) })
   }
 
   // Validate caller's auth
@@ -54,7 +72,7 @@ Deno.serve(async (req) => {
   if (!isAuthed) {
     return new Response(
       JSON.stringify({ error: 'Unauthorized' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 401, headers: { ...corsHeaders(req), 'Content-Type': 'application/json' } }
     )
   }
 
@@ -67,7 +85,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ error: 'Server configuration error' }),
       {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       }
     )
   }
@@ -92,7 +110,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ error: 'Invalid JSON in request body' }),
       {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       }
     )
   }
@@ -102,7 +120,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ error: 'templateName is required' }),
       {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       }
     )
   }
@@ -118,7 +136,7 @@ Deno.serve(async (req) => {
       }),
       {
         status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       }
     )
   }
@@ -135,7 +153,7 @@ Deno.serve(async (req) => {
       }),
       {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       }
     )
   }
@@ -153,13 +171,13 @@ Deno.serve(async (req) => {
   if (suppressionError) {
     console.error('Suppression check failed — refusing to send', {
       error: suppressionError,
-      effectiveRecipient,
+      effectiveRecipient: redactEmail(effectiveRecipient),
     })
     return new Response(
       JSON.stringify({ error: 'Failed to verify suppression status' }),
       {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       }
     )
   }
@@ -173,12 +191,12 @@ Deno.serve(async (req) => {
       status: 'suppressed',
     })
 
-    console.log('Email suppressed', { effectiveRecipient, templateName })
+    console.log('Email suppressed', { effectiveRecipient: redactEmail(effectiveRecipient), templateName })
     return new Response(
       JSON.stringify({ success: false, reason: 'email_suppressed' }),
       {
         status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       }
     )
   }
@@ -197,7 +215,7 @@ Deno.serve(async (req) => {
   if (tokenLookupError) {
     console.error('Token lookup failed', {
       error: tokenLookupError,
-      email: normalizedEmail,
+      email: redactEmail(normalizedEmail),
     })
     await supabase.from('email_send_log').insert({
       message_id: messageId,
@@ -210,7 +228,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ error: 'Failed to prepare email' }),
       {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       }
     )
   }
@@ -243,7 +261,7 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'Failed to prepare email' }),
         {
           status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
         }
       )
     }
@@ -259,7 +277,7 @@ Deno.serve(async (req) => {
     if (reReadError || !storedToken) {
       console.error('Failed to read back unsubscribe token after upsert', {
         error: reReadError,
-        email: normalizedEmail,
+        email: redactEmail(normalizedEmail),
       })
       await supabase.from('email_send_log').insert({
         message_id: messageId,
@@ -272,7 +290,7 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'Failed to prepare email' }),
         {
           status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
         }
       )
     }
@@ -281,7 +299,7 @@ Deno.serve(async (req) => {
     // Token exists but is already used — email should have been caught by suppression check above.
     // This is a safety fallback; log and skip sending.
     console.warn('Unsubscribe token already used but email not suppressed', {
-      email: normalizedEmail,
+      email: redactEmail(normalizedEmail),
     })
     await supabase.from('email_send_log').insert({
       message_id: messageId,
@@ -295,7 +313,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: false, reason: 'email_suppressed' }),
       {
         status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       }
     )
   }
@@ -348,7 +366,7 @@ Deno.serve(async (req) => {
     console.error('Failed to enqueue email', {
       error: enqueueError,
       templateName,
-      effectiveRecipient,
+      effectiveRecipient: redactEmail(effectiveRecipient),
     })
 
     await supabase.from('email_send_log').insert({
@@ -361,17 +379,17 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ error: 'Failed to enqueue email' }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
     })
   }
 
-  console.log('Transactional email enqueued', { templateName, effectiveRecipient })
+  console.log('Transactional email enqueued', { templateName, effectiveRecipient: redactEmail(effectiveRecipient) })
 
   return new Response(
     JSON.stringify({ success: true, queued: true }),
     {
       status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
     }
   )
 })

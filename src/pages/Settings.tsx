@@ -64,13 +64,18 @@ const MODELS: Record<string, { value: string; label: string }[]> = {
 };
 
 function ProfileSection() {
-  const { user } = useAuth();
+  const { user, signOut, userRole } = useAuth();
   const { toast } = useToast();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [saving, setSaving] = useState(false);
   const [emailSaving, setEmailSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
+  const [deleteOrg, setDeleteOrg] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const isAdminRole = userRole === 'admin' || userRole === 'platform_admin';
 
   useEffect(() => {
     if (user) {
@@ -110,6 +115,26 @@ function ProfileSection() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (!user?.email || deleteConfirmEmail.trim().toLowerCase() !== user.email.toLowerCase()) {
+      toast({ title: 'Email does not match', description: 'Type your email exactly to confirm.', variant: 'destructive' });
+      return;
+    }
+    setDeleting(true);
+    try {
+      const { error } = await supabase.functions.invoke('delete-account', {
+        body: { confirm_email: deleteConfirmEmail.trim(), delete_organization: deleteOrg },
+      });
+      if (error) throw error;
+      toast({ title: 'Account deleted', description: 'Your account and data have been removed.' });
+      await signOut();
+      window.location.href = '/auth';
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message || 'Failed to delete account', variant: 'destructive' });
+      setDeleting(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -145,6 +170,61 @@ function ProfileSection() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">A confirmation link will be sent to your new email address.</p>
+        </div>
+
+        <Separator className="my-4" />
+
+        <div className="space-y-2">
+          <Label className="text-destructive">Danger Zone</Label>
+          <p className="text-xs text-muted-foreground">
+            Permanently delete your account and remove your personal data. This cannot be undone.
+          </p>
+          <AlertDialog open={deleteOpen} onOpenChange={(o) => { setDeleteOpen(o); if (!o) { setDeleteConfirmEmail(''); setDeleteOrg(false); } }}>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm">Delete Account</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete your account and personal data. {isAdminRole ? 'If you are the only member of your organization, you can also delete the entire organization and all its data.' : 'Your organization and its data will not be deleted; another admin can manage them.'}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-3 py-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Type your email to confirm</Label>
+                  <Input
+                    type="email"
+                    value={deleteConfirmEmail}
+                    onChange={e => setDeleteConfirmEmail(e.target.value)}
+                    placeholder={user?.email || ''}
+                  />
+                </div>
+                {isAdminRole && (
+                  <div className="flex items-start gap-2">
+                    <Checkbox
+                      id="delete-org"
+                      checked={deleteOrg}
+                      onCheckedChange={(checked) => setDeleteOrg(!!checked)}
+                    />
+                    <label htmlFor="delete-org" className="text-xs cursor-pointer">
+                      Also delete the entire organization (only allowed if you are the only member)
+                    </label>
+                  </div>
+                )}
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => { e.preventDefault(); handleDeleteAccount(); }}
+                  disabled={deleting || deleteConfirmEmail.trim().toLowerCase() !== (user?.email || '').toLowerCase()}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {deleting ? 'Deleting...' : 'Delete forever'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </CardContent>
     </Card>
@@ -901,14 +981,16 @@ export default function Settings() {
         .from('org_settings')
         .select('setting_key, setting_value')
         .eq('organization_id', orgId)
-        .in('setting_key', ['ai_provider', 'ai_api_key', 'ai_model']);
+        .in('setting_key', ['ai_provider', 'ai_model']);
       if (data) {
         for (const s of data) {
           if (s.setting_key === 'ai_provider' && s.setting_value) setProvider(s.setting_value);
-          if (s.setting_key === 'ai_api_key' && s.setting_value) setApiKey(s.setting_value);
           if (s.setting_key === 'ai_model' && s.setting_value) setModel(s.setting_value);
         }
       }
+      // Check (without revealing) whether a secret is set
+      const { data: hasSecret } = await supabase.rpc('has_org_secret' as any, { _org_id: orgId, _key: 'ai_api_key' });
+      if (hasSecret) setApiKey('••••••••••••••••');
       setLoading(false);
     })();
   }, [orgId]);
@@ -943,8 +1025,17 @@ export default function Settings() {
     try {
       await saveSetting('ai_provider', provider);
       await saveSetting('ai_model', model);
-      if (provider !== 'builtin') {
-        await saveSetting('ai_api_key', apiKey);
+      if (provider !== 'builtin' && apiKey && !apiKey.startsWith('•')) {
+        // Only update vault if user typed a new key (not the masked placeholder)
+        const { error } = await supabase.rpc('set_org_secret' as any, {
+          _org_id: orgId,
+          _key: 'ai_api_key',
+          _value: apiKey,
+        });
+        if (error) throw error;
+      } else if (provider === 'builtin') {
+        // Switching to built-in: delete any stored BYOK key
+        await supabase.rpc('delete_org_secret' as any, { _org_id: orgId, _key: 'ai_api_key' });
       }
       toast({ title: 'Settings saved', description: 'AI configuration updated successfully.' });
     } catch (e: any) {

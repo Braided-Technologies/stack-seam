@@ -1,6 +1,13 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { WebhookError, verifyWebhookRequest } from 'npm:@lovable.dev/webhooks-js'
 
+function redactEmail(email: string | null | undefined): string {
+  if (!email) return "(none)";
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "***";
+  return `${local[0]}***@${domain}`;
+}
+
 // Suppression event payload sent by the Go API when Mailgun reports
 // a bounce, complaint, or unsubscribe.
 interface SuppressionPayload {
@@ -97,7 +104,7 @@ Deno.serve(async (req) => {
   if (suppressError) {
     console.error('Failed to upsert suppressed email', {
       error: suppressError,
-      email_redacted: normalizedEmail[0] + '***@' + normalizedEmail.split('@')[1],
+      email_redacted: redactEmail(normalizedEmail),
     })
     return jsonResponse({ error: 'Failed to write suppression' }, 500)
   }
@@ -125,7 +132,7 @@ Deno.serve(async (req) => {
   }
 
   console.log('Suppression processed', {
-    email_redacted: normalizedEmail[0] + '***@' + normalizedEmail.split('@')[1],
+    email_redacted: redactEmail(normalizedEmail),
     reason: payload.reason,
     is_retry: payload.is_retry,
     retry_count: payload.retry_count,
