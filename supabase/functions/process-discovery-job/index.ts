@@ -67,8 +67,53 @@ async function processJob(jobId: string, supabase: any) {
   }
 
   try {
+    // Determine the creator's role so we can decide where saved integrations go.
+    // catalog_refresh jobs are system-initiated; treat them as platform admin.
+    let isPlatformAdminJob = job.job_type === 'catalog_refresh';
+    let isOrgAdminJob = false;
+
+    if (!isPlatformAdminJob) {
+      const { data: creatorRole } = await supabase
+        .from('user_roles')
+        .select('role, organization_id')
+        .eq('user_id', job.created_by)
+        .maybeSingle();
+      isPlatformAdminJob = creatorRole?.role === 'platform_admin';
+      isOrgAdminJob = creatorRole?.role === 'admin'
+        && creatorRole.organization_id === job.organization_id;
+
+      if (!isPlatformAdminJob && !isOrgAdminJob) {
+        await supabase.from('discovery_jobs').update({
+          status: 'failed',
+          error_message: 'User is not authorized to run discovery for this organization',
+          completed_at: new Date().toISOString(),
+        }).eq('id', jobId);
+        return;
+      }
+    }
+
     // Build list of pairs based on job_type
     let pairs: AppPair[] = [];
+
+    const cacheCutoff = new Date(Date.now() - CACHE_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const { data: cachedPairs } = await supabase
+      .from('discovery_cache')
+      .select('source_app_id, target_app_id')
+      .gte('scanned_at', cacheCutoff);
+    const cachedSet = new Set<string>();
+    for (const c of cachedPairs || []) {
+      cachedSet.add(`${(c as any).source_app_id}|${(c as any).target_app_id}`);
+      cachedSet.add(`${(c as any).target_app_id}|${(c as any).source_app_id}`);
+    }
+
+    const { data: existingIntegrations } = await supabase
+      .from('integrations')
+      .select('source_app_id, target_app_id');
+    const existingSet = new Set<string>();
+    for (const i of existingIntegrations || []) {
+      existingSet.add(`${(i as any).source_app_id}|${(i as any).target_app_id}`);
+      existingSet.add(`${(i as any).target_app_id}|${(i as any).source_app_id}`);
+    }
 
     if (job.job_type === 'pair_scan' && job.result?.pair) {
       pairs = [job.result.pair];
@@ -97,29 +142,8 @@ async function processJob(jobId: string, supabase: any) {
         }
       }
 
-      // Filter out pairs already covered: existing integration OR recent cache hit.
-      // For full_scan we skip pairs that already have any integration (any source).
-      // For deep_scan we only skip if recently cached (so user can re-check).
-      const { data: existingIntegrations } = await supabase
-        .from('integrations')
-        .select('source_app_id, target_app_id');
-      const existingSet = new Set<string>();
-      for (const i of existingIntegrations || []) {
-        existingSet.add(`${(i as any).source_app_id}|${(i as any).target_app_id}`);
-        existingSet.add(`${(i as any).target_app_id}|${(i as any).source_app_id}`);
-      }
-
-      const cacheCutoff = new Date(Date.now() - CACHE_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
-      const { data: cachedPairs } = await supabase
-        .from('discovery_cache')
-        .select('source_app_id, target_app_id')
-        .gte('scanned_at', cacheCutoff);
-      const cachedSet = new Set<string>();
-      for (const c of cachedPairs || []) {
-        cachedSet.add(`${(c as any).source_app_id}|${(c as any).target_app_id}`);
-        cachedSet.add(`${(c as any).target_app_id}|${(c as any).source_app_id}`);
-      }
-
+      // Skip pairs already covered: existing integration OR recent cache hit.
+      // full_scan skips any pair with existing integration; deep_scan only skips cached.
       const skipExisting = job.job_type === 'full_scan';
       pairs = candidatePairs.filter(p => {
         const key = `${p.source_app_id}|${p.target_app_id}`;
@@ -127,6 +151,52 @@ async function processJob(jobId: string, supabase: any) {
         if (skipExisting && existingSet.has(key)) return false;
         return true;
       });
+    } else if (job.job_type === 'catalog_refresh') {
+      // Catalog refresh: scan approved apps against each other.
+      // - If focus_app_id is set (triggered by new-app approval), pair that app
+      //   against every other approved app in the catalog.
+      // - Otherwise (weekly cron), build pairs from every approved app that
+      //   appears in at least one org's stack.
+      if (job.focus_app_id) {
+        const { data: approvedApps } = await supabase
+          .from('applications')
+          .select('id')
+          .eq('status', 'approved')
+          .neq('id', job.focus_app_id);
+        const candidatePairs: AppPair[] = (approvedApps || []).map((a: any) => ({
+          source_app_id: job.focus_app_id,
+          target_app_id: a.id,
+        }));
+        pairs = candidatePairs.filter(p => {
+          const key = `${p.source_app_id}|${p.target_app_id}`;
+          return !cachedSet.has(key) && !existingSet.has(key);
+        });
+      } else {
+        // Weekly cron: pairs from apps currently used by at least one org
+        const { data: usedApps } = await supabase
+          .from('user_applications')
+          .select('application_id');
+        const usedAppIds = Array.from(new Set((usedApps || []).map((u: any) => u.application_id)));
+
+        // Only scan apps that are currently approved in the catalog
+        const { data: approvedRows } = await supabase
+          .from('applications')
+          .select('id')
+          .eq('status', 'approved')
+          .in('id', usedAppIds);
+        const approvedIds = (approvedRows || []).map((r: any) => r.id);
+
+        const candidatePairs: AppPair[] = [];
+        for (let i = 0; i < approvedIds.length; i++) {
+          for (let j = i + 1; j < approvedIds.length; j++) {
+            candidatePairs.push({ source_app_id: approvedIds[i], target_app_id: approvedIds[j] });
+          }
+        }
+        pairs = candidatePairs.filter(p => {
+          const key = `${p.source_app_id}|${p.target_app_id}`;
+          return !cachedSet.has(key) && !existingSet.has(key);
+        });
+      }
     }
 
     // Update total
@@ -153,18 +223,21 @@ async function processJob(jobId: string, supabase: any) {
       for (const r of results) {
         processedCount++;
         if (r.found && r.result) {
+          // Platform-admin-initiated jobs (and catalog_refresh) approve directly.
+          // Org-admin jobs save as pending for review + auto-add to their org.
+          const saveStatus = isPlatformAdminJob ? 'approved' : 'pending';
+
           // Check if reverse direction already exists — skip duplicates
           const { data: existingReverse } = await supabase
             .from('integrations')
-            .select('id, documentation_url')
+            .select('id, documentation_url, status')
             .eq('source_app_id', r.result.target_app_id)
             .eq('target_app_id', r.result.source_app_id)
             .maybeSingle();
 
+          let integrationId: string | null = null;
           if (existingReverse) {
-            // Update the existing reverse-direction integration with the discovered details
-            // (keep it in its original direction to avoid moving it around)
-            await supabase.from('integrations').update({
+            const { data: updated } = await supabase.from('integrations').update({
               description: r.result.description,
               integration_type: r.result.integration_type,
               data_shared: r.result.data_shared,
@@ -172,10 +245,10 @@ async function processJob(jobId: string, supabase: any) {
               link_status: 'verified',
               confidence: r.result.confidence,
               last_verified: new Date().toISOString(),
-            }).eq('id', existingReverse.id);
+            }).eq('id', existingReverse.id).select('id').single();
+            integrationId = updated?.id || existingReverse.id;
           } else {
-            // No reverse exists, upsert in this direction
-            await supabase.from('integrations').upsert({
+            const insertPayload: any = {
               source_app_id: r.result.source_app_id,
               target_app_id: r.result.target_app_id,
               description: r.result.description,
@@ -185,10 +258,32 @@ async function processJob(jobId: string, supabase: any) {
               link_status: 'verified',
               confidence: r.result.confidence,
               source: 'discovery',
-              status: 'approved',
+              status: saveStatus,
               last_verified: new Date().toISOString(),
-            }, { onConflict: 'source_app_id,target_app_id' });
+            };
+            if (saveStatus === 'pending') {
+              insertPayload.submitted_by_org = job.organization_id;
+              insertPayload.submitted_by_user = job.created_by;
+            }
+            const { data: upserted } = await supabase
+              .from('integrations')
+              .upsert(insertPayload, { onConflict: 'source_app_id,target_app_id' })
+              .select('id')
+              .single();
+            integrationId = upserted?.id || null;
           }
+
+          // Auto-add to the creating org's org_integrations so the user sees
+          // the discovered integration in their stack immediately, regardless
+          // of global approval status. Skip for catalog_refresh (no specific org).
+          if (integrationId && job.job_type !== 'catalog_refresh') {
+            await supabase.from('org_integrations').upsert({
+              organization_id: job.organization_id,
+              integration_id: integrationId,
+              status: 'pending',
+            }, { onConflict: 'organization_id,integration_id' });
+          }
+
           foundCount++;
           foundIntegrations.push(r.result);
         }

@@ -68,23 +68,32 @@ export default function Integrations() {
       if (!submitSourceApp || !submitTargetApp || !submitDocUrl.trim()) throw new Error('All fields are required');
       if (submitSourceApp === submitTargetApp) throw new Error('Source and target apps must be different');
       const { data: { user } } = await supabase.auth.getUser();
-      const { error } = await supabase.from('integrations').insert({
+      const { data: newInt, error } = await supabase.from('integrations').insert({
         source_app_id: submitSourceApp,
         target_app_id: submitTargetApp,
         documentation_url: submitDocUrl.trim(),
         status: 'pending',
         submitted_by_org: orgId,
         submitted_by_user: user!.id,
-      } as any);
+      } as any).select('id').single();
       if (error) throw error;
+      // Auto-add to the org's integrations list so the submitter sees it in their stack immediately
+      if (newInt && orgId) {
+        await supabase.from('org_integrations').upsert({
+          organization_id: orgId,
+          integration_id: (newInt as any).id,
+          status: 'pending',
+        } as any, { onConflict: 'organization_id,integration_id' });
+      }
     },
     onSuccess: () => {
-      toast({ title: 'Integration submitted', description: 'Your submission will be reviewed by an administrator.' });
+      toast({ title: 'Integration submitted', description: 'Added to your org immediately. A platform admin will review it before it enters the global catalog.' });
       setShowSubmitDialog(false);
       setSubmitSourceApp('');
       setSubmitTargetApp('');
       setSubmitDocUrl('');
       queryClient.invalidateQueries({ queryKey: ['integrations'] });
+      queryClient.invalidateQueries({ queryKey: ['org_integrations'] });
     },
     onError: (e: any) => {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
