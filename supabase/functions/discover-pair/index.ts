@@ -95,18 +95,18 @@ async function fetchPage(url: string): Promise<{ ok: boolean; text: string; stat
   }
 }
 
-// Build the set of allowed root domains for an app (vendor URL + name-derived guesses)
-function buildAllowedDomains(name: string, vendorUrl: string | null): Set<string> {
+// Build the set of allowed root domains for an app (vendor URL + alias_domains + name-derived guesses)
+function buildAllowedDomains(name: string, vendorUrl: string | null, aliasDomains: string[] = []): Set<string> {
   const domains = new Set<string>();
-  if (vendorUrl) {
-    const d = extractDomain(vendorUrl);
-    if (d) {
-      // Strip leading subdomains to root
-      const parts = d.split('.');
-      const root = parts.length >= 2 ? parts.slice(-2).join('.') : d;
-      domains.add(root);
-    }
-  }
+  const addRoot = (raw: string) => {
+    const d = extractDomain(raw.startsWith('http') ? raw : `https://${raw}`);
+    if (!d) return;
+    const parts = d.split('.');
+    const root = parts.length >= 2 ? parts.slice(-2).join('.') : d;
+    domains.add(root);
+  };
+  if (vendorUrl) addRoot(vendorUrl);
+  for (const alias of aliasDomains || []) addRoot(alias);
   // Name-based guess: e.g. "N-able N-central" → "n-able.com", "ncentral.com"
   const nameNorm = normalizeName(name);
   if (nameNorm.length >= 3) {
@@ -446,7 +446,7 @@ Deno.serve(async (req) => {
     // Load app names
     const { data: apps, error: appsErr } = await supabase
       .from('applications')
-      .select('id, name, vendor_url')
+      .select('id, name, vendor_url, alias_domains')
       .in('id', [source_app_id, target_app_id]);
 
     if (appsErr || !apps || apps.length !== 2) {
@@ -457,8 +457,8 @@ Deno.serve(async (req) => {
 
     const sourceApp = apps.find(a => a.id === source_app_id)! as any;
     const targetApp = apps.find(a => a.id === target_app_id)! as any;
-    const sourceDomains = buildAllowedDomains(sourceApp.name, sourceApp.vendor_url);
-    const targetDomains = buildAllowedDomains(targetApp.name, targetApp.vendor_url);
+    const sourceDomains = buildAllowedDomains(sourceApp.name, sourceApp.vendor_url, sourceApp.alias_domains || []);
+    const targetDomains = buildAllowedDomains(targetApp.name, targetApp.vendor_url, targetApp.alias_domains || []);
 
     // Check cache
     if (!force_refresh) {
