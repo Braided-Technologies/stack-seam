@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { CategoryCombobox } from '@/components/ui/category-combobox';
 
 import { toast } from '@/hooks/use-toast';
-import { Check, X, Building2, Users, Layers, MessageSquare, BarChart3, Pencil, Trash2, Save, ArrowUpDown, KeyRound, ShieldOff, Link2 } from 'lucide-react';
+import { Check, X, Building2, Users, Layers, MessageSquare, BarChart3, Pencil, Trash2, Save, ArrowUpDown, KeyRound, ShieldOff, Link2, Zap } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 type PendingApp = {
@@ -85,6 +85,7 @@ type FeedbackSortKey = 'date' | 'type' | 'status';
 function IntegrationsModeration() {
   const [pendingIntegrations, setPendingIntegrations] = useState<any[]>([]);
   const [allIntegrations, setAllIntegrations] = useState<any[]>([]);
+  const [discovered, setDiscovered] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -94,7 +95,7 @@ function IntegrationsModeration() {
 
   const loadIntegrations = async () => {
     setLoading(true);
-    const [pendingRes, allRes] = await Promise.all([
+    const [pendingRes, allRes, discoveredRes] = await Promise.all([
       supabase
         .from('integrations')
         .select('*, source:applications!integrations_source_app_id_fkey(name), target:applications!integrations_target_app_id_fkey(name)')
@@ -105,10 +106,34 @@ function IntegrationsModeration() {
         .select('*, source:applications!integrations_source_app_id_fkey(name), target:applications!integrations_target_app_id_fkey(name)')
         .eq('status', 'approved')
         .order('created_at', { ascending: false }),
+      supabase
+        .from('integrations')
+        .select('*, source:applications!integrations_source_app_id_fkey(name), target:applications!integrations_target_app_id_fkey(name)')
+        .eq('source', 'discovery')
+        .order('confidence', { ascending: true }),
     ]);
     if (!pendingRes.error) setPendingIntegrations(pendingRes.data || []);
     if (!allRes.error) setAllIntegrations(allRes.data || []);
+    if (!discoveredRes.error) setDiscovered(discoveredRes.data || []);
     setLoading(false);
+  };
+
+  // Admin "reject as false positive": inserts an integration_reports row with
+  // vote='report'. The handle_integration_report trigger detects the admin and
+  // deletes the integration + writes a rejected cache entry so the next scan
+  // skips this pair. Zero AI credits.
+  const rejectAsBad = async (id: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error } = await supabase.from('integration_reports').insert({
+      integration_id: id,
+      reported_by: user.id,
+      vote: 'report',
+      reason: 'admin_false_positive',
+    });
+    if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: 'Integration rejected + cache-blocked' });
+    loadIntegrations();
   };
 
   const approveIntegration = async (id: string) => {
@@ -191,6 +216,66 @@ function IntegrationsModeration() {
                 ))}
               </TableBody>
             </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Review Discovered — lowest-confidence first for fast triage */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Zap className="h-5 w-5" />
+            Review Discovered ({discovered.length})
+          </CardTitle>
+          <CardDescription>
+            Integrations found by the discovery scanner, sorted by confidence ascending.
+            Click Reject to delete the integration and cache-block the pair from future scans — no AI credits used.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">Loading...</p>
+          ) : discovered.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">No discovered integrations</p>
+          ) : (
+            <ScrollArea className="h-[500px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Source App</TableHead>
+                    <TableHead>Target App</TableHead>
+                    <TableHead>Confidence</TableHead>
+                    <TableHead>Documentation</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {discovered.map(i => (
+                    <TableRow key={i.id}>
+                      <TableCell className="font-medium">{(i as any).source?.name || '—'}</TableCell>
+                      <TableCell className="font-medium">{(i as any).target?.name || '—'}</TableCell>
+                      <TableCell>
+                        <Badge variant={i.confidence >= 90 ? 'default' : i.confidence >= 75 ? 'secondary' : 'destructive'}>
+                          {i.confidence}%
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {i.documentation_url ? (
+                          <a href={i.documentation_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm truncate block max-w-xs">
+                            {i.documentation_url}
+                          </a>
+                        ) : '—'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="ghost" className="text-destructive" onClick={() => rejectAsBad(i.id)}>
+                          <X className="h-3 w-3 mr-1" /> Reject
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
           )}
         </CardContent>
       </Card>
