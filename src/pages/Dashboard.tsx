@@ -7,6 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Layers, DollarSign, CalendarClock, Link2, AlertTriangle } from 'lucide-react';
 import { format, differenceInDays } from 'date-fns';
 import { formatCompact, formatCompactCurrency } from '@/lib/formatters';
+import { DiscoveryProgressPanel } from '@/components/DiscoveryProgressPanel';
 
 type RenewalWindow = 30 | 60 | 90 | 'all';
 
@@ -61,6 +62,8 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground">Your IT stack at a glance</p>
       </div>
+
+      <DiscoveryProgressPanel />
 
       <div data-tour="dash-stats" className="grid gap-4 md:grid-cols-4">
         {[

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useIntegrations, useUserApplications, useActiveDiscoveryJob, useReportIntegration } from '@/hooks/useStackData';
+import { DiscoveryProgressPanel } from '@/components/DiscoveryProgressPanel';
 import { useDiscovery } from '@/contexts/DiscoveryContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -376,36 +377,7 @@ export default function Integrations() {
       </div>
 
       {/* Discovery Progress Panel */}
-      {activeJob && (
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <Zap className="h-4 w-4 text-primary" />
-                Integration Discovery Progress
-              </CardTitle>
-              <span className="text-xs text-muted-foreground">
-                {activeJob.job_type === 'full_scan' ? 'Scanning full stack' : activeJob.job_type === 'deep_scan' ? 'Deep scan' : 'Scan'}
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{activeJob.processed_pairs} of {activeJob.total_pairs} pairs checked</span>
-              <span>{activeJob.found_count} new integration{activeJob.found_count === 1 ? '' : 's'} found</span>
-            </div>
-            <div className="h-2 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary transition-all duration-500"
-                style={{ width: `${activeJob.total_pairs > 0 ? (activeJob.processed_pairs / activeJob.total_pairs) * 100 : 0}%` }}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Skipping pairs already scanned in the last 30 days or already linked.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      <DiscoveryProgressPanel />
       <div data-tour="int-search" className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
