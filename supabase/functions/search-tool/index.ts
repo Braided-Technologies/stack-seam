@@ -92,27 +92,34 @@ serve(async (req) => {
     if (!authHeader) return json(req, { error: "Unauthorized" }, 401);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    // Fall back to SUPABASE_PUBLISHABLE_KEY — post-migration the env var is
-    // named the new way and SUPABASE_ANON_KEY can be undefined.
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
-    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    // Validate the caller's JWT using the service role client — doesn't
+    // depend on the anon/publishable key being set as an env var. This is
+    // the pattern that post-migration functions use reliably.
+    const jwt = authHeader.replace(/^Bearer\s+/i, "");
+    const serviceClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const {
       data: { user },
       error: authError,
-    } = await userClient.auth.getUser();
-    if (authError || !user) return json(req, { error: "Unauthorized" }, 401);
+    } = await serviceClient.auth.getUser(jwt);
+    if (authError || !user) {
+      console.error("search-tool auth failed:", authError?.message || "no user");
+      return json(req, { error: "Unauthorized" }, 401);
+    }
 
     const body = await req.json();
 
     // ── Handle category update (platform admin only) ──
     if (body.updateCategory && body.appId && body.categoryId) {
-      const { data: isAdmin } = await userClient.rpc("is_platform_admin");
-      if (!isAdmin) return json(req, { error: "Forbidden" }, 403);
+      // Check platform admin status directly since we have the validated user.id
+      const { data: roleRow } = await serviceClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "platform_admin")
+        .maybeSingle();
+      if (!roleRow) return json(req, { error: "Forbidden" }, 403);
 
-      const supabaseAdmin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-      const { error } = await supabaseAdmin
+      const { error } = await serviceClient
         .from("applications")
         .update({ category_id: body.categoryId })
         .eq("id", body.appId);
@@ -127,10 +134,8 @@ serve(async (req) => {
       return json(req, { error: "Name is required (at least 2 characters)" }, 400);
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-
-    // Check for existing match by name (case-insensitive)
-    const { data: existing } = await supabaseAdmin
+    // Check for existing match by name (case-insensitive) — reuse the service client
+    const { data: existing } = await serviceClient
       .from("applications")
       .select("*, categories(name)")
       .ilike("name", `%${query.trim()}%`);
