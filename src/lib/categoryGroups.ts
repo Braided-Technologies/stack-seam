@@ -14,7 +14,7 @@ export const CATEGORY_GROUPS: { label: string; categories: string[] }[] = [
   },
   {
     label: 'Infrastructure',
-    categories: ['Backup & DR', 'Networking', 'Cloud Platforms', 'Virtualization', 'Asset Management'],
+    categories: ['Backup & DR', 'Networking', 'Cloud Platforms', 'Virtualization'],
   },
   {
     label: 'Productivity & Communication',

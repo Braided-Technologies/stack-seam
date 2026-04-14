@@ -30,7 +30,6 @@ export const CATEGORY_COLORS: Record<string, string> = {
   'Virtualization': 'hsl(240, 55%, 55%)',
   'Alerting & Incident Management': 'hsl(10, 78%, 54%)',
   'Automation & Workflow': 'hsl(80, 70%, 48%)',
-  'Asset Management': 'hsl(32, 85%, 52%)',
 };
 
 export const CATEGORY_ICONS: Record<string, string> = {
@@ -65,5 +64,4 @@ export const CATEGORY_ICONS: Record<string, string> = {
   'Virtualization': 'Server',
   'Alerting & Incident Management': 'Bell',
   'Automation & Workflow': 'Workflow',
-  'Asset Management': 'Boxes',
 };
