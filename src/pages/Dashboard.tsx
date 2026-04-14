@@ -63,8 +63,6 @@ export default function Dashboard() {
         <p className="text-muted-foreground">Your IT stack at a glance</p>
       </div>
 
-      <DiscoveryProgressPanel />
-
       <div data-tour="dash-stats" className="grid gap-4 md:grid-cols-4">
         {[
           { to: '/stack', icon: Layers, value: formatCompact(userApps.length), label: 'Total Apps', link: true },
@@ -93,6 +91,8 @@ export default function Dashboard() {
           );
         })}
       </div>
+
+      <DiscoveryProgressPanel />
 
       {urgentRenewals.length > 0 && (
         <div data-tour="dash-renewals-alert" className="rounded-xl border border-destructive/50 bg-destructive/5 p-5 space-y-3">

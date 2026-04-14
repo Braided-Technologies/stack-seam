@@ -92,7 +92,9 @@ serve(async (req) => {
     if (!authHeader) return json(req, { error: "Unauthorized" }, 401);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    // Fall back to SUPABASE_PUBLISHABLE_KEY — post-migration the env var is
+    // named the new way and SUPABASE_ANON_KEY can be undefined.
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
