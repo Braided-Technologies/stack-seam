@@ -255,11 +255,34 @@ export default function Stack() {
     const isExpanded = expandedCategory === cat.id || !!search;
     const color = CATEGORY_COLORS[cat.name] || 'hsl(221, 83%, 53%)';
 
+    const handleCategoryToggle = (e: React.MouseEvent<HTMLButtonElement>) => {
+      const nextExpanded = !isExpanded;
+      setExpandedCategory(nextExpanded ? cat.id : null);
+      if (nextExpanded) {
+        // Wait for the expansion render, then scroll the card into view if
+        // its bottom would fall below the viewport. Keeps the header visible.
+        const cardEl = e.currentTarget.closest('[data-category-card]') as HTMLElement | null;
+        if (cardEl) {
+          requestAnimationFrame(() => {
+            const rect = cardEl.getBoundingClientRect();
+            if (rect.bottom > window.innerHeight) {
+              cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+          });
+        }
+      }
+    };
+
     return (
-      <div key={cat.id} className="overflow-hidden rounded-xl border bg-card/50" style={{ borderLeftWidth: '3px', borderLeftColor: color }}>
+      <div
+        key={cat.id}
+        data-category-card
+        className="overflow-hidden rounded-xl border bg-card/50"
+        style={{ borderLeftWidth: '3px', borderLeftColor: color }}
+      >
         <button
           className="flex w-full items-center justify-between p-3 text-left transition-colors hover:bg-accent/30"
-          onClick={() => setExpandedCategory(isExpanded ? null : cat.id)}
+          onClick={handleCategoryToggle}
         >
           <div className="flex min-w-0 items-center gap-2">
             <div className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: color }} />

@@ -2,7 +2,7 @@
 export const CATEGORY_GROUPS: { label: string; categories: string[] }[] = [
   {
     label: 'Core Operations',
-    categories: ['PSA / Ticketing', 'RMM', 'Documentation', 'Monitoring', 'Endpoint Management', 'M365 Management', 'Alerting & Incident Management'],
+    categories: ['PSA / Ticketing', 'RMM', 'Documentation', 'Monitoring', 'Endpoint Management', 'M365 Management', 'Alerting & Incident Management', 'Automation & Workflow'],
   },
   {
     label: 'Security',
@@ -10,11 +10,11 @@ export const CATEGORY_GROUPS: { label: string; categories: string[] }[] = [
   },
   {
     label: 'Business & Finance',
-    categories: ['Accounting', 'Billing & Invoicing', 'Distributors', 'Sales & CRM', 'HRS / HR', 'Background Check'],
+    categories: ['Accounting', 'Billing & Invoicing', 'Distributors', 'Sales & CRM', 'HR', 'Background Check'],
   },
   {
     label: 'Infrastructure',
-    categories: ['Backup & DR', 'Networking', 'Cloud Platforms', 'Virtualization'],
+    categories: ['Backup & DR', 'Networking', 'Cloud Platforms', 'Virtualization', 'Asset Management'],
   },
   {
     label: 'Productivity & Communication',

@@ -7,7 +7,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   'Backup & DR': 'hsl(199, 89%, 48%)',
   'Networking': 'hsl(172, 66%, 50%)',
   'GRC / Compliance': 'hsl(291, 47%, 51%)',
-  'HRS / HR': 'hsl(330, 81%, 60%)',
+  'HR': 'hsl(330, 81%, 60%)',
   'Email & Collaboration': 'hsl(213, 94%, 68%)',
   'Identity & Access': 'hsl(43, 96%, 56%)',
   'Sales & CRM': 'hsl(160, 84%, 39%)',
@@ -29,6 +29,8 @@ export const CATEGORY_COLORS: Record<string, string> = {
   'DNS Filtering': 'hsl(185, 75%, 45%)',
   'Virtualization': 'hsl(240, 55%, 55%)',
   'Alerting & Incident Management': 'hsl(10, 78%, 54%)',
+  'Automation & Workflow': 'hsl(80, 70%, 48%)',
+  'Asset Management': 'hsl(32, 85%, 52%)',
 };
 
 export const CATEGORY_ICONS: Record<string, string> = {
@@ -40,7 +42,7 @@ export const CATEGORY_ICONS: Record<string, string> = {
   'Backup & DR': 'HardDrive',
   'Networking': 'Network',
   'GRC / Compliance': 'ClipboardCheck',
-  'HRS / HR': 'Users',
+  'HR': 'Users',
   'Email & Collaboration': 'Mail',
   'Identity & Access': 'Key',
   'Sales & CRM': 'TrendingUp',
@@ -62,4 +64,6 @@ export const CATEGORY_ICONS: Record<string, string> = {
   'DNS Filtering': 'Filter',
   'Virtualization': 'Server',
   'Alerting & Incident Management': 'Bell',
+  'Automation & Workflow': 'Workflow',
+  'Asset Management': 'Boxes',
 };
