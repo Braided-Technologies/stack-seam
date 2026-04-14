@@ -218,7 +218,7 @@ export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialo
         if (!o) resetDialog();
       }}
     >
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{step === 'confirm' ? 'Confirm Tool Details' : 'Find a Tool'}</DialogTitle>
           <DialogDescription>
@@ -349,11 +349,13 @@ export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialo
             <div className="space-y-1.5">
               <Label>Description</Label>
               <textarea
-                className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="flex min-h-[60px] max-h-[140px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none overflow-y-auto"
                 value={confirmData.description}
-                onChange={e => setConfirmData(d => ({ ...d, description: e.target.value }))}
+                onChange={e => setConfirmData(d => ({ ...d, description: e.target.value.slice(0, 500) }))}
                 placeholder="Brief description of the tool..."
+                maxLength={500}
               />
+              <p className="text-xs text-muted-foreground">{confirmData.description.length}/500</p>
             </div>
             <div className="space-y-1.5">
               <Label>Vendor URL</Label>

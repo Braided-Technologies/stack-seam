@@ -62,7 +62,20 @@ async function scrapeMeta(url: string) {
     // Description: prefer og:description > meta description
     const ogDesc = doc.querySelector('meta[property="og:description"]')?.getAttribute("content");
     const metaDesc = doc.querySelector('meta[name="description"]')?.getAttribute("content");
-    result.description = ogDesc || metaDesc || null;
+    const rawDesc = ogDesc || metaDesc || null;
+    // Some sites stuff their entire landing-page copy into meta description.
+    // Cap it so the confirm dialog stays usable — 280 chars is enough for a
+    // one-to-two-sentence summary. Break at a word boundary when possible.
+    if (rawDesc) {
+      const trimmed = rawDesc.trim().replace(/\s+/g, " ");
+      if (trimmed.length <= 280) {
+        result.description = trimmed;
+      } else {
+        const cut = trimmed.slice(0, 280);
+        const lastSpace = cut.lastIndexOf(" ");
+        result.description = (lastSpace > 200 ? cut.slice(0, lastSpace) : cut).trimEnd() + "…";
+      }
+    }
 
     // Icon: prefer apple-touch-icon > shortcut icon > favicon
     const appleIcon = doc.querySelector('link[rel="apple-touch-icon"]')?.getAttribute("href");
