@@ -16,6 +16,7 @@ import '@xyflow/react/dist/style.css';
 import { useUserApplications, useIntegrations, useDiscoverIntegrations } from '@/hooks/useStackData';
 import { CATEGORY_COLORS } from '@/lib/constants';
 import { CATEGORY_GROUPS } from '@/lib/categoryGroups';
+import { safeHref } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -466,7 +467,7 @@ export default function StackMap() {
               )}
               {selectedEdge.documentation_url && (
                 <a
-                  href={selectedEdge.documentation_url}
+                  href={safeHref(selectedEdge.documentation_url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 text-sm text-primary hover:underline"

@@ -15,6 +15,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { CATEGORY_COLORS } from '@/lib/constants';
 import { CATEGORY_GROUPS } from '@/lib/categoryGroups';
+import { safeHref } from '@/lib/utils';
 import { Plus, Check, X, ChevronDown, ChevronUp, Settings, Search, Filter, Download, Layers, DollarSign, FolderOpen, ExternalLink, Map as MapIcon, ChevronsDownUp, ChevronsUpDown, Loader2, Zap } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import ContactsSection from '@/components/ContactsSection';
@@ -312,7 +313,7 @@ export default function Stack() {
                         <p className="min-w-0 truncate font-medium text-sm">{app.name}</p>
                         {app.vendor_url && (
                           <a
-                            href={app.vendor_url}
+                            href={safeHref(app.vendor_url)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex-shrink-0 text-muted-foreground hover:text-primary"
@@ -568,7 +569,7 @@ export default function Stack() {
                   </div>
                   <div className="flex gap-2 pt-2">
                     {infoApp.vendor_url && (
-                      <a href={infoApp.vendor_url} target="_blank" rel="noopener noreferrer">
+                      <a href={safeHref(infoApp.vendor_url)} target="_blank" rel="noopener noreferrer">
                         <Button variant="outline" size="sm" className="gap-1">
                           <ExternalLink className="h-3.5 w-3.5" />
                           Visit Website
@@ -668,7 +669,7 @@ export default function Stack() {
                                 <div className="flex items-center gap-2">
                                   {integ.documentation_url && (
                                     <a
-                                      href={integ.documentation_url}
+                                      href={safeHref(integ.documentation_url)}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="inline-flex items-center gap-1 text-xs text-primary hover:underline"

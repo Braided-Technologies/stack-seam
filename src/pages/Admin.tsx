@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { CategoryCombobox } from '@/components/ui/category-combobox';
 
 import { toast } from '@/hooks/use-toast';
+import { safeHref } from '@/lib/utils';
 import { Check, X, Building2, Users, Layers, MessageSquare, BarChart3, Pencil, Trash2, Save, ArrowUpDown, KeyRound, ShieldOff, Link2, Zap } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -198,7 +199,7 @@ function IntegrationsModeration() {
                     <TableCell className="font-medium">{(i as any).target?.name || '—'}</TableCell>
                     <TableCell>
                       {i.documentation_url ? (
-                        <a href={i.documentation_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm truncate block max-w-xs">
+                        <a href={safeHref(i.documentation_url)} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm truncate block max-w-xs">
                           {i.documentation_url}
                         </a>
                       ) : '—'}
@@ -261,7 +262,7 @@ function IntegrationsModeration() {
                       </TableCell>
                       <TableCell>
                         {i.documentation_url ? (
-                          <a href={i.documentation_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm truncate block max-w-xs">
+                          <a href={safeHref(i.documentation_url)} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm truncate block max-w-xs">
                             {i.documentation_url}
                           </a>
                         ) : '—'}
@@ -315,7 +316,7 @@ function IntegrationsModeration() {
                     <TableCell className="font-medium">{(i as any).target?.name || '—'}</TableCell>
                     <TableCell>
                       {i.documentation_url ? (
-                        <a href={i.documentation_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm truncate block max-w-xs">
+                        <a href={safeHref(i.documentation_url)} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm truncate block max-w-xs">
                           {i.documentation_url}
                         </a>
                       ) : '—'}
@@ -834,7 +835,7 @@ export default function Admin() {
                           </TableCell>
                           <TableCell>
                             {app.vendor_url ? (
-                              <a href={app.vendor_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm truncate block max-w-[150px]">
+                              <a href={safeHref(app.vendor_url)} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm truncate block max-w-[150px]">
                                 {app.vendor_url.replace(/^https?:\/\/(www\.)?/, '').split('/')[0]}
                               </a>
                             ) : '—'}

@@ -21,7 +21,7 @@ import { Search, ExternalLink, Filter, Link2, CheckCircle2, Circle, Map as MapIc
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Check, ChevronsUpDown as ChevronsUpDownIcon } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, safeHref } from '@/lib/utils';
 
 type StatusFilter = 'all' | 'configured' | 'pending' | 'skipped' | 'hidden';
 
@@ -547,7 +547,7 @@ export default function Integrations() {
                                       </div>
                                       <div className="flex items-center gap-1">
                                         {i.documentation_url && (
-                                          <a href={i.documentation_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" title="Open documentation">
+                                          <a href={safeHref(i.documentation_url)} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline" title="Open documentation">
                                             <ExternalLink className="h-3.5 w-3.5" />
                                           </a>
                                         )}

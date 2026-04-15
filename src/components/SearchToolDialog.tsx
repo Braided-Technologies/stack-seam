@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CategoryCombobox } from '@/components/ui/category-combobox';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { safeHref } from '@/lib/utils';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface SearchToolDialogProps {
@@ -287,7 +288,7 @@ export default function SearchToolDialog({ open, onOpenChange }: SearchToolDialo
                           )}
                           {app.vendor_url && (
                             <a
-                              href={app.vendor_url}
+                              href={safeHref(app.vendor_url)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-muted-foreground hover:text-foreground"

@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ExternalLink, ArrowRight } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { safeHref } from '@/lib/utils';
 
 interface Integration {
   id: string;
@@ -94,7 +95,7 @@ export default function AppIntegrationsPanel({ open, onClose, appName, appId, in
                   {integ.documentation_url && (
                     <div className="flex items-center gap-2">
                       <a
-                        href={integ.documentation_url}
+                        href={safeHref(integ.documentation_url)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
