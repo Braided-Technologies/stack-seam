@@ -64,15 +64,16 @@ async function openaiWebSearch(
   apiKey: string,
 ): Promise<SearchResult[]> {
   const allowedDomains = Array.from(new Set([...sourceDomains, ...targetDomains])).join(', ');
-  const prompt = `Find the official product documentation page describing the integration between "${sourceName}" and "${targetName}".
+  const prompt = `Find any official page on the vendor's own website that describes how "${sourceName}" and "${targetName}" work together as an integration.
 
-STRICT REQUIREMENTS:
+Rules:
 - The URL MUST be hosted on one of these domains (or a subdomain): ${allowedDomains}
-- The page MUST be an integration documentation page (setup guide, API reference, marketplace listing, help-center article about the specific integration), NOT a blog post, press release, privacy policy, subprocessor list, or marketing comparison page.
-- Ignore third-party review sites, comparison articles, consultant blogs, and partner directories.
-- If no such official documentation page exists on those domains, say so plainly and return nothing.
+- Acceptable page types: product integration page, marketplace/app store listing, marketing page for the specific integration, help center article, API reference, setup guide, connector page, partner integration page. Marketing-style product pages count — if the vendor has a page at /integrations/{other-app} or similar, return it.
+- Reject only: privacy policies, subprocessor lists, legal/terms pages, GDPR/compliance pages, blog posts, press releases, third-party review sites, consultant blogs.
+- Return up to 5 candidate URLs. Be permissive — downstream verification will filter false positives. It is better to return a borderline candidate than to return nothing.
+- If the vendor clearly has no page at all describing this integration, return nothing.
 
-In your response text, for each valid page found, quote a verbatim excerpt (at least 300 words when possible) from the page that describes how the integration works.`;
+For each URL you return, quote a verbatim excerpt (150+ words if available) from the page that mentions both app names in the context of an integration, connector, sync, or data flow.`;
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -106,12 +107,14 @@ In your response text, for each valid page found, quote a verbatim excerpt (at l
       url,
       title: a.url_citation?.title || '',
       description: '',
-      // Pass the full model response as fallback content — used when
-      // fetchPage is blocked by a bot challenge. It's not the raw page
-      // but it's based on a real browse and usually contains the key
-      // verification phrases (both app names, "integration", etc.)
       content: content.slice(0, 12000),
     });
+  }
+  // If the model returned no citations, log its reasoning so we can see whether
+  // it hallucinated a "nothing found" verdict on a vendor that clearly has
+  // integration pages (Blackpoint-style false negative).
+  if (results.length === 0) {
+    console.log(`[discover-pair] zero citations for ${sourceName} + ${targetName}. model said:`, content.slice(0, 1500));
   }
   return results;
 }
@@ -331,14 +334,21 @@ async function verifyUrl(
     return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: 'reject_path' };
   }
 
-  // 3. Fetch page. If it hits a bot challenge, fall back to Tavily-extracted content.
+  // 3. Get page text. Strategy: fetch the URL AND merge with fallbackContent
+  // (the search model's verbatim excerpt). Merging is critical for JS-rendered
+  // SPAs — e.g. blackpointcyber.com/integrations/ ships a near-empty HTML shell
+  // that passes the length check but contains zero integration data. The
+  // search model browses with JS enabled so its excerpt has the real content.
+  // Combining the two covers both static sites and SPAs without breaking either.
   let pageText = '';
   const page = await fetchPage(url);
   if (page.ok && page.text.length > 200) {
     pageText = page.text;
-  } else if (fallbackContent && fallbackContent.length > 200) {
-    pageText = fallbackContent;
-  } else {
+  }
+  if (fallbackContent && fallbackContent.length > 200) {
+    pageText = pageText ? `${pageText}\n\n---\n\n${fallbackContent}` : fallbackContent;
+  }
+  if (pageText.length < 200) {
     return { valid: false, confidence: 0, text: '', ownerSide: null, rejectReason: page.challenge ? 'bot_challenge' : 'fetch_failed' };
   }
 
@@ -424,6 +434,18 @@ async function aiGateCheck(
 ): Promise<{ isIntegration: boolean; reason: string }> {
   const sourceName = sourceApp.name;
   const targetName = targetApp.name;
+
+  // Distributor special case: any app in the "Distributors" category (Pax8,
+  // TD SYNNEX, Ingram Micro, D&H, AppDirect, etc.) is a software reseller /
+  // marketplace. Marketplace listings naturally name both apps but describe
+  // a channel/reseller relationship, not a product integration. Tighten the
+  // gate so only pages describing real technical data flow pass.
+  const involvesDistributor = sourceApp.category === 'Distributors' || targetApp.category === 'Distributors';
+  const distributorName = sourceApp.category === 'Distributors' ? sourceName : targetName;
+  const distributorRule = involvesDistributor
+    ? `\n\nDISTRIBUTOR RULE (CRITICAL): ${distributorName} is a software distributor / marketplace. REJECT any page that merely says the other app is "available via", "sold on", "listed in", "purchasable through", "part of the catalog of", "offered through", or "a vendor on" ${distributorName}. That describes a channel / reseller relationship, NOT a product integration. ACCEPT only when the page explicitly describes a TECHNICAL product integration with real data flow between the two products — API sync of license counts, automated provisioning, webhook billing events, usage reporting pulled into another app, license events pushed via API, etc. Marketplace listings, product catalog entries, vendor directory pages, and "available on ${distributorName}" announcements must be REJECTED.`
+    : '';
+
   const appContext = `
 IMPORTANT — these are the SPECIFIC products. Do not confuse them with generic terms or similarly-named products:
 
@@ -437,7 +459,7 @@ App 2: "${targetName}"
   Vendor URL: ${targetApp.vendor_url || 'unknown'}
   Description: ${targetApp.description || '(none)'}
 
-If the page appears to be about different products that share a name (e.g., "Mesh" the email security company vs. mesh networking; "Datto" the backup company vs. an unrelated entity), REJECT it.`;
+If the page appears to be about different products that share a name (e.g., "Mesh" the email security company vs. mesh networking; "Datto" the backup company vs. an unrelated entity), REJECT it.${distributorRule}`;
 
   try {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -613,13 +635,14 @@ Deno.serve(async (req) => {
     const sourceDomains = buildAllowedDomains(sourceApp.name, sourceApp.vendor_url, sourceApp.alias_domains || []);
     const targetDomains = buildAllowedDomains(targetApp.name, targetApp.vendor_url, targetApp.alias_domains || []);
 
-    // Check cache
+    // Check cache. Blacklisted entries never expire; everything else honors CACHE_TTL_DAYS.
     if (!force_refresh) {
+      const cutoff = new Date(Date.now() - CACHE_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
       const { data: cached } = await supabase
         .from('discovery_cache')
         .select('*')
         .or(`and(source_app_id.eq.${source_app_id},target_app_id.eq.${target_app_id}),and(source_app_id.eq.${target_app_id},target_app_id.eq.${source_app_id})`)
-        .gte('scanned_at', new Date(Date.now() - CACHE_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString())
+        .or(`result_status.eq.blacklisted,scanned_at.gte.${cutoff}`)
         .maybeSingle();
 
       if (cached) {

@@ -133,11 +133,12 @@ async function processJob(jobId: string, supabase: any) {
     let foundIntegrations: any[] = Array.isArray(existingResult.integrations) ? existingResult.integrations : [];
 
     if (!alreadyBuilt) {
+    // Blacklisted entries are permanent; everything else honors CACHE_TTL_DAYS.
     const cacheCutoff = new Date(Date.now() - CACHE_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
     const { data: cachedPairs } = await supabase
       .from('discovery_cache')
-      .select('source_app_id, target_app_id')
-      .gte('scanned_at', cacheCutoff);
+      .select('source_app_id, target_app_id, result_status')
+      .or(`result_status.eq.blacklisted,scanned_at.gte.${cacheCutoff}`);
     const cachedSet = new Set<string>();
     for (const c of cachedPairs || []) {
       cachedSet.add(`${(c as any).source_app_id}|${(c as any).target_app_id}`);
