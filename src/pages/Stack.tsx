@@ -716,7 +716,7 @@ export default function Stack() {
 
                 {isInStack && (
                   <TabsContent value="settings" className="pt-2 overflow-y-auto max-h-[60vh]">
-                      <div className="space-y-6 pr-2">
+                      <div className="space-y-6 px-1 py-1 pr-2">
                         {/* Details */}
                         <div className="space-y-4">
                           <p className="text-sm font-medium">Details</p>
