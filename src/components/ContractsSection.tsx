@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
-import { Upload, FileText, Trash2, Download, ScanSearch, Loader2, Check } from 'lucide-react';
+import { Upload, FileText, Trash2, Download, ScanSearch, Loader2, Check, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { formatNumber } from '@/lib/formatters';
 import {
@@ -63,6 +63,24 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
   const [checkedLineItems, setCheckedLineItems] = useState<Record<number, boolean>>({});
   const [editableFields, setEditableFields] = useState<Record<string, any>>({});
   const [editableLineItems, setEditableLineItems] = useState<LineItem[]>([]);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewFile, setPreviewFile] = useState<{ path: string; name: string } | null>(null);
+
+  const togglePreview = async (filePath: string, fileName: string) => {
+    if (previewFile?.path === filePath) {
+      setPreviewUrl(null);
+      setPreviewFile(null);
+      return;
+    }
+    const { data } = await supabase.storage.from('contracts').createSignedUrl(filePath, 300);
+    if (data?.signedUrl) {
+      setPreviewUrl(data.signedUrl);
+      setPreviewFile({ path: filePath, name: fileName });
+    }
+  };
+
+  const isImage = (fileName: string) => /\.(jpg|jpeg|png|webp|heic|gif)$/i.test(fileName);
+  const isPdf = (fileName: string) => /\.pdf$/i.test(fileName);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -141,7 +159,9 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
       });
       setCheckedLineItems(liChecks);
       setEditableLineItems(liEditable);
-      toast({ title: 'Contract scanned', description: 'Data extracted. Review, edit, and import below.' });
+      toast({ title: 'Document scanned', description: 'Data extracted. Review, edit, and import below.' });
+      // Auto-open preview so user can cross-reference extracted data with source
+      if (!delete_after_scan) togglePreview(filePath, filePath.split('/').pop() || 'document');
     } catch (err: any) {
       toast({ title: 'Scan failed', description: err.message, variant: 'destructive' });
     }
@@ -270,6 +290,15 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <Button
+              size="icon"
+              variant="ghost"
+              className={`h-7 w-7 ${previewFile?.path === f.file_path ? 'text-primary' : ''}`}
+              title={previewFile?.path === f.file_path ? 'Hide preview' : 'Preview document'}
+              onClick={() => togglePreview(f.file_path, f.file_name)}
+            >
+              {previewFile?.path === f.file_path ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            </Button>
             {isAdmin && (
               <Button
                 size="icon"
@@ -296,6 +325,28 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
 
       {files.length === 0 && (
         <p className="text-xs text-muted-foreground">No documents uploaded yet.</p>
+      )}
+
+      {/* Inline document preview */}
+      {previewUrl && previewFile && (
+        <div className="rounded-lg border overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-1.5 bg-muted/50 border-b">
+            <span className="text-xs font-medium truncate">{previewFile.name}</span>
+            <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setPreviewUrl(null); setPreviewFile(null); }}>
+              Close
+            </Button>
+          </div>
+          {isPdf(previewFile.name) ? (
+            <iframe src={previewUrl} className="w-full border-0" style={{ height: '350px' }} title="Document preview" />
+          ) : isImage(previewFile.name) ? (
+            <img src={previewUrl} alt="Document preview" className="w-full max-h-[350px] object-contain bg-black/5" />
+          ) : (
+            <div className="p-4 text-center text-sm text-muted-foreground">
+              Preview not available for this file type.{' '}
+              <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Open in new tab</a>
+            </div>
+          )}
+        </div>
       )}
 
       {scanResult && (
