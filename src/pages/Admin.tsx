@@ -17,6 +17,7 @@ import { CategoryCombobox } from '@/components/ui/category-combobox';
 
 import { toast } from '@/hooks/use-toast';
 import { safeHref } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Check, X, Building2, Users, Layers, MessageSquare, BarChart3, Pencil, Trash2, Save, ArrowUpDown, KeyRound, ShieldOff, Link2, Zap } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -373,7 +374,10 @@ export default function Admin() {
   const [orgs, setOrgs] = useState<OrgItem[]>([]);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [stats, setStats] = useState({ orgs: 0, users: 0, apps: 0, pending: 0, openTickets: 0 });
-  const [adminResponses, setAdminResponses] = useState<Record<string, string>>({});
+  const [selectedTicket, setSelectedTicket] = useState<FeedbackItem | null>(null);
+  const [dialogResponse, setDialogResponse] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkResponse, setBulkResponse] = useState('');
   const [editingOrg, setEditingOrg] = useState<string | null>(null);
   const [editOrgName, setEditOrgName] = useState('');
   const [editingApp, setEditingApp] = useState<string | null>(null);
@@ -382,7 +386,6 @@ export default function Admin() {
   const [fbTypeFilter, setFbTypeFilter] = useState<'all' | 'bug' | 'idea' | 'question'>('all');
   const [fbSortKey, setFbSortKey] = useState<FeedbackSortKey>('date');
   const [fbSortAsc, setFbSortAsc] = useState(false);
-  const [expandedFb, setExpandedFb] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
   const [adminAppSearch, setAdminAppSearch] = useState('');
   const adminAction = async (userId: string, action: 'reset_password' | 'reset_mfa') => {
@@ -531,20 +534,41 @@ export default function Admin() {
   };
 
   const updateFeedbackStatus = async (id: string, status: string) => {
-    const update: Record<string, string> = { status };
-    if (adminResponses[id]) update.admin_response = adminResponses[id];
-    const { error } = await supabase.from('feedback').update(update).eq('id', id);
+    const { error } = await supabase.from('feedback').update({ status }).eq('id', id);
     if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
     toast({ title: 'Feedback updated' });
+    if (selectedTicket?.id === id) setSelectedTicket(prev => prev ? { ...prev, status } : null);
     loadData();
   };
 
-  const sendAdminResponse = async (id: string) => {
-    if (!adminResponses[id]?.trim()) return;
-    const { error } = await supabase.from('feedback').update({ admin_response: adminResponses[id] }).eq('id', id);
+  const sendAdminResponse = async (id: string, response: string) => {
+    if (!response?.trim()) return;
+    const { error } = await supabase.from('feedback').update({ admin_response: response }).eq('id', id);
     if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
-    toast({ title: 'Response sent' });
-    setAdminResponses(prev => ({ ...prev, [id]: '' }));
+    toast({ title: 'Response saved' });
+    if (selectedTicket?.id === id) setSelectedTicket(prev => prev ? { ...prev, admin_response: response } : null);
+    setDialogResponse('');
+    loadData();
+  };
+
+  const bulkUpdateStatus = async (status: string) => {
+    if (selectedIds.size === 0) return;
+    for (const id of selectedIds) {
+      await supabase.from('feedback').update({ status }).eq('id', id);
+    }
+    toast({ title: `${selectedIds.size} ticket(s) updated to ${status}` });
+    setSelectedIds(new Set());
+    loadData();
+  };
+
+  const bulkApplyResponse = async () => {
+    if (selectedIds.size === 0 || !bulkResponse.trim()) return;
+    for (const id of selectedIds) {
+      await supabase.from('feedback').update({ admin_response: bulkResponse }).eq('id', id);
+    }
+    toast({ title: `Response applied to ${selectedIds.size} ticket(s)` });
+    setSelectedIds(new Set());
+    setBulkResponse('');
     loadData();
   };
 
@@ -617,8 +641,8 @@ export default function Admin() {
     else { setFbSortKey(key); setFbSortAsc(key === 'type'); }
   };
 
-  const toggleFbExpand = (id: string) => {
-    setExpandedFb(prev => {
+  const toggleSelectId = (id: string) => {
+    setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -927,6 +951,30 @@ export default function Admin() {
               </div>
             </CardHeader>
             <CardContent>
+              {selectedIds.size > 0 && (
+                <div className="mb-4 rounded-md border bg-muted/50 p-3 space-y-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium">{selectedIds.size} selected</span>
+                    <Button size="sm" variant="outline" onClick={() => bulkUpdateStatus('closed')}>
+                      Close Selected ({selectedIds.size})
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => bulkUpdateStatus('open')}>
+                      Reopen Selected ({selectedIds.size})
+                    </Button>
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <Textarea
+                      placeholder="Bulk admin response..."
+                      value={bulkResponse}
+                      onChange={e => setBulkResponse(e.target.value)}
+                      className="min-h-[50px] flex-1"
+                    />
+                    <Button size="sm" onClick={bulkApplyResponse} disabled={!bulkResponse.trim()}>
+                      Apply Response to Selected
+                    </Button>
+                  </div>
+                </div>
+              )}
               {filteredFeedback.length === 0 ? (
                 <p className="text-muted-foreground text-sm py-4 text-center">No feedback found</p>
               ) : (
@@ -934,6 +982,18 @@ export default function Admin() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={filteredFeedback.length > 0 && filteredFeedback.every(fb => selectedIds.has(fb.id))}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedIds(new Set(filteredFeedback.map(fb => fb.id)));
+                              } else {
+                                setSelectedIds(new Set());
+                              }
+                            }}
+                          />
+                        </TableHead>
                         <TableHead>
                           <Button variant="ghost" size="sm" className="gap-1 -ml-3" onClick={() => toggleFbSort('type')}>
                             Type <ArrowUpDown className="h-3 w-3" />
@@ -955,78 +1015,112 @@ export default function Admin() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredFeedback.map(fb => {
-                        const isOpen = expandedFb.has(fb.id);
-                        return (
-                          <>
-                            <TableRow key={fb.id} className="cursor-pointer hover:bg-accent/50" onClick={() => toggleFbExpand(fb.id)}>
-                              <TableCell><Badge variant={typeColor(fb.type) as any} className="text-xs">{fb.type}</Badge></TableCell>
-                              <TableCell><Badge variant={statusColor(fb.status) as any} className="text-xs">{fb.status.replace('_', ' ')}</Badge></TableCell>
-                              <TableCell className="font-medium text-sm max-w-xs truncate">{fb.title}</TableCell>
-                              <TableCell className="text-sm text-muted-foreground">{fb.user_email}</TableCell>
-                              <TableCell className="text-sm text-muted-foreground">{fb.org_name || '—'}</TableCell>
-                              <TableCell className="text-sm text-muted-foreground">{new Date(fb.created_at).toLocaleDateString()}</TableCell>
-                            </TableRow>
-                            {isOpen && (
-                              <TableRow key={`${fb.id}-detail`}>
-                                <TableCell colSpan={6} className="bg-card border-t-0 p-4">
-                                  <div className="space-y-3">
-                                    {fb.description && <p className="text-sm text-muted-foreground">{fb.description}</p>}
-                                    {fb.screenshot_urls && fb.screenshot_urls.length > 0 && (
-                                      <div className="space-y-1">
-                                        <span className="text-xs font-medium text-muted-foreground">Attachments ({fb.screenshot_urls.length})</span>
-                                        <div className="flex gap-2 flex-wrap">
-                                          {fb.screenshot_urls.map((path, i) => (
-                                            <AdminScreenshot key={i} path={path} />
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-                                    {fb.admin_response && (
-                                      <div className="bg-muted rounded-md p-3 text-sm">
-                                        <span className="font-medium text-xs text-muted-foreground">Admin Response:</span>
-                                        <p className="mt-1">{fb.admin_response}</p>
-                                      </div>
-                                    )}
-                                    <div className="flex items-start gap-2">
-                                      <div className="flex-1 space-y-2">
-                                        <Textarea
-                                          placeholder="Write a response..."
-                                          value={adminResponses[fb.id] || ''}
-                                          onChange={e => setAdminResponses(prev => ({ ...prev, [fb.id]: e.target.value }))}
-                                          className="min-h-[60px]"
-                                        />
-                                        <div className="flex gap-2">
-                                          <Button size="sm" onClick={() => sendAdminResponse(fb.id)} disabled={!adminResponses[fb.id]?.trim()}>
-                                            Reply
-                                          </Button>
-                                          <Select value={fb.status} onValueChange={(v) => updateFeedbackStatus(fb.id, v)}>
-                                            <SelectTrigger className="w-32 h-8">
-                                              <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              <SelectItem value="open">Open</SelectItem>
-                                              <SelectItem value="in_progress">In Progress</SelectItem>
-                                              <SelectItem value="resolved">Resolved</SelectItem>
-                                              <SelectItem value="closed">Closed</SelectItem>
-                                            </SelectContent>
-                                          </Select>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            )}
-                          </>
-                        );
-                      })}
+                      {filteredFeedback.map(fb => (
+                        <TableRow key={fb.id} className="cursor-pointer hover:bg-accent/50" onClick={() => { setSelectedTicket(fb); setDialogResponse(fb.admin_response || ''); }}>
+                          <TableCell onClick={e => e.stopPropagation()}>
+                            <Checkbox
+                              checked={selectedIds.has(fb.id)}
+                              onCheckedChange={() => toggleSelectId(fb.id)}
+                            />
+                          </TableCell>
+                          <TableCell><Badge variant={typeColor(fb.type) as any} className="text-xs">{fb.type}</Badge></TableCell>
+                          <TableCell><Badge variant={statusColor(fb.status) as any} className="text-xs">{fb.status.replace('_', ' ')}</Badge></TableCell>
+                          <TableCell className="font-medium text-sm max-w-xs truncate">{fb.title}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{fb.user_email}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{fb.org_name || '—'}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{new Date(fb.created_at).toLocaleDateString()}</TableCell>
+                        </TableRow>
+                      ))}
                     </TableBody>
                   </Table>
                 </ScrollArea>
               )}
             </CardContent>
           </Card>
+
+          {/* Ticket Detail Dialog */}
+          <Dialog open={!!selectedTicket} onOpenChange={(open) => { if (!open) setSelectedTicket(null); }}>
+            <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+              {selectedTicket && (
+                <>
+                  <DialogHeader>
+                    <DialogTitle>{selectedTicket.title}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-2">
+                    <div className="flex items-center gap-2">
+                      <Badge variant={typeColor(selectedTicket.type) as any} className="text-xs">{selectedTicket.type}</Badge>
+                      <Badge variant={statusColor(selectedTicket.status) as any} className="text-xs">{selectedTicket.status.replace('_', ' ')}</Badge>
+                    </div>
+
+                    {selectedTicket.description && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Description</Label>
+                        <p className="text-sm mt-1">{selectedTicket.description}</p>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">User</Label>
+                        <p>{selectedTicket.user_email || '—'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Organization</Label>
+                        <p>{selectedTicket.org_name || '—'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Date</Label>
+                        <p>{new Date(selectedTicket.created_at).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+
+                    {selectedTicket.screenshot_urls && selectedTicket.screenshot_urls.length > 0 && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Screenshots ({selectedTicket.screenshot_urls.length})</Label>
+                        <div className="flex gap-2 flex-wrap mt-1">
+                          {selectedTicket.screenshot_urls.map((path, i) => (
+                            <AdminScreenshot key={i} path={path} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedTicket.admin_response && (
+                      <div className="bg-muted rounded-md p-3 text-sm">
+                        <span className="font-medium text-xs text-muted-foreground">Current Admin Response:</span>
+                        <p className="mt-1">{selectedTicket.admin_response}</p>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Admin Response</Label>
+                      <Textarea
+                        placeholder="Write a response..."
+                        value={dialogResponse}
+                        onChange={e => setDialogResponse(e.target.value)}
+                        className="min-h-[80px]"
+                      />
+                    </div>
+
+                    <div className="flex gap-2 flex-wrap">
+                      <Button size="sm" onClick={() => sendAdminResponse(selectedTicket.id, dialogResponse)} disabled={!dialogResponse.trim()}>
+                        Save Response
+                      </Button>
+                      {selectedTicket.status !== 'closed' ? (
+                        <Button size="sm" variant="outline" onClick={() => updateFeedbackStatus(selectedTicket.id, 'closed')}>
+                          Close Ticket
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={() => updateFeedbackStatus(selectedTicket.id, 'open')}>
+                          Reopen
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         {/* ORGS TAB */}
