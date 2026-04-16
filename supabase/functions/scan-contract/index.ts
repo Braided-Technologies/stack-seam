@@ -52,11 +52,11 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
 
-    // Verify user
-    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    // Verify user via service-role JWT validation (SUPABASE_ANON_KEY is
+    // undefined post-migration; this pattern matches search-tool v10+)
+    const jwt = authHeader.replace(/^Bearer\s+/i, "");
+    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: { user }, error: authError } = await serviceClient.auth.getUser(jwt);
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -64,8 +64,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify org membership
-    const { data: orgIdData } = await userClient.rpc("get_user_org_id");
+    // Verify org membership (use service client + explicit user ID)
+    const { data: orgIdData } = await serviceClient
+      .from('user_roles')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(r => ({ data: r.data?.organization_id }));
     if (!orgIdData) {
       return new Response(JSON.stringify({ error: "No organization found" }), {
         status: 400,
@@ -73,17 +78,21 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: isAdmin } = await userClient.rpc("is_org_admin", { _org_id: orgIdData });
-    const { data: isPlatformAdmin } = await userClient.rpc("is_platform_admin");
-    if (!isAdmin && !isPlatformAdmin) {
+    // Check admin status via direct query (no RPC — service client doesn't carry auth.uid())
+    const { data: roleRow } = await serviceClient
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    const isAdmin = roleRow?.role === 'admin' || roleRow?.role === 'platform_admin';
+    if (!isAdmin) {
       return new Response(JSON.stringify({ error: "Admin access required" }), {
         status: 403,
         headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
-    // Download the file from storage
-    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+    // Download the file from storage (reuse serviceClient from auth)
     const { data: fileData, error: dlError } = await serviceClient.storage
       .from("contracts")
       .download(file_path);
