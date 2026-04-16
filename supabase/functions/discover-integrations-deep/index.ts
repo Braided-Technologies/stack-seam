@@ -490,7 +490,7 @@ Deno.serve(async (req) => {
       console.log(`Only ${verified.length} integrations from scraping, running knowledge fallback...`);
       const existingTargetNames = new Set(verified.map((i: any) => normalizeName(i.target)));
       const knowledgeIntegrations = await pass3_knowledgeFallback(focus_app, stackNames, existingTargetNames, OPENAI_API_KEY);
-      
+
       for (const integ of knowledgeIntegrations) {
         // Skip if we already have this target from scraping
         if (existingTargetNames.has(normalizeName(integ.target))) continue;
