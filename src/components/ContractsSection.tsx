@@ -26,6 +26,7 @@ interface ContractsSectionProps {
   userApplicationId: string;
   isAdmin: boolean;
   onExtractedData?: (data: any) => void;
+  onPreviewChange?: (active: boolean) => void;
 }
 
 interface LineItem {
@@ -50,7 +51,7 @@ interface ExtractedData {
   line_items?: LineItem[];
 }
 
-export default function ContractsSection({ userApplicationId, isAdmin, onExtractedData }: ContractsSectionProps) {
+export default function ContractsSection({ userApplicationId, isAdmin, onExtractedData, onPreviewChange }: ContractsSectionProps) {
   const { data: files = [] } = useContractFiles(userApplicationId);
   const uploadContract = useUploadContract();
   const deleteFile = useDeleteContractFile();
@@ -70,12 +71,14 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
     if (previewFile?.path === filePath) {
       setPreviewUrl(null);
       setPreviewFile(null);
+      onPreviewChange?.(false);
       return;
     }
     const { data } = await supabase.storage.from('contracts').createSignedUrl(filePath, 300);
     if (data?.signedUrl) {
       setPreviewUrl(data.signedUrl);
       setPreviewFile({ path: filePath, name: fileName });
+      onPreviewChange?.(true);
     }
   };
 
@@ -327,30 +330,33 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
         <p className="text-xs text-muted-foreground">No documents uploaded yet.</p>
       )}
 
-      {/* Inline document preview */}
-      {previewUrl && previewFile && (
-        <div className="rounded-lg border overflow-hidden">
-          <div className="flex items-center justify-between px-3 py-1.5 bg-muted/50 border-b">
-            <span className="text-xs font-medium truncate">{previewFile.name}</span>
-            <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setPreviewUrl(null); setPreviewFile(null); }}>
-              Close
-            </Button>
-          </div>
-          {isPdf(previewFile.name) ? (
-            <iframe src={previewUrl} className="w-full border-0" style={{ height: '350px' }} title="Document preview" />
-          ) : isImage(previewFile.name) ? (
-            <img src={previewUrl} alt="Document preview" className="w-full max-h-[350px] object-contain bg-black/5" />
-          ) : (
-            <div className="p-4 text-center text-sm text-muted-foreground">
-              Preview not available for this file type.{' '}
-              <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Open in new tab</a>
+      {/* Side-by-side: extracted data (left) + document preview (right) */}
+      {(scanResult || (previewUrl && previewFile)) && (
+        <div className="flex gap-3" style={{ maxHeight: '60vh' }}>
+
+        {/* Preview panel — right side when scan results visible, standalone otherwise */}
+        {previewUrl && previewFile && (
+          <div className={`rounded-lg border overflow-hidden flex flex-col ${scanResult ? 'w-1/2 shrink-0' : 'w-full'}`}>
+            <div className="flex items-center justify-between px-3 py-1.5 bg-muted/50 border-b shrink-0">
+              <span className="text-xs font-medium truncate">{previewFile.name}</span>
+              <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setPreviewUrl(null); setPreviewFile(null); onPreviewChange?.(false); }}>
+                Close
+              </Button>
             </div>
-          )}
-        </div>
-      )}
+            {isPdf(previewFile.name) ? (
+              <iframe src={previewUrl} className="w-full flex-1 border-0 min-h-[300px]" title="Document preview" />
+            ) : isImage(previewFile.name) ? (
+              <img src={previewUrl} alt="Document preview" className="w-full flex-1 object-contain bg-black/5 min-h-[200px]" />
+            ) : (
+              <div className="p-4 text-center text-sm text-muted-foreground flex-1 flex items-center justify-center">
+                <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Open in new tab</a>
+              </div>
+            )}
+          </div>
+        )}
 
       {scanResult && (
-        <div className="rounded-lg border bg-muted/30 flex flex-col" style={{ maxHeight: '60vh' }}>
+        <div className={`rounded-lg border bg-muted/30 flex flex-col ${previewUrl ? 'w-1/2' : 'w-full'}`} style={{ maxHeight: '60vh' }}>
           <ScrollArea className="flex-1 min-h-0">
             <div className="p-3 text-sm space-y-3">
               <p className="font-medium text-xs uppercase tracking-wider text-muted-foreground">Extracted Data — Edit & select fields to import</p>
@@ -460,6 +466,9 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
             </Button>
           </div>
         </div>
+      )}
+
+      </div>
       )}
 
       {/* Storage choice dialog — only shown for newly uploaded files */}

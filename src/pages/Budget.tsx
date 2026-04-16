@@ -42,6 +42,7 @@ export default function Budget() {
   const [sortAsc, setSortAsc] = useState(true);
   const [editingApp, setEditingApp] = useState<any>(null);
   const [appSearch, setAppSearch] = useState(initialApp);
+  const [docPreviewActive, setDocPreviewActive] = useState(false);
 
 
   const { data: allContracts = [] } = useQuery({
@@ -418,8 +419,8 @@ export default function Budget() {
       </Card>
 
       {/* App Edit Dialog */}
-      <Dialog open={!!editingApp} onOpenChange={open => !open && setEditingApp(null)}>
-        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+      <Dialog open={!!editingApp} onOpenChange={open => { if (!open) { setEditingApp(null); setDocPreviewActive(false); } }}>
+        <DialogContent className={`${docPreviewActive ? 'max-w-5xl' : 'max-w-lg'} max-h-[85vh] flex flex-col transition-all duration-300`}>
           <DialogHeader>
             <DialogTitle>{editingApp?.name || 'Application'}</DialogTitle>
             <DialogDescription>Edit details, contacts, and contracts</DialogDescription>
@@ -507,6 +508,7 @@ export default function Budget() {
                 <ContractsSection
                   userApplicationId={editingApp.id}
                   isAdmin={isAdmin}
+                  onPreviewChange={setDocPreviewActive}
                   onExtractedData={(data) => {
                     const updated = { ...editingApp };
                     if (data.cost_monthly != null) updated.cost_monthly = data.cost_monthly;
