@@ -164,7 +164,7 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
       setEditableLineItems(liEditable);
       toast({ title: 'Document scanned', description: 'Data extracted. Review, edit, and import below.' });
       // Auto-open preview so user can cross-reference extracted data with source
-      if (!delete_after_scan) togglePreview(filePath, filePath.split('/').pop() || 'document');
+      if (!deleteAfterScan) togglePreview(filePath, filePath.split('/').pop() || 'document');
     } catch (err: any) {
       toast({ title: 'Scan failed', description: err.message, variant: 'destructive' });
     }
