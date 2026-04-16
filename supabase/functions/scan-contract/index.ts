@@ -166,8 +166,9 @@ Deno.serve(async (req) => {
                   cost_monthly: { type: "number", description: "Total monthly cost in USD, or null" },
                   cost_annual: { type: "number", description: "Total annual cost in USD, or null" },
                   renewal_date: { type: "string", description: "Renewal or expiration date in YYYY-MM-DD format, or null" },
-                  term_months: { type: "integer", description: "Contract term in months, or null" },
-                  billing_cycle: { type: "string", enum: ["monthly", "annual", "quarterly", "multi-year"], description: "Billing cycle" },
+                  start_date: { type: "string", description: "Contract or subscription start date in YYYY-MM-DD format, or null" },
+                  term_months: { type: "integer", description: "Contract commitment length in months. Use 12 for an annual term, 24/36/… for multi-year, and null for month-to-month." },
+                  billing_cycle: { type: "string", enum: ["monthly", "annual", "multi-year", "other"], description: "Billing cadence. Pick the best match; use 'other' for anything unusual." },
                   license_count: { type: "integer", description: "Total number of licenses/seats, or null" },
                   notes: { type: "string", description: "Brief summary of key contract terms" },
                   line_items: {
