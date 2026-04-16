@@ -52,52 +52,42 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
 
-    // Verify user via service-role JWT validation (SUPABASE_ANON_KEY is
-    // undefined post-migration; this pattern matches search-tool v10+)
     const jwt = authHeader.replace(/^Bearer\s+/i, "");
     const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
     const { data: { user }, error: authError } = await serviceClient.auth.getUser(jwt);
     if (authError || !user) {
+      console.error("scan-contract auth failed:", authError?.message);
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
-    // Verify org membership (use service client + explicit user ID)
-    const { data: orgIdData } = await serviceClient
+    // Verify org + admin in one query
+    const { data: roleRow, error: roleErr } = await serviceClient
       .from('user_roles')
-      .select('organization_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-      .then(r => ({ data: r.data?.organization_id }));
-    if (!orgIdData) {
-      return new Response(JSON.stringify({ error: "No organization found" }), {
-        status: 400,
-        headers: { ...corsHeaders(req), "Content-Type": "application/json" },
-      });
-    }
-
-    // Check admin status via direct query (no RPC — service client doesn't carry auth.uid())
-    const { data: roleRow } = await serviceClient
-      .from('user_roles')
-      .select('role')
+      .select('role, organization_id')
       .eq('user_id', user.id)
       .maybeSingle();
-    const isAdmin = roleRow?.role === 'admin' || roleRow?.role === 'platform_admin';
-    if (!isAdmin) {
+    if (roleErr) {
+      console.error("user_roles query failed:", roleErr.message);
+      return new Response(JSON.stringify({ error: "Failed to verify role" }), {
+        status: 500, headers: { ...corsHeaders(req), "Content-Type": "application/json" },
+      });
+    }
+    if (!roleRow || (roleRow.role !== 'admin' && roleRow.role !== 'platform_admin')) {
       return new Response(JSON.stringify({ error: "Admin access required" }), {
         status: 403,
         headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
 
-    // Download the file from storage (reuse serviceClient from auth)
     const { data: fileData, error: dlError } = await serviceClient.storage
       .from("contracts")
       .download(file_path);
 
     if (dlError || !fileData) {
+      console.error("File download failed:", dlError?.message);
       return new Response(JSON.stringify({ error: "Failed to download file: " + (dlError?.message || "unknown") }), {
         status: 500,
         headers: { ...corsHeaders(req), "Content-Type": "application/json" },
@@ -111,19 +101,23 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Convert file to base64 for multimodal input
     const arrayBuffer = await fileData.arrayBuffer();
     const base64Data = arrayBufferToBase64(arrayBuffer);
-    // Detect mime type from extension for the multimodal content block
     const ext = file_path.toLowerCase().split('.').pop() || '';
+    const isPdf = ext === 'pdf';
     const mimeMap: Record<string, string> = {
       pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg',
       png: 'image/png', webp: 'image/webp', heic: 'image/heic',
-      doc: 'application/octet-stream', docx: 'application/octet-stream',
     };
     const mimeType = mimeMap[ext] || 'application/octet-stream';
 
-    // Use OpenAI gpt-4o for multimodal extraction (replaces Lovable gateway)
+    // PDFs use the file content type; images use image_url
+    const fileContent = isPdf
+      ? { type: "file", file: { filename: file_path.split('/').pop() || 'document.pdf', file_data: `data:${mimeType};base64,${base64Data}` } }
+      : { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Data}` } };
+
+    console.log(`[scan-contract] Sending ${ext} (${(arrayBuffer.byteLength / 1024).toFixed(0)}KB) to gpt-4o`);
+
     const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -135,20 +129,15 @@ Deno.serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a contract/invoice data extraction assistant. You will receive a document (PDF or image). Extract ALL structured data including every individual line item, product, or service listed. Be thorough — capture every row in any table. Return ONLY the tool call, no other text.`,
+            content: "You are a contract/invoice/receipt data extraction assistant. Extract ALL structured data including every individual line item. Be thorough. Return ONLY the tool call.",
           },
           {
             role: "user",
             content: [
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${mimeType};base64,${base64Data}`,
-                },
-              },
+              fileContent,
               {
                 type: "text",
-                text: "Extract all fields and every line item from this contract/invoice document. If a field is not found, use null. Be thorough with line items — include every product, service, or charge listed.",
+                text: "Extract all fields and every line item from this document. If a field is not found, use null.",
               },
             ],
           },
@@ -158,7 +147,7 @@ Deno.serve(async (req) => {
             type: "function",
             function: {
               name: "extract_contract_data",
-              description: "Extract structured contract data including individual line items",
+              description: "Extract structured data from a contract, invoice, or receipt",
               parameters: {
                 type: "object",
                 properties: {
@@ -170,19 +159,19 @@ Deno.serve(async (req) => {
                   term_months: { type: "integer", description: "Contract commitment length in months. Use 12 for an annual term, 24/36/… for multi-year, and null for month-to-month." },
                   billing_cycle: { type: "string", enum: ["monthly", "annual", "multi-year", "other"], description: "Billing cadence. Pick the best match; use 'other' for anything unusual." },
                   license_count: { type: "integer", description: "Total number of licenses/seats, or null" },
-                  notes: { type: "string", description: "Brief summary of key contract terms" },
+                  notes: { type: "string", description: "Brief summary of key terms or charges" },
                   line_items: {
                     type: "array",
-                    description: "Individual products or services listed in the document. Include EVERY line item.",
+                    description: "Individual products or services listed. Include EVERY line item.",
                     items: {
                       type: "object",
                       properties: {
-                        name: { type: "string", description: "Product or service name" },
-                        quantity: { type: "integer", description: "Quantity or seat count for this item" },
-                        monthly_cost: { type: "number", description: "Monthly cost for this item, or null" },
-                        annual_cost: { type: "number", description: "Annual cost for this item, or null" },
-                        unit_price: { type: "number", description: "Per-unit price if applicable" },
-                        description: { type: "string", description: "Brief description of this line item" },
+                        name: { type: "string" },
+                        quantity: { type: "integer" },
+                        monthly_cost: { type: "number" },
+                        annual_cost: { type: "number" },
+                        unit_price: { type: "number" },
+                        description: { type: "string" },
                       },
                       required: ["name"],
                     },
@@ -200,21 +189,9 @@ Deno.serve(async (req) => {
 
     if (!aiResponse.ok) {
       const errText = await aiResponse.text();
-      console.error("AI gateway error:", aiResponse.status, errText);
-      if (aiResponse.status === 429) {
-        return new Response(JSON.stringify({ error: "AI rate limit exceeded, please try again later." }), {
-          status: 429,
-          headers: { ...corsHeaders(req), "Content-Type": "application/json" },
-        });
-      }
-      if (aiResponse.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add funds." }), {
-          status: 402,
-          headers: { ...corsHeaders(req), "Content-Type": "application/json" },
-        });
-      }
-      return new Response(JSON.stringify({ error: "AI extraction failed" }), {
-        status: 500,
+      console.error("OpenAI error:", aiResponse.status, errText.slice(0, 500));
+      return new Response(JSON.stringify({ error: `AI extraction failed (${aiResponse.status})` }), {
+        status: aiResponse.status === 429 ? 429 : 500,
         headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
@@ -231,26 +208,23 @@ Deno.serve(async (req) => {
       console.error("Failed to parse AI response:", e);
     }
 
-    // Auto-rename the file based on extracted data
     if (extractedData.vendor_name && !delete_after_scan) {
       try {
         const vendor = extractedData.vendor_name.replace(/[^a-zA-Z0-9-_ ]/g, "").trim().replace(/\s+/g, "_");
         const date = extractedData.renewal_date || new Date().toISOString().split("T")[0];
-        const ext = file_path.split(".").pop() || "pdf";
-        const newFileName = `${vendor}_${date}.${ext}`;
-        
-        // Update the file name in contract_files table
+        const fileExt = file_path.split(".").pop() || "pdf";
+        const newFileName = `${vendor}_${date}.${fileExt}`;
+
         await serviceClient
           .from("contract_files")
           .update({ file_name: newFileName })
           .eq("file_path", file_path)
           .eq("user_application_id", user_application_id);
       } catch (renameErr) {
-        console.error("Auto-rename failed (non-critical):", renameErr);
+        console.error("Auto-rename failed:", renameErr);
       }
     }
 
-    // Optionally delete the file after scanning
     if (delete_after_scan) {
       await serviceClient.storage.from("contracts").remove([file_path]);
       await serviceClient.from("contract_files").delete().eq("file_path", file_path);
@@ -261,7 +235,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders(req), "Content-Type": "application/json" },
     });
   } catch (err: any) {
-    console.error("scan-contract error:", err);
+    console.error("scan-contract error:", err.message, err.stack);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
       headers: { ...corsHeaders(req), "Content-Type": "application/json" },
