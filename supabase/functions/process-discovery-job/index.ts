@@ -24,14 +24,9 @@ function corsHeaders(req: Request): Record<string, string> {
 const MAX_PARALLEL_PAIRS = 1;
 const DELAY_BETWEEN_BATCHES_MS = 2000;
 const CACHE_TTL_DAYS = 30;
-// Self-chain batch size: how many pairs to process per edge-function invocation
-// before re-invoking. Sized so each call stays under the ~150s wall-clock limit.
-// OpenAI web search is ~8-12s/pair, so 8 pairs × ~15s worst case ≈ 120s.
 const BATCH_PAIRS_PER_INVOCATION = 8;
 
 async function reinvokeSelf(supabaseUrl: string, serviceKey: string, jobId: string): Promise<void> {
-  // Fire-and-forget re-invoke so the next batch runs in a fresh edge-function
-  // invocation with its own wall-clock budget.
   try {
     await fetch(`${supabaseUrl}/functions/v1/process-discovery-job`, {
       method: 'POST',
@@ -57,9 +52,6 @@ async function discoverPair(supabaseUrl: string, serviceKey: string, pair: AppPa
     },
     body: JSON.stringify(pair),
   });
-  // 503 means the search backend itself failed (credit exhaustion, auth, etc).
-  // Throw so processJob's try/catch marks the WHOLE job failed — don't silently
-  // poison the cache with false negatives for every remaining pair.
   if (res.status === 503) {
     let msg = 'search_backend_failed';
     try { const body = await res.json(); msg = body.error || msg; } catch {}
@@ -74,7 +66,6 @@ async function processJob(jobId: string, supabase: any) {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-  // Load job first so we can decide whether to stamp started_at
   const { data: job, error: jobErr } = await supabase
     .from('discovery_jobs')
     .select('*')
@@ -86,7 +77,6 @@ async function processJob(jobId: string, supabase: any) {
     return;
   }
 
-  // Only stamp started_at + mark running on the very first invocation.
   if (!job.started_at) {
     await supabase.from('discovery_jobs').update({
       status: 'running',
@@ -95,8 +85,6 @@ async function processJob(jobId: string, supabase: any) {
   }
 
   try {
-    // Determine the creator's role so we can decide where saved integrations go.
-    // catalog_refresh jobs are system-initiated; treat them as platform admin.
     let isPlatformAdminJob = job.job_type === 'catalog_refresh';
     let isOrgAdminJob = false;
 
@@ -120,13 +108,6 @@ async function processJob(jobId: string, supabase: any) {
       }
     }
 
-    // Self-chaining model:
-    //   - First invocation: build the full pair list, save to job.result.remaining_pairs,
-    //     set total_pairs.
-    //   - Every invocation (including the first): pop BATCH_PAIRS_PER_INVOCATION pairs,
-    //     process them, write back remaining_pairs + counters.
-    //   - If remaining_pairs is non-empty at the end, fire-and-forget re-invoke self.
-    //   - Else mark completed.
     const existingResult = (job.result || {}) as any;
     const alreadyBuilt = Array.isArray(existingResult.remaining_pairs);
     let pairs: AppPair[] = alreadyBuilt ? existingResult.remaining_pairs : [];
@@ -157,7 +138,6 @@ async function processJob(jobId: string, supabase: any) {
     if (job.job_type === 'pair_scan' && job.result?.pair) {
       pairs = [job.result.pair];
     } else if (job.job_type === 'full_scan' || job.job_type === 'deep_scan') {
-      // Get all user_applications for the org
       const { data: userApps } = await supabase
         .from('user_applications')
         .select('application_id')
@@ -181,8 +161,6 @@ async function processJob(jobId: string, supabase: any) {
         }
       }
 
-      // Skip pairs already covered: existing integration OR recent cache hit.
-      // full_scan skips any pair with existing integration; deep_scan only skips cached.
       const skipExisting = job.job_type === 'full_scan';
       pairs = candidatePairs.filter(p => {
         const key = `${p.source_app_id}|${p.target_app_id}`;
@@ -191,11 +169,6 @@ async function processJob(jobId: string, supabase: any) {
         return true;
       });
     } else if (job.job_type === 'catalog_refresh') {
-      // Catalog refresh: scan approved apps against each other.
-      // - If focus_app_id is set (triggered by new-app approval), pair that app
-      //   against every other approved app in the catalog.
-      // - Otherwise (weekly cron), build pairs from every approved app that
-      //   appears in at least one org's stack.
       if (job.focus_app_id) {
         const { data: approvedApps } = await supabase
           .from('applications')
@@ -211,13 +184,11 @@ async function processJob(jobId: string, supabase: any) {
           return !cachedSet.has(key) && !existingSet.has(key);
         });
       } else {
-        // Weekly cron: pairs from apps currently used by at least one org
         const { data: usedApps } = await supabase
           .from('user_applications')
           .select('application_id');
         const usedAppIds = Array.from(new Set((usedApps || []).map((u: any) => u.application_id)));
 
-        // Only scan apps that are currently approved in the catalog
         const { data: approvedRows } = await supabase
           .from('applications')
           .select('id')
@@ -238,7 +209,6 @@ async function processJob(jobId: string, supabase: any) {
       }
     }
 
-    // First-invocation bookkeeping: persist the freshly-built pair list + total.
     await supabase.from('discovery_jobs').update({
       total_pairs: pairs.length,
       result: { remaining_pairs: pairs, integrations: [], found: 0 },
@@ -254,13 +224,11 @@ async function processJob(jobId: string, supabase: any) {
     }
     } // end !alreadyBuilt
 
-    // Take this invocation's slice off the front of remaining_pairs
     const batchPairs = pairs.slice(0, BATCH_PAIRS_PER_INVOCATION);
     const leftoverPairs = pairs.slice(BATCH_PAIRS_PER_INVOCATION);
     let foundCount = foundIntegrations.length;
     let processedCount = job.processed_pairs || 0;
 
-    // Process this invocation's slice with MAX_PARALLEL_PAIRS + delay
     for (let i = 0; i < batchPairs.length; i += MAX_PARALLEL_PAIRS) {
       const batch = batchPairs.slice(i, i + MAX_PARALLEL_PAIRS);
       const results = await Promise.all(batch.map(p => discoverPair(supabaseUrl, serviceKey, p)));
@@ -268,11 +236,8 @@ async function processJob(jobId: string, supabase: any) {
       for (const r of results) {
         processedCount++;
         if (r.found && r.result) {
-          // Platform-admin-initiated jobs (and catalog_refresh) approve directly.
-          // Org-admin jobs save as pending for review + auto-add to their org.
           const saveStatus = isPlatformAdminJob ? 'approved' : 'pending';
 
-          // Check if reverse direction already exists — skip duplicates
           const { data: existingReverse } = await supabase
             .from('integrations')
             .select('id, documentation_url, status')
@@ -318,9 +283,6 @@ async function processJob(jobId: string, supabase: any) {
             integrationId = upserted?.id || null;
           }
 
-          // Auto-add to the creating org's org_integrations so the user sees
-          // the discovered integration in their stack immediately, regardless
-          // of global approval status. Skip for catalog_refresh (no specific org).
           if (integrationId && job.job_type !== 'catalog_refresh') {
             await supabase.from('org_integrations').upsert({
               organization_id: job.organization_id,
@@ -334,21 +296,17 @@ async function processJob(jobId: string, supabase: any) {
         }
       }
 
-      // Update progress within this batch. Touching updated_at on every iteration
-      // is what the frontend watchdog uses to detect a truly stuck job.
       await supabase.from('discovery_jobs').update({
         processed_pairs: processedCount,
         found_count: foundCount,
         updated_at: new Date().toISOString(),
       }).eq('id', jobId);
 
-      // Throttle to avoid rate limits
       if (i + MAX_PARALLEL_PAIRS < batchPairs.length) {
         await new Promise(r => setTimeout(r, DELAY_BETWEEN_BATCHES_MS));
       }
     }
 
-    // End-of-batch: write remaining_pairs + counters. If work remains, re-invoke self.
     const slimIntegrations = foundIntegrations.map(i => ({
       source_app_id: i.source_app_id,
       target_app_id: i.target_app_id,
@@ -370,7 +328,6 @@ async function processJob(jobId: string, supabase: any) {
       return;
     }
 
-    // No more pairs — mark complete
     await supabase.from('discovery_jobs').update({
       status: 'completed',
       completed_at: new Date().toISOString(),
@@ -402,8 +359,6 @@ Deno.serve(async (req) => {
     const { job_id } = body;
 
     if (job_id) {
-      // Use EdgeRuntime.waitUntil so the job keeps running after we respond.
-      // This is the Supabase-supported pattern for long-running background work.
       // @ts-ignore - EdgeRuntime is a Deno Deploy global available in Supabase Edge Functions
       EdgeRuntime.waitUntil(processJob(job_id, supabase).catch(e => console.error('Background job error:', e)));
       return new Response(JSON.stringify({ accepted: true, job_id }), {
@@ -411,7 +366,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // No job_id: pick the next pending job
     const { data: pending } = await supabase
       .from('discovery_jobs')
       .select('id')
