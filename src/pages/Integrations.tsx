@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useIntegrations, useUserApplications, useActiveDiscoveryJob, useReportIntegration } from '@/hooks/useStackData';
 import { DiscoveryProgressPanel } from '@/components/DiscoveryProgressPanel';
@@ -107,6 +107,41 @@ export default function Integrations() {
     () => allIntegrations.filter(i => userAppIds.has(i.source_app_id) && userAppIds.has(i.target_app_id)),
     [allIntegrations, userAppIds]
   );
+
+  // Deep-link support: ?highlight=<integration_id>. When arriving from the
+  // Dashboard's "Available Integrations" list, auto-expand the parent app
+  // Collapsibles (rows are nested 2 levels deep) and scroll the row into view.
+  // Runs once per highlightId so re-expanding/collapsing afterwards still works.
+  const scrolledForHighlightRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!highlightId || stackIntegrations.length === 0) return;
+    if (scrolledForHighlightRef.current === highlightId) return;
+
+    const target = stackIntegrations.find(i => i.id === highlightId);
+    if (!target) return;
+
+    // Expand both endpoint apps — the row is rendered under both, and
+    // scrollIntoView will land on the first match in DOM order.
+    setOpenApps(prev => {
+      const next = new Set(prev);
+      if (target.source_app_id) next.add(target.source_app_id);
+      if (target.target_app_id) next.add(target.target_app_id);
+      return next;
+    });
+
+    // Scroll after React has had a chance to render the expanded content.
+    // Two RAFs: first for the setOpenApps commit, second for layout after
+    // Radix Collapsible's animation flips the content to visible.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`integration-${highlightId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          scrolledForHighlightRef.current = highlightId;
+        }
+      });
+    });
+  }, [highlightId, stackIntegrations]);
 
   const { data: orgIntegrations = [] } = useQuery({
     queryKey: ['org_integrations', orgId],
