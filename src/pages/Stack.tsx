@@ -20,6 +20,7 @@ import { Plus, Check, X, ChevronDown, ChevronUp, Settings, Search, Filter, Downl
 import { useAuth } from '@/contexts/AuthContext';
 import ContactsSection from '@/components/ContactsSection';
 import ContractsSection from '@/components/ContractsSection';
+import { TermBillingFields } from '@/components/TermBillingFields';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CategoryCombobox } from '@/components/ui/category-combobox';
 
@@ -736,31 +737,17 @@ export default function Stack() {
                               <Input type="date" value={editingApp?.renewal_date || userApp!.renewal_date || ''} onChange={e => setEditingApp({ ...userApp, appName: infoApp.name, renewal_date: e.target.value })} disabled={!isAdmin} />
                             </div>
                             <div className="space-y-2">
-                              <Label>Term (months)</Label>
-                              <Input type="number" value={editingApp?.term_months || userApp!.term_months || ''} onChange={e => setEditingApp({ ...userApp, appName: infoApp.name, term_months: e.target.value })} disabled={!isAdmin} />
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
                               <Label>License Count</Label>
                               <Input type="number" value={editingApp?.license_count || userApp!.license_count || ''} onChange={e => setEditingApp({ ...userApp, appName: infoApp.name, license_count: e.target.value })} disabled={!isAdmin} />
                             </div>
-                            <div className="space-y-2">
-                              <Label>Billing Cycle</Label>
-                              <select
-                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                value={editingApp?.billing_cycle || userApp!.billing_cycle || ''}
-                                onChange={e => setEditingApp({ ...userApp, appName: infoApp.name, billing_cycle: e.target.value })}
-                                disabled={!isAdmin}
-                              >
-                                <option value="">Select...</option>
-                                <option value="monthly">Monthly</option>
-                                <option value="annual">Annual</option>
-                                <option value="multi-year">Multi-Year</option>
-                                <option value="other">Other</option>
-                              </select>
-                            </div>
                           </div>
+                          <TermBillingFields
+                            termMonths={(editingApp?.term_months ?? userApp!.term_months) ? Number(editingApp?.term_months ?? userApp!.term_months) : null}
+                            billingCycle={(editingApp?.billing_cycle ?? userApp!.billing_cycle) || null}
+                            startDate={(editingApp?.start_date ?? userApp!.start_date) || null}
+                            disabled={!isAdmin}
+                            onChange={patch => setEditingApp({ ...userApp, appName: infoApp.name, ...(editingApp || {}), ...patch })}
+                          />
                           <div className="space-y-2">
                             <Label>Notes</Label>
                             <textarea
