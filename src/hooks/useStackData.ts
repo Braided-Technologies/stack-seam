@@ -165,7 +165,10 @@ export function useUploadContract() {
   const { orgId, user } = useAuth();
   return useMutation({
     mutationFn: async ({ file, userApplicationId }: { file: File; userApplicationId: string }) => {
-      const filePath = `${orgId}/${userApplicationId}/${Date.now()}_${file.name}`;
+      // Sanitize filename: replace spaces/special chars that Supabase Storage
+      // rejects in object keys. Preserve the extension and original name for display.
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const filePath = `${orgId}/${userApplicationId}/${Date.now()}_${safeName}`;
       const { error: uploadError } = await supabase.storage
         .from('contracts')
         .upload(filePath, file);
