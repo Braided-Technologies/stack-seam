@@ -8,8 +8,6 @@ function redactEmail(email: string | null | undefined): string {
   return `${local[0]}***@${domain}`;
 }
 
-// Suppression event payload sent by the Go API when Mailgun reports
-// a bounce, complaint, or unsubscribe.
 interface SuppressionPayload {
   email: string
   reason: 'bounce' | 'complaint' | 'unsubscribe'
@@ -52,7 +50,6 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Server configuration error' }, 500)
   }
 
-  // Verify HMAC signature using the Lovable API Key (same as auth-email-hook)
   let payload: SuppressionPayload
   try {
     const verified = await verifyWebhookRequest({
@@ -89,7 +86,6 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
   const normalizedEmail = payload.email.toLowerCase()
 
-  // 1. Upsert to suppressed_emails (idempotent — safe for retries)
   const { error: suppressError } = await supabase
     .from('suppressed_emails')
     .upsert(
@@ -109,7 +105,6 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Failed to write suppression' }, 500)
   }
 
-  // 2. Append a new log entry for the suppression event (never update existing rows)
   const sendLogStatus = mapReasonToStatus(payload.reason)
   const sendLogMessage = mapReasonToMessage(payload.reason)
 
@@ -125,7 +120,6 @@ Deno.serve(async (req) => {
     })
 
   if (insertError) {
-    // Non-fatal — log and continue. The suppression was already recorded.
     console.warn('Failed to insert email_send_log', {
       error: insertError,
     })
@@ -158,9 +152,9 @@ function mapReasonToStatus(
 function mapReasonToMessage(reason: string): string {
   switch (reason) {
     case 'bounce':
-      return 'Permanent bounce — email address is invalid or rejected'
+      return 'Permanent bounce \u2014 email address is invalid or rejected'
     case 'complaint':
-      return 'Spam complaint — recipient marked email as spam'
+      return 'Spam complaint \u2014 recipient marked email as spam'
     case 'unsubscribe':
       return 'Recipient unsubscribed'
     default:
