@@ -37,11 +37,10 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     let scalepadApiKey = Deno.env.get("SCALEPAD_API_KEY") || "";
 
-    // Verify user
-    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    // Verify user via service-role client + JWT
+    const jwt = authHeader.replace(/^Bearer\s+/i, "");
+    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: { user }, error: authError } = await serviceClient.auth.getUser(jwt);
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -49,19 +48,24 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Get user's org
-    const { data: orgIdData } = await userClient.rpc("get_user_org_id");
-    if (!orgIdData) {
+    // Get user's org and role via direct query
+    const { data: roleRow } = await serviceClient
+      .from("user_roles")
+      .select("role, organization_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const orgId = roleRow?.organization_id;
+    if (!orgId) {
       return new Response(JSON.stringify({ error: "No organization found" }), {
         status: 400,
         headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
-    const orgId = orgIdData;
 
     // Check admin
-    const { data: isAdmin } = await userClient.rpc("is_org_admin", { _org_id: orgId });
-    const { data: isPlatformAdmin } = await userClient.rpc("is_platform_admin");
+    const isAdmin = roleRow?.role === "admin";
+    const isPlatformAdmin = roleRow?.role === "platform_admin";
     if (!isAdmin && !isPlatformAdmin) {
       return new Response(JSON.stringify({ error: "Admin access required" }), {
         status: 403,
@@ -70,7 +74,6 @@ Deno.serve(async (req: Request) => {
     }
 
     // Check org_settings for API key (overrides env secret)
-    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
     const { data: orgKeySetting } = await serviceClient
       .from("org_settings")
       .select("setting_value")

@@ -34,11 +34,10 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Verify calling user
-    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user: caller }, error: authError } = await userClient.auth.getUser();
+    // Verify calling user via service-role client + JWT
+    const jwt = authHeader.replace(/^Bearer\s+/i, "");
+    const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    const { data: { user: caller }, error: authError } = await adminClient.auth.getUser(jwt);
     if (authError || !caller) {
       return new Response(JSON.stringify({ error: "Not authenticated" }), {
         status: 401,
@@ -64,7 +63,6 @@ Deno.serve(async (req) => {
     }
 
     // Authorization: caller must be platform_admin OR org admin of the target user's org
-    const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     const { data: callerRole } = await adminClient
       .from("user_roles")

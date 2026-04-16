@@ -43,13 +43,11 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Verify the caller's identity via their JWT
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    // Verify the caller's identity via service-role client + JWT
+    const jwt = authHeader.replace(/^Bearer\s+/i, "");
+    const adminClient = createClient(supabaseUrl, serviceKey);
+    const { data: { user }, error: authError } = await adminClient.auth.getUser(jwt);
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -66,8 +64,6 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
-
-    const adminClient = createClient(supabaseUrl, serviceKey);
 
     // Look up the user's org and role
     const { data: roleRow } = await adminClient

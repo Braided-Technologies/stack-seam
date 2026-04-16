@@ -34,19 +34,29 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Verify caller is platform admin
-    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: isPlatformAdmin } = await userClient.rpc("is_platform_admin");
-    if (!isPlatformAdmin) {
+    // Verify caller is platform admin via service-role client + JWT
+    const jwt = authHeader.replace(/^Bearer\s+/i, "");
+    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: { user }, error: authError } = await serviceClient.auth.getUser(jwt);
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders(req), "Content-Type": "application/json" },
+      });
+    }
+
+    const { data: roleRow } = await serviceClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (roleRow?.role !== "platform_admin") {
       return new Response(JSON.stringify({ error: "Platform admin access required" }), {
         status: 403,
         headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
     }
-
-    const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
 
     // Fetch all integrations with documentation URLs
     const { data: integrations, error: fetchErr } = await serviceClient

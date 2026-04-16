@@ -34,12 +34,10 @@ serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    const jwt = authHeader.replace(/^Bearer\s+/i, "");
+    const serviceClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const { data: { user }, error: userError } = await serviceClient.auth.getUser(jwt);
     if (userError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -56,13 +54,13 @@ serve(async (req) => {
       });
     }
 
-    const { data: articles } = await supabase
+    const { data: articles } = await serviceClient
       .from("kb_articles")
       .select("title, slug, content, tags")
       .eq("is_published", true)
       .limit(50);
 
-    const { data: roleData } = await supabase
+    const { data: roleData } = await serviceClient
       .from("user_roles")
       .select("organization_id")
       .eq("user_id", userId)
@@ -74,7 +72,7 @@ serve(async (req) => {
     let integrationContext = "";
 
     if (orgId) {
-      const { data: userApps } = await supabase
+      const { data: userApps } = await serviceClient
         .from("user_applications")
         .select("applications(name, vendor_url, categories(name))")
         .eq("organization_id", orgId);
@@ -91,7 +89,7 @@ serve(async (req) => {
         stackContext = `\n\nThe user's current IT stack:\n${appList}`;
       }
 
-      const { data: integrations } = await supabase
+      const { data: integrations } = await serviceClient
         .from("integrations")
         .select(`
           description,
@@ -120,7 +118,6 @@ serve(async (req) => {
 
     // Rate limit check
     if (orgId) {
-      const serviceClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
       const { data: allowed } = await serviceClient.rpc("check_and_increment_ai_usage", {
         _org_id: orgId,
         _daily_limit: 50,
