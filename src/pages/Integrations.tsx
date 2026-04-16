@@ -111,7 +111,6 @@ export default function Integrations() {
   // Deep-link support: ?highlight=<integration_id>. When arriving from the
   // Dashboard's "Available Integrations" list, auto-expand the parent app
   // Collapsibles (rows are nested 2 levels deep) and scroll the row into view.
-  // Runs once per highlightId so re-expanding/collapsing afterwards still works.
   const scrolledForHighlightRef = useRef<string | null>(null);
   useEffect(() => {
     if (!highlightId || stackIntegrations.length === 0) return;
@@ -120,8 +119,13 @@ export default function Integrations() {
     const target = stackIntegrations.find(i => i.id === highlightId);
     if (!target) return;
 
-    // Expand both endpoint apps — the row is rendered under both, and
-    // scrollIntoView will land on the first match in DOM order.
+    // Clear filters that could hide the target row. React Router may reuse
+    // the component on same-path navigation, so stale state from a previous
+    // visit could prevent the row from rendering.
+    setStatusFilter('all');
+    setSearch('');
+
+    // Expand both endpoint apps' Collapsibles.
     setOpenApps(prev => {
       const next = new Set(prev);
       if (target.source_app_id) next.add(target.source_app_id);
@@ -129,18 +133,23 @@ export default function Integrations() {
       return next;
     });
 
-    // Scroll after React has had a chance to render the expanded content.
-    // Two RAFs: first for the setOpenApps commit, second for layout after
-    // Radix Collapsible's animation flips the content to visible.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const el = document.getElementById(`integration-${highlightId}`);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          scrolledForHighlightRef.current = highlightId;
-        }
-      });
-    });
+    // Poll for the DOM element instead of using rAF — Radix Collapsible
+    // animations can take longer than two frames, and TanStack Query may
+    // return cached data instantly (so the first render fires before the
+    // Collapsible has committed its expanded state).
+    let attempts = 0;
+    const poll = setInterval(() => {
+      attempts++;
+      const el = document.getElementById(`integration-${highlightId}`);
+      if (el) {
+        clearInterval(poll);
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        scrolledForHighlightRef.current = highlightId;
+      } else if (attempts > 40) {
+        clearInterval(poll);
+      }
+    }, 50);
+    return () => clearInterval(poll);
   }, [highlightId, stackIntegrations]);
 
   const { data: orgIntegrations = [] } = useQuery({
