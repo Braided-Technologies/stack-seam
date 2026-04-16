@@ -43,6 +43,7 @@ export default function Budget() {
   const [editingApp, setEditingApp] = useState<any>(null);
   const [appSearch, setAppSearch] = useState(initialApp);
   const [docPreviewActive, setDocPreviewActive] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>(initialTab || 'details');
 
 
   const { data: allContracts = [] } = useQuery({
@@ -419,14 +420,14 @@ export default function Budget() {
       </Card>
 
       {/* App Edit Dialog */}
-      <Dialog open={!!editingApp} onOpenChange={open => { if (!open) { setEditingApp(null); setDocPreviewActive(false); } }}>
-        <DialogContent className={`${docPreviewActive ? 'max-w-5xl' : 'max-w-lg'} max-h-[85vh] flex flex-col transition-all duration-300`}>
+      <Dialog open={!!editingApp} onOpenChange={open => { if (!open) { setEditingApp(null); setDocPreviewActive(false); setActiveTab(initialTab || 'details'); } }}>
+        <DialogContent className={`${activeTab === 'documents' && docPreviewActive ? 'max-w-5xl' : 'max-w-lg'} max-h-[85vh] flex flex-col transition-all duration-300`}>
           <DialogHeader>
             <DialogTitle>{editingApp?.name || 'Application'}</DialogTitle>
             <DialogDescription>Edit details, contacts, and contracts</DialogDescription>
           </DialogHeader>
           {editingApp && (
-            <Tabs defaultValue={initialTab || 'details'}>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="details">Details</TabsTrigger>
                 <TabsTrigger value="contacts">Contacts</TabsTrigger>
