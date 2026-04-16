@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+    const openaiKey = Deno.env.get("OPENAI_API_KEY");
 
     // Verify user via service-role JWT validation (SUPABASE_ANON_KEY is
     // undefined post-migration; this pattern matches search-tool v10+)
@@ -104,8 +104,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!lovableApiKey) {
-      return new Response(JSON.stringify({ error: "AI service not configured" }), {
+    if (!openaiKey) {
+      return new Response(JSON.stringify({ error: "OPENAI_API_KEY not configured" }), {
         status: 500,
         headers: { ...corsHeaders(req), "Content-Type": "application/json" },
       });
@@ -114,17 +114,24 @@ Deno.serve(async (req) => {
     // Convert file to base64 for multimodal input
     const arrayBuffer = await fileData.arrayBuffer();
     const base64Data = arrayBufferToBase64(arrayBuffer);
-    const mimeType = file_path.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream";
+    // Detect mime type from extension for the multimodal content block
+    const ext = file_path.toLowerCase().split('.').pop() || '';
+    const mimeMap: Record<string, string> = {
+      pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+      png: 'image/png', webp: 'image/webp', heic: 'image/heic',
+      doc: 'application/octet-stream', docx: 'application/octet-stream',
+    };
+    const mimeType = mimeMap[ext] || 'application/octet-stream';
 
-    // Use AI to extract contract fields via multimodal (send PDF directly)
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Use OpenAI gpt-4o for multimodal extraction (replaces Lovable gateway)
+    const aiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${lovableApiKey}`,
+        Authorization: `Bearer ${openaiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "gpt-4o",
         messages: [
           {
             role: "system",
