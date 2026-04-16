@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
     const BATCH_SIZE = 10;
     for (let batchStart = 0; batchStart < (integrations?.length || 0); batchStart += BATCH_SIZE) {
       const batch = (integrations || []).slice(batchStart, batchStart + BATCH_SIZE);
-      
+
       const batchResults = await Promise.allSettled(batch.map(async (integration) => {
         const url = integration.documentation_url;
         if (!url) return null;
