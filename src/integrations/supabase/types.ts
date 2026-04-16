@@ -847,6 +847,7 @@ export type Database = {
           notes: string | null
           organization_id: string
           renewal_date: string | null
+          start_date: string | null
           term_months: number | null
           updated_at: string
         }
@@ -861,6 +862,7 @@ export type Database = {
           notes?: string | null
           organization_id: string
           renewal_date?: string | null
+          start_date?: string | null
           term_months?: number | null
           updated_at?: string
         }
@@ -875,6 +877,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           renewal_date?: string | null
+          start_date?: string | null
           term_months?: number | null
           updated_at?: string
         }
