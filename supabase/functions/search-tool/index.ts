@@ -26,7 +26,6 @@ function json(req: Request, data: unknown, status = 200) {
   });
 }
 
-/** Scrape a URL for meta tags (title, description, icon) */
 /**
  * Post-process the raw scraped title/description via gpt-4o-mini so the new
  * tool entry matches the concise house style (short product name + 3-8 word
@@ -128,18 +127,13 @@ async function scrapeMeta(url: string) {
     const doc = new DOMParser().parseFromString(html, "text/html");
     if (!doc) return result;
 
-    // Title: prefer og:title > <title>
     const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute("content");
     const titleTag = doc.querySelector("title")?.textContent;
     result.title = ogTitle || titleTag || null;
 
-    // Description: prefer og:description > meta description
     const ogDesc = doc.querySelector('meta[property="og:description"]')?.getAttribute("content");
     const metaDesc = doc.querySelector('meta[name="description"]')?.getAttribute("content");
     const rawDesc = ogDesc || metaDesc || null;
-    // Some sites stuff their entire landing-page copy into meta description.
-    // Cap it so the confirm dialog stays usable — 280 chars is enough for a
-    // one-to-two-sentence summary. Break at a word boundary when possible.
     if (rawDesc) {
       const trimmed = rawDesc.trim().replace(/\s+/g, " ");
       if (trimmed.length <= 280) {
@@ -147,11 +141,10 @@ async function scrapeMeta(url: string) {
       } else {
         const cut = trimmed.slice(0, 280);
         const lastSpace = cut.lastIndexOf(" ");
-        result.description = (lastSpace > 200 ? cut.slice(0, lastSpace) : cut).trimEnd() + "…";
+        result.description = (lastSpace > 200 ? cut.slice(0, lastSpace) : cut).trimEnd() + "\u2026";
       }
     }
 
-    // Icon: prefer apple-touch-icon > shortcut icon > favicon
     const appleIcon = doc.querySelector('link[rel="apple-touch-icon"]')?.getAttribute("href");
     const shortcutIcon = doc.querySelector('link[rel="shortcut icon"]')?.getAttribute("href");
     const icon = doc.querySelector('link[rel="icon"]')?.getAttribute("href");
@@ -179,9 +172,6 @@ serve(async (req) => {
     if (!authHeader) return json(req, { error: "Unauthorized" }, 401);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    // Validate the caller's JWT using the service role client — doesn't
-    // depend on the anon/publishable key being set as an env var. This is
-    // the pattern that post-migration functions use reliably.
     const jwt = authHeader.replace(/^Bearer\s+/i, "");
     const serviceClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const {
@@ -195,9 +185,7 @@ serve(async (req) => {
 
     const body = await req.json();
 
-    // ── Handle category update (platform admin only) ──
     if (body.updateCategory && body.appId && body.categoryId) {
-      // Check platform admin status directly since we have the validated user.id
       const { data: roleRow } = await serviceClient
         .from("user_roles")
         .select("role")
@@ -214,14 +202,12 @@ serve(async (req) => {
       return json(req, { success: true });
     }
 
-    // ── Search / scrape flow ──
     const { query, url: vendorUrl } = body;
 
     if (!query || typeof query !== "string" || query.trim().length < 2) {
       return json(req, { error: "Name is required (at least 2 characters)" }, 400);
     }
 
-    // Check for existing match by name (case-insensitive) — reuse the service client
     const { data: existing } = await serviceClient
       .from("applications")
       .select("*, categories(name)")
@@ -231,7 +217,6 @@ serve(async (req) => {
       return json(req, { found: true, existing: true, applications: existing });
     }
 
-    // Scrape vendor URL if provided
     let scraped: { title: string | null; description: string | null; icon: string | null } = {
       title: null,
       description: null,
