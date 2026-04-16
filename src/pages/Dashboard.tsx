@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUserApplications, useIntegrations } from '@/hooks/useStackData';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -34,9 +37,36 @@ export default function Dashboard() {
     return sum;
   }, 0);
 
+  const { orgId } = useAuth();
   const userAppIds = new Set(userApps.map(ua => ua.application_id));
+
+  // Fetch org_integrations to know which integrations are already configured/skipped/hidden
+  const { data: orgIntegrations = [] } = useQuery({
+    queryKey: ['org_integrations', orgId],
+    enabled: !!orgId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('org_integrations')
+        .select('integration_id, status')
+        .eq('organization_id', orgId!);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const doneIntegrationIds = useMemo(() => {
+    const ids = new Set<string>();
+    orgIntegrations.forEach(oi => {
+      if (oi.status === 'configured' || oi.status === 'skipped' || oi.status === 'hidden') {
+        ids.add(oi.integration_id);
+      }
+    });
+    return ids;
+  }, [orgIntegrations]);
+
+  // Only show integrations that are in-stack AND not yet configured/skipped/hidden
   const relevantIntegrations = integrations.filter(
-    i => userAppIds.has(i.source_app_id) && userAppIds.has(i.target_app_id)
+    i => userAppIds.has(i.source_app_id) && userAppIds.has(i.target_app_id) && !doneIntegrationIds.has(i.id)
   );
 
   const urgentRenewals = userApps

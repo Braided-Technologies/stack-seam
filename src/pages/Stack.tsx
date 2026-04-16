@@ -776,12 +776,12 @@ export default function Stack() {
                         {/* Contacts */}
                         <ContactsSection userApplicationId={userApp!.id} isAdmin={isAdmin} />
 
-                        {/* Contracts redirect */}
+                        {/* Billing documents redirect */}
                         <div className="space-y-2">
-                          <p className="text-sm font-medium">Contracts</p>
-                          <Button variant="outline" size="sm" className="gap-2 w-full" onClick={() => { setInfoApp(null); navigate('/budget'); }}>
+                          <p className="text-sm font-medium">Documents</p>
+                          <Button variant="outline" size="sm" className="gap-2 w-full" onClick={() => { setInfoApp(null); navigate(`/budget?app=${encodeURIComponent(infoApp.name)}&tab=documents`); }}>
                             <FolderOpen className="h-3.5 w-3.5" />
-                            Manage Contracts in Budget & Spend
+                            Manage Billing
                           </Button>
                         </div>
                       </div>

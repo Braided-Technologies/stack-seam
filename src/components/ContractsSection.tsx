@@ -248,14 +248,14 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">Contracts</p>
+        <p className="text-sm font-medium">Documents</p>
         {isAdmin && (
           <>
             <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploadContract.isPending}>
               <Upload className="h-3.5 w-3.5 mr-1" />
               {uploadContract.isPending ? 'Uploading...' : 'Upload'}
             </Button>
-            <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={handleUpload} />
+            <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic,.webp" className="hidden" onChange={handleUpload} />
           </>
         )}
       </div>
@@ -295,7 +295,7 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
       ))}
 
       {files.length === 0 && (
-        <p className="text-xs text-muted-foreground">No contracts uploaded yet.</p>
+        <p className="text-xs text-muted-foreground">No documents uploaded yet.</p>
       )}
 
       {scanResult && (

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,7 @@ type SortKey = 'name' | 'cost_monthly' | 'cost_annual' | 'renewal_date';
 export default function Budget() {
   const [searchParams] = useSearchParams();
   const initialApp = searchParams.get('app') || '';
+  const initialTab = searchParams.get('tab') || 'details';
   const { orgId, userRole } = useAuth();
   const { data: userApps = [] } = useUserApplications();
   const updateApp = useUpdateUserApplication();
@@ -203,6 +204,17 @@ export default function Budget() {
     setEditingApp({ ...app });
   };
 
+  // Auto-open app dialog when arriving via deep-link (?app=HaloPSA&tab=documents)
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (!initialApp || autoOpenedRef.current || sortedApps.length === 0) return;
+    const match = sortedApps.find(a => a.name.toLowerCase() === initialApp.toLowerCase());
+    if (match) {
+      openAppEdit(match);
+      autoOpenedRef.current = true;
+    }
+  }, [initialApp, sortedApps]);
+
   return (
     <div className="p-6 space-y-6">
       <div data-tour="budget-header" className="flex items-center gap-2">
@@ -230,7 +242,7 @@ export default function Budget() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Apps with Contracts</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Apps with Documents</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{appsWithContracts}</p>
@@ -363,7 +375,7 @@ export default function Budget() {
                       Renewal <ArrowUpDown className="h-3 w-3" />
                     </Button>
                   </TableHead>
-                  <TableHead>Contract</TableHead>
+                  <TableHead>Documents</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -413,11 +425,11 @@ export default function Budget() {
             <DialogDescription>Edit details, contacts, and contracts</DialogDescription>
           </DialogHeader>
           {editingApp && (
-            <Tabs defaultValue="details">
+            <Tabs defaultValue={initialTab || 'details'}>
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="details">Details</TabsTrigger>
                 <TabsTrigger value="contacts">Contacts</TabsTrigger>
-                <TabsTrigger value="contracts">Contracts</TabsTrigger>
+                <TabsTrigger value="documents">Documents</TabsTrigger>
               </TabsList>
 
               <TabsContent value="details" className="space-y-4 pt-2">
@@ -491,7 +503,7 @@ export default function Budget() {
                 <ContactsSection userApplicationId={editingApp.id} isAdmin={isAdmin} />
               </TabsContent>
 
-              <TabsContent value="contracts" className="pt-2">
+              <TabsContent value="documents" className="pt-2">
                 <ContractsSection
                   userApplicationId={editingApp.id}
                   isAdmin={isAdmin}

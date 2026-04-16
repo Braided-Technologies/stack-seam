@@ -137,6 +137,16 @@ function IntegrationsModeration() {
     loadIntegrations();
   };
 
+  const verifyDiscovered = async (id: string) => {
+    const { error } = await supabase
+      .from('integrations')
+      .update({ source: 'verified' } as any)
+      .eq('id', id);
+    if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
+    toast({ title: 'Integration verified' });
+    loadIntegrations();
+  };
+
   const approveIntegration = async (id: string) => {
     const { error } = await supabase.from('integrations').update({ status: 'approved' } as any).eq('id', id);
     if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
@@ -230,7 +240,7 @@ function IntegrationsModeration() {
           </CardTitle>
           <CardDescription>
             Integrations found by the discovery scanner, sorted by confidence ascending.
-            Click Reject to delete the integration and cache-block the pair from future scans — no AI credits used.
+            Approve to verify and remove from this queue. Reject to delete and permanently block the pair from future scans.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -267,7 +277,10 @@ function IntegrationsModeration() {
                           </a>
                         ) : '—'}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right space-x-1">
+                        <Button size="sm" variant="ghost" className="text-green-500" onClick={() => verifyDiscovered(i.id)}>
+                          <Check className="h-3 w-3 mr-1" /> Approve
+                        </Button>
                         <Button size="sm" variant="ghost" className="text-destructive" onClick={() => rejectAsBad(i.id)}>
                           <X className="h-3 w-3 mr-1" /> Reject
                         </Button>
