@@ -724,21 +724,21 @@ export default function Stack() {
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                               <Label>Monthly Cost ($)</Label>
-                              <Input type="number" value={editingApp?.cost_monthly || userApp!.cost_monthly || ''} onChange={e => setEditingApp({ ...userApp, appName: infoApp.name, cost_monthly: e.target.value })} disabled={!isAdmin} />
+                              <Input type="number" value={editingApp?.cost_monthly ?? userApp!.cost_monthly ?? ''} onChange={e => setEditingApp({ ...userApp, ...(editingApp || {}), appName: infoApp.name, cost_monthly: e.target.value })} disabled={!isAdmin} />
                             </div>
                             <div className="space-y-2">
                               <Label>Annual Cost ($)</Label>
-                              <Input type="number" value={editingApp?.cost_annual || userApp!.cost_annual || ''} onChange={e => setEditingApp({ ...userApp, appName: infoApp.name, cost_annual: e.target.value })} disabled={!isAdmin} />
+                              <Input type="number" value={editingApp?.cost_annual ?? userApp!.cost_annual ?? ''} onChange={e => setEditingApp({ ...userApp, ...(editingApp || {}), appName: infoApp.name, cost_annual: e.target.value })} disabled={!isAdmin} />
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                               <Label>Renewal Date</Label>
-                              <Input type="date" value={editingApp?.renewal_date || userApp!.renewal_date || ''} onChange={e => setEditingApp({ ...userApp, appName: infoApp.name, renewal_date: e.target.value })} disabled={!isAdmin} />
+                              <Input type="date" value={editingApp?.renewal_date ?? userApp!.renewal_date ?? ''} onChange={e => setEditingApp({ ...userApp, ...(editingApp || {}), appName: infoApp.name, renewal_date: e.target.value })} disabled={!isAdmin} />
                             </div>
                             <div className="space-y-2">
                               <Label>License Count</Label>
-                              <Input type="number" value={editingApp?.license_count || userApp!.license_count || ''} onChange={e => setEditingApp({ ...userApp, appName: infoApp.name, license_count: e.target.value })} disabled={!isAdmin} />
+                              <Input type="number" value={editingApp?.license_count ?? userApp!.license_count ?? ''} onChange={e => setEditingApp({ ...userApp, ...(editingApp || {}), appName: infoApp.name, license_count: e.target.value })} disabled={!isAdmin} />
                             </div>
                           </div>
                           <TermBillingFields
@@ -752,8 +752,8 @@ export default function Stack() {
                             <Label>Notes</Label>
                             <textarea
                               className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                              value={editingApp?.notes || userApp!.notes || ''}
-                              onChange={e => setEditingApp({ ...userApp, appName: infoApp.name, notes: e.target.value })}
+                              value={editingApp?.notes ?? userApp!.notes ?? ''}
+                              onChange={e => setEditingApp({ ...userApp, ...(editingApp || {}), appName: infoApp.name, notes: e.target.value })}
                               disabled={!isAdmin}
                             />
                           </div>
