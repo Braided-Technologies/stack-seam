@@ -176,6 +176,7 @@ export default function Budget() {
         cost_monthly: editingApp.cost_monthly ? Number(editingApp.cost_monthly) : null,
         cost_annual: editingApp.cost_annual ? Number(editingApp.cost_annual) : null,
         renewal_date: editingApp.renewal_date || null,
+        start_date: editingApp.start_date || null,
         term_months: editingApp.term_months ? Number(editingApp.term_months) : null,
         license_count: editingApp.license_count ? Number(editingApp.license_count) : null,
         billing_cycle: editingApp.billing_cycle || null,
@@ -494,16 +495,27 @@ export default function Budget() {
                   userApplicationId={editingApp.id}
                   isAdmin={isAdmin}
                   onPreviewChange={setDocPreviewActive}
-                  onExtractedData={(data) => {
-                    const updated = { ...editingApp };
-                    if (data.cost_monthly != null) updated.cost_monthly = data.cost_monthly;
-                    if (data.cost_annual != null) updated.cost_annual = data.cost_annual;
-                    if (data.renewal_date) updated.renewal_date = data.renewal_date;
-                    if (data.term_months != null) updated.term_months = data.term_months;
-                    if (data.billing_cycle) updated.billing_cycle = data.billing_cycle;
-                    if (data.license_count != null) updated.license_count = data.license_count;
-                    if (data.notes) updated.notes = data.notes;
-                    setEditingApp(updated);
+                  onExtractedData={async (data) => {
+                    // Persist imported fields directly — user shouldn't have to switch back
+                    // to Details tab and click Save. We send only the fields that were
+                    // actually imported so any in-progress Details edits aren't clobbered.
+                    const patch: Record<string, any> = {};
+                    if (data.cost_monthly != null) patch.cost_monthly = Number(data.cost_monthly);
+                    if (data.cost_annual != null) patch.cost_annual = Number(data.cost_annual);
+                    if (data.renewal_date) patch.renewal_date = data.renewal_date;
+                    if (data.start_date) patch.start_date = data.start_date;
+                    if (data.term_months != null) patch.term_months = Number(data.term_months);
+                    if (data.billing_cycle) patch.billing_cycle = data.billing_cycle;
+                    if (data.license_count != null) patch.license_count = Number(data.license_count);
+                    if (data.notes) patch.notes = data.notes;
+
+                    setEditingApp((prev: any) => ({ ...prev, ...patch }));
+                    try {
+                      await updateApp.mutateAsync({ id: editingApp.id, ...patch });
+                      toast({ title: 'Imported & saved', description: 'Extracted data applied to this app.' });
+                    } catch (e: any) {
+                      toast({ title: 'Save failed', description: e.message, variant: 'destructive' });
+                    }
                   }}
                 />
               </TabsContent>
