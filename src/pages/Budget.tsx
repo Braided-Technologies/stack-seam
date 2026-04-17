@@ -498,7 +498,7 @@ export default function Budget() {
 
       {/* App Edit Dialog */}
       <Dialog open={!!editingApp} onOpenChange={open => { if (!open) { setEditingApp(null); setDocPreviewActive(false); setActiveTab(initialTab || 'details'); } }}>
-        <DialogContent className={`${activeTab === 'documents' && docPreviewActive ? 'max-w-5xl' : 'max-w-lg'} max-h-[85vh] flex flex-col transition-all duration-300`}>
+        <DialogContent className={`${activeTab === 'documents' && docPreviewActive ? 'max-w-5xl' : 'max-w-lg'} max-h-[85vh] flex flex-col overflow-hidden transition-all duration-300`}>
           <DialogHeader>
             <DialogTitle>{editingApp?.name || 'Application'}</DialogTitle>
             <DialogDescription>Edit details, contacts, and contracts</DialogDescription>
