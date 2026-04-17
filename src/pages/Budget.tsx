@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import ContactsSection from '@/components/ContactsSection';
 import ContractsSection from '@/components/ContractsSection';
 import { TermBillingFields } from '@/components/TermBillingFields';
+import { BillingModelFields } from '@/components/BillingModelFields';
 import { applyCostRatio } from '@/lib/costs';
 
 const COLORS = [
@@ -80,6 +81,44 @@ export default function Budget() {
       if (m > 0) return sum + m * 12;
       return sum;
     }, 0), [userApps]);
+  // Internal overhead = actual cost to run Braided, netting out passthrough/resold portions.
+  // - billing_model=internal → full cost is overhead
+  // - bundled_passthrough → only the internal_cost_* portion
+  // - direct_passthrough → zero (client pays vendor directly)
+  const internalMonthly = useMemo(() =>
+    userApps.reduce((sum, ua: any) => {
+      const model = ua.billing_model || 'internal';
+      if (model === 'direct_passthrough') return sum;
+      if (model === 'bundled_passthrough') {
+        const im = Number(ua.internal_cost_monthly) || 0;
+        const ia = Number(ua.internal_cost_annual) || 0;
+        if (im > 0) return sum + im;
+        if (ia > 0) return sum + ia / 12;
+        return sum;
+      }
+      const m = Number(ua.cost_monthly) || 0;
+      const a = Number(ua.cost_annual) || 0;
+      if (m > 0) return sum + m;
+      if (a > 0) return sum + a / 12;
+      return sum;
+    }, 0), [userApps]);
+  const internalAnnual = useMemo(() =>
+    userApps.reduce((sum, ua: any) => {
+      const model = ua.billing_model || 'internal';
+      if (model === 'direct_passthrough') return sum;
+      if (model === 'bundled_passthrough') {
+        const im = Number(ua.internal_cost_monthly) || 0;
+        const ia = Number(ua.internal_cost_annual) || 0;
+        if (ia > 0) return sum + ia;
+        if (im > 0) return sum + im * 12;
+        return sum;
+      }
+      const m = Number(ua.cost_monthly) || 0;
+      const a = Number(ua.cost_annual) || 0;
+      if (a > 0) return sum + a;
+      if (m > 0) return sum + m * 12;
+      return sum;
+    }, 0), [userApps]);
   const appsWithContracts = useMemo(() => {
     const uaIdsWithContracts = new Set(allContracts.map(c => c.user_application_id));
     return uaIdsWithContracts.size;
@@ -128,17 +167,21 @@ export default function Budget() {
   }, [allContracts]);
 
   const sortedApps = useMemo(() => {
-    const items = userApps.map(ua => ({
+    const items = userApps.map((ua: any) => ({
       id: ua.id,
       name: (ua.applications as any)?.name || 'Unknown',
       category: (ua.applications as any)?.categories?.name || '—',
       cost_monthly: Number(ua.cost_monthly) || 0,
       cost_annual: Number(ua.cost_annual) || 0,
       renewal_date: ua.renewal_date,
+      start_date: ua.start_date,
       billing_cycle: ua.billing_cycle,
       term_months: ua.term_months,
       license_count: ua.license_count,
       notes: ua.notes,
+      billing_model: ua.billing_model || 'internal',
+      internal_cost_monthly: ua.internal_cost_monthly ?? null,
+      internal_cost_annual: ua.internal_cost_annual ?? null,
       hasContract: !!(contractByUaId[ua.id]?.length),
       contracts: contractByUaId[ua.id] || [],
     }));
@@ -181,6 +224,9 @@ export default function Budget() {
         license_count: editingApp.license_count ? Number(editingApp.license_count) : null,
         billing_cycle: editingApp.billing_cycle || null,
         notes: editingApp.notes || null,
+        billing_model: editingApp.billing_model || 'internal',
+        internal_cost_monthly: editingApp.internal_cost_monthly != null && editingApp.internal_cost_monthly !== '' ? Number(editingApp.internal_cost_monthly) : null,
+        internal_cost_annual: editingApp.internal_cost_annual != null && editingApp.internal_cost_annual !== '' ? Number(editingApp.internal_cost_annual) : null,
       });
       toast({ title: 'Details saved' });
       setEditingApp(null);
@@ -235,6 +281,11 @@ export default function Budget() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{fmt(totalMonthly)}</p>
+            {internalMonthly !== totalMonthly && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Internal overhead: <span className="font-medium text-foreground">{fmt(internalMonthly)}</span>
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -243,6 +294,11 @@ export default function Budget() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{fmt(totalAnnual)}</p>
+            {internalAnnual !== totalAnnual && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Internal overhead: <span className="font-medium text-foreground">{fmt(internalAnnual)}</span>
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -469,6 +525,13 @@ export default function Budget() {
                       billingCycle={editingApp.billing_cycle || null}
                       startDate={editingApp.start_date || null}
                       renewalDate={editingApp.renewal_date || null}
+                      disabled={!isAdmin}
+                      onChange={patch => setEditingApp({ ...editingApp, ...patch })}
+                    />
+                    <BillingModelFields
+                      billingModel={editingApp.billing_model || 'internal'}
+                      internalCostMonthly={editingApp.internal_cost_monthly ?? null}
+                      internalCostAnnual={editingApp.internal_cost_annual ?? null}
                       disabled={!isAdmin}
                       onChange={patch => setEditingApp({ ...editingApp, ...patch })}
                     />
