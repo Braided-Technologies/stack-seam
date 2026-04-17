@@ -20,22 +20,30 @@ export default function Dashboard() {
   const { data: integrations = [] } = useIntegrations();
   const [renewalWindow, setRenewalWindow] = useState<RenewalWindow>('all');
 
-  // Compute totals: monthly includes annual/12, annual includes monthly*12
-  const totalMonthly = userApps.reduce((sum, ua) => {
-    const m = Number(ua.cost_monthly) || 0;
-    const a = Number(ua.cost_annual) || 0;
-    if (m > 0) return sum + m;
-    if (a > 0) return sum + a / 12;
-    return sum;
-  }, 0);
-
-  const totalAnnual = userApps.reduce((sum, ua) => {
-    const m = Number(ua.cost_monthly) || 0;
-    const a = Number(ua.cost_annual) || 0;
-    if (a > 0) return sum + a;
-    if (m > 0) return sum + m * 12;
-    return sum;
-  }, 0);
+  // Compute totals from per-contract data (user_application_contracts).
+  // monthly falls back to annual/12 when missing and vice versa.
+  const contractMonthly = (c: any) => {
+    const m = Number(c?.cost_monthly) || 0;
+    const a = Number(c?.cost_annual) || 0;
+    if (m > 0) return m;
+    if (a > 0) return a / 12;
+    return 0;
+  };
+  const contractAnnual = (c: any) => {
+    const m = Number(c?.cost_monthly) || 0;
+    const a = Number(c?.cost_annual) || 0;
+    if (a > 0) return a;
+    if (m > 0) return m * 12;
+    return 0;
+  };
+  const totalMonthly = userApps.reduce(
+    (sum, ua: any) => sum + (ua.user_application_contracts || []).reduce((s: number, c: any) => s + contractMonthly(c), 0),
+    0,
+  );
+  const totalAnnual = userApps.reduce(
+    (sum, ua: any) => sum + (ua.user_application_contracts || []).reduce((s: number, c: any) => s + contractAnnual(c), 0),
+    0,
+  );
 
   const { orgId } = useAuth();
   const userAppIds = new Set(userApps.map(ua => ua.application_id));
@@ -69,22 +77,47 @@ export default function Dashboard() {
     i => userAppIds.has(i.source_app_id) && userAppIds.has(i.target_app_id) && !doneIntegrationIds.has(i.id)
   );
 
-  const urgentRenewals = userApps
-    .filter(ua => {
-      if (!ua.renewal_date) return false;
-      const days = differenceInDays(new Date(ua.renewal_date), new Date());
-      return days <= 30;
-    })
-    .sort((a, b) => new Date(a.renewal_date!).getTime() - new Date(b.renewal_date!).getTime());
+  // Flatten all contracts with renewal dates across every app so each contract
+  // can be its own renewal alert row — a vendor with two contracts and two
+  // distinct renewals shows twice.
+  type RenewalRow = {
+    appId: string;
+    appName: string;
+    contractId: string;
+    contractLabel: string | null;
+    renewalDate: string;
+    costAnnual: number;
+  };
+  const allRenewalRows: RenewalRow[] = useMemo(() => {
+    const rows: RenewalRow[] = [];
+    for (const ua of userApps as any[]) {
+      const appName = ua.applications?.name || 'Unknown App';
+      for (const c of (ua.user_application_contracts || [])) {
+        if (!c.renewal_date) continue;
+        rows.push({
+          appId: ua.id,
+          appName,
+          contractId: c.id,
+          contractLabel: c.label || null,
+          renewalDate: c.renewal_date,
+          costAnnual: contractAnnual(c),
+        });
+      }
+    }
+    rows.sort((a, b) => new Date(a.renewalDate).getTime() - new Date(b.renewalDate).getTime());
+    return rows;
+  }, [userApps]);
 
-  const upcomingRenewals = userApps
-    .filter(ua => {
-      if (!ua.renewal_date) return false;
-      if (renewalWindow === 'all') return true;
-      const days = differenceInDays(new Date(ua.renewal_date), new Date());
-      return days >= 0 && days <= renewalWindow;
-    })
-    .sort((a, b) => new Date(a.renewal_date!).getTime() - new Date(b.renewal_date!).getTime());
+  const urgentRenewals = allRenewalRows.filter(r => {
+    const days = differenceInDays(new Date(r.renewalDate), new Date());
+    return days <= 30;
+  });
+
+  const upcomingRenewals = allRenewalRows.filter(r => {
+    if (renewalWindow === 'all') return true;
+    const days = differenceInDays(new Date(r.renewalDate), new Date());
+    return days >= 0 && days <= renewalWindow;
+  });
 
   return (
     <div className="p-6 space-y-6">
@@ -131,21 +164,28 @@ export default function Dashboard() {
             Renewal Alerts — {urgentRenewals.length} contract{urgentRenewals.length > 1 ? 's' : ''} expiring within 30 days
           </h3>
           <div className="space-y-2">
-            {urgentRenewals.map(ua => {
-              const daysUntil = differenceInDays(new Date(ua.renewal_date!), new Date());
+            {urgentRenewals.map(r => {
+              const daysUntil = differenceInDays(new Date(r.renewalDate), new Date());
               return (
-                <div key={ua.id} className="flex items-center justify-between rounded-lg border border-destructive/20 bg-background p-3">
+                <Link
+                  key={r.contractId}
+                  to={`/budget?app=${encodeURIComponent(r.appName)}&tab=details`}
+                  className="flex items-center justify-between rounded-lg border border-destructive/20 bg-background p-3 hover:border-destructive/50 transition-colors"
+                >
                   <div>
-                    <p className="font-medium">{(ua as any).applications?.name || 'Unknown App'}</p>
+                    <p className="font-medium">
+                      {r.appName}
+                      {r.contractLabel && <span className="text-muted-foreground font-normal"> · {r.contractLabel}</span>}
+                    </p>
                     <p className="text-sm text-muted-foreground">
-                      Renews {format(new Date(ua.renewal_date!), 'MMM d, yyyy')}
-                      {ua.cost_annual ? ` · $${Number(ua.cost_annual).toLocaleString()}/yr` : ''}
+                      Renews {format(new Date(r.renewalDate), 'MMM d, yyyy')}
+                      {r.costAnnual ? ` · $${r.costAnnual.toLocaleString()}/yr` : ''}
                     </p>
                   </div>
                   <Badge variant={daysUntil <= 0 ? 'destructive' : 'outline'} className={daysUntil > 0 ? 'border-destructive/50 text-destructive' : ''}>
                     {daysUntil <= 0 ? 'Overdue!' : daysUntil === 1 ? '1 day left' : `${daysUntil} days left`}
                   </Badge>
-                </div>
+                </Link>
               );
             })}
           </div>
@@ -177,18 +217,21 @@ export default function Dashboard() {
         ) : (
           <ScrollArea className="max-h-[300px]">
             <div className="space-y-2 pr-2">
-              {upcomingRenewals.map(ua => {
-                const daysUntil = differenceInDays(new Date(ua.renewal_date!), new Date());
+              {upcomingRenewals.map(r => {
+                const daysUntil = differenceInDays(new Date(r.renewalDate), new Date());
                 return (
-                  <div
-                    key={ua.id}
-                    className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:bg-accent/50 transition-colors"
-                    onClick={() => navigate(`/budget?app=${encodeURIComponent((ua as any).applications?.name || '')}`)}
+                  <Link
+                    key={r.contractId}
+                    to={`/budget?app=${encodeURIComponent(r.appName)}&tab=details`}
+                    className="flex items-center justify-between rounded-lg border p-3 hover:bg-accent/50 transition-colors"
                   >
                     <div>
-                      <p className="font-medium">{(ua as any).applications?.name}</p>
+                      <p className="font-medium">
+                        {r.appName}
+                        {r.contractLabel && <span className="text-muted-foreground font-normal"> · {r.contractLabel}</span>}
+                      </p>
                       <p className="text-sm text-muted-foreground">
-                        {format(new Date(ua.renewal_date!), 'MMM d, yyyy')}
+                        {format(new Date(r.renewalDate), 'MMM d, yyyy')}
                       </p>
                     </div>
                     <span className={cn(
@@ -197,7 +240,7 @@ export default function Dashboard() {
                     )}>
                       {daysUntil <= 0 ? 'Overdue' : `${daysUntil} days`}
                     </span>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
