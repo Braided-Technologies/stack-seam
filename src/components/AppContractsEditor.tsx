@@ -21,7 +21,7 @@ import {
   useUpsertUserApplicationContract,
   useDeleteUserApplicationContract,
 } from '@/hooks/useStackData';
-import { applyCostRatio, parseCostInput } from '@/lib/costs';
+import { applyCostRatio, parseCostInput, formatCostValue } from '@/lib/costs';
 
 interface AppContractsEditorProps {
   userApplicationId: string;
@@ -238,6 +238,12 @@ export function AppContractsEditor({ userApplicationId, disabled }: AppContracts
                       inputMode="decimal"
                       value={draft.cost_monthly ?? ''}
                       onChange={e => updateDraft(key, applyCostRatio('cost_monthly', e.target.value))}
+                      onBlur={e => {
+                        const formatted = formatCostValue(e.target.value);
+                        if (formatted !== e.target.value) {
+                          updateDraft(key, applyCostRatio('cost_monthly', formatted));
+                        }
+                      }}
                       disabled={disabled}
                     />
                   </div>
@@ -248,6 +254,12 @@ export function AppContractsEditor({ userApplicationId, disabled }: AppContracts
                       inputMode="decimal"
                       value={draft.cost_annual ?? ''}
                       onChange={e => updateDraft(key, applyCostRatio('cost_annual', e.target.value))}
+                      onBlur={e => {
+                        const formatted = formatCostValue(e.target.value);
+                        if (formatted !== e.target.value) {
+                          updateDraft(key, applyCostRatio('cost_annual', formatted));
+                        }
+                      }}
                       disabled={disabled}
                     />
                   </div>
