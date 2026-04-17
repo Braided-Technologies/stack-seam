@@ -188,7 +188,7 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
     setEditableFields(prev => ({ ...prev, [key]: value }));
   };
 
-  const applyTermBillingPatch = (patch: { term_months?: number | null; billing_cycle?: string | null; start_date?: string | null }) => {
+  const applyTermBillingPatch = (patch: { term_months?: number | null; billing_cycle?: string | null; start_date?: string | null; renewal_date?: string | null }) => {
     setEditableFields(prev => ({ ...prev, ...patch }));
   };
 
@@ -199,12 +199,11 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
     return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
   };
 
-  // Term, billing cycle, and start date are handled by <TermBillingFields /> below — not rendered here.
+  // Term, billing cycle, start date, and renewal date are handled by <TermBillingFields /> below — not rendered here.
   const SIMPLE_FIELDS: { key: string; label: string; type: string }[] = [
     { key: 'vendor_name', label: 'Vendor', type: 'text' },
     { key: 'cost_monthly', label: 'Monthly Cost', type: 'number' },
     { key: 'cost_annual', label: 'Annual Cost', type: 'number' },
-    { key: 'renewal_date', label: 'Renewal Date', type: 'date' },
     { key: 'license_count', label: 'Licenses', type: 'number' },
     { key: 'notes', label: 'Notes', type: 'text' },
   ];
@@ -339,6 +338,7 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
                   termMonths={editableFields.term_months ?? null}
                   billingCycle={editableFields.billing_cycle ?? null}
                   startDate={editableFields.start_date ?? null}
+                  renewalDate={editableFields.renewal_date ?? null}
                   onChange={applyTermBillingPatch}
                   compact
                 />
