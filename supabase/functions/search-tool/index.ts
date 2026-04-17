@@ -26,12 +26,35 @@ function json(req: Request, data: unknown, status = 200) {
   });
 }
 
-/**
- * Post-process the raw scraped title/description via gpt-4o-mini so the new
- * tool entry matches the concise house style (short product name + 3-8 word
- * description) instead of dumping the vendor's full marketing tagline.
- * Falls back to the raw scrape if the API call fails.
- */
+// Vendor marketing pages (especially Cloudflare-fronted ones like n-able.com)
+// block obvious bot UAs. Pretending to be a recent Chrome desktop dodges the
+// easy bot filters without triggering JS-challenge pages.
+const BROWSER_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Accept-Encoding": "gzip, deflate, br",
+  "Cache-Control": "no-cache",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none",
+  "Sec-Fetch-User": "?1",
+  "Upgrade-Insecure-Requests": "1",
+};
+
+function isChallengePage(html: string): boolean {
+  const head = html.slice(0, 4000).toLowerCase();
+  return (
+    (head.includes("cloudflare") && head.includes("challenge")) ||
+    head.includes("just a moment") ||
+    head.includes("attention required") ||
+    head.includes("you have been blocked") ||
+    head.includes("cf-browser-verification") ||
+    head.includes("ddos protection") ||
+    head.includes("enable javascript and cookies")
+  );
+}
+
 async function cleanScrapedMeta(
   rawName: string,
   rawDesc: string,
@@ -47,17 +70,20 @@ async function cleanScrapedMeta(
         messages: [
           {
             role: "system",
-            content: `You normalize scraped vendor website metadata into concise catalog entries.
+            content: `You normalize vendor website metadata into concise catalog entries.
 
 RULES:
 - "name" = the short product/brand name only. Strip taglines, pipes, dashes, and marketing filler.
   Examples: "Frontier AI LLMs, assistants, agents, services | Mistral AI" -> "Mistral AI"
   "Drata: Automate SOC 2, HIPAA, ISO 27001 Compliance" -> "Drata"
   "Pipedrive - The #1 Easy to Use CRM" -> "Pipedrive"
+  "N-able Cove Data Protection | Backup for SaaS, Servers, and Workstations" -> "Cove Data Protection"
 - "description" = 3 to 8 words, factual, no marketing fluff.
   Examples: "AI assistant by Anthropic", "Compliance automation platform",
   "Sales CRM for small teams", "vCIO and QBR platform"
-- If the scraped data is empty or useless, infer from the URL hostname.`,
+- If the scraped data is empty or useless, infer the product name and
+  description from the URL path and hostname. Common MSP/IT tools in
+  particular — most vendors have a clear product URL structure.`,
           },
           {
             role: "user",
@@ -101,39 +127,48 @@ RULES:
 }
 
 async function scrapeMeta(url: string) {
-  const result: { title: string | null; description: string | null; icon: string | null } = {
+  const result: { title: string | null; description: string | null; icon: string | null; blocked: boolean } = {
     title: null,
     description: null,
     icon: null,
+    blocked: false,
   };
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), 10000);
 
     const resp = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; StackSeam/1.0)",
-        Accept: "text/html",
-      },
+      headers: BROWSER_HEADERS,
       signal: controller.signal,
       redirect: "follow",
     });
     clearTimeout(timeout);
 
-    if (!resp.ok) return result;
+    if (!resp.ok) {
+      console.warn(`scrapeMeta: HTTP ${resp.status} for ${url}`);
+      return result;
+    }
 
     const html = await resp.text();
+    if (html.length < 200 || isChallengePage(html)) {
+      console.warn(`scrapeMeta: challenge/short-page for ${url} (len=${html.length})`);
+      result.blocked = true;
+      return result;
+    }
     const doc = new DOMParser().parseFromString(html, "text/html");
     if (!doc) return result;
 
     const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute("content");
+    const twitterTitle = doc.querySelector('meta[name="twitter:title"]')?.getAttribute("content");
     const titleTag = doc.querySelector("title")?.textContent;
-    result.title = ogTitle || titleTag || null;
+    const h1 = doc.querySelector("h1")?.textContent;
+    result.title = (ogTitle || twitterTitle || titleTag || h1 || null)?.trim() || null;
 
     const ogDesc = doc.querySelector('meta[property="og:description"]')?.getAttribute("content");
+    const twitterDesc = doc.querySelector('meta[name="twitter:description"]')?.getAttribute("content");
     const metaDesc = doc.querySelector('meta[name="description"]')?.getAttribute("content");
-    const rawDesc = ogDesc || metaDesc || null;
+    const rawDesc = ogDesc || twitterDesc || metaDesc || null;
     if (rawDesc) {
       const trimmed = rawDesc.trim().replace(/\s+/g, " ");
       if (trimmed.length <= 280) {
@@ -158,10 +193,21 @@ async function scrapeMeta(url: string) {
       }
     }
   } catch (e) {
-    console.warn("Scrape failed:", e.message);
+    console.warn("scrapeMeta exception:", (e as Error).message);
   }
 
   return result;
+}
+
+// Google's public favicon service — reliable fallback when we can't parse
+// the page's own icon link (bot-blocked pages, SPA shells, etc.).
+function googleFaviconUrl(url: string): string | null {
+  try {
+    const host = new URL(url).hostname;
+    return `https://www.google.com/s2/favicons?sz=128&domain=${encodeURIComponent(host)}`;
+  } catch {
+    return null;
+  }
 }
 
 serve(async (req) => {
@@ -217,10 +263,11 @@ serve(async (req) => {
       return json(req, { found: true, existing: true, applications: existing });
     }
 
-    let scraped: { title: string | null; description: string | null; icon: string | null } = {
+    let scraped: { title: string | null; description: string | null; icon: string | null; blocked: boolean } = {
       title: null,
       description: null,
       icon: null,
+      blocked: false,
     };
     let normalizedUrl = "";
 
@@ -232,13 +279,14 @@ serve(async (req) => {
       scraped = await scrapeMeta(normalizedUrl);
     }
 
-    // Post-process through gpt-4o-mini so the new entry matches the house
-    // style (short name, 3-8 word description). Falls back to raw scrape if
-    // the OpenAI call fails or no key is configured.
+    // Always run cleanScrapedMeta when we have a URL + OpenAI, so that
+    // pages that block bots (empty scrape) still get a sensible name/
+    // description inferred from the URL. The model has the RULES prompt
+    // for this fallback case.
     const openaiKey = Deno.env.get("OPENAI_API_KEY");
     let cleanName: string = scraped.title || query.trim();
     let cleanDesc: string | null = scraped.description || null;
-    if (openaiKey && normalizedUrl && (scraped.title || scraped.description)) {
+    if (openaiKey && normalizedUrl) {
       const cleaned = await cleanScrapedMeta(
         scraped.title || query.trim(),
         scraped.description || "",
@@ -249,13 +297,21 @@ serve(async (req) => {
       if (cleaned.description) cleanDesc = cleaned.description;
     }
 
+    // Favicon fallback: if we couldn't parse the page's own link, use
+    // Google's public favicon service as a last resort.
+    const icon = scraped.icon || (normalizedUrl ? googleFaviconUrl(normalizedUrl) : null);
+
     return json(req, {
       found: false,
       scraped: {
         name: cleanName,
         description: cleanDesc,
-        icon: scraped.icon || null,
+        icon,
         vendor_url: vendorUrl?.trim() || null,
+        // Surfaced for debug/UX: whether the page blocked our scraper.
+        // Frontend can optionally show a hint like "Site blocked metadata read;
+        // inferred from URL — please verify."
+        blocked: scraped.blocked,
       },
     });
   } catch (e) {
