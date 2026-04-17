@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import ContactsSection from '@/components/ContactsSection';
 import ContractsSection from '@/components/ContractsSection';
 import { AppContractsEditor } from '@/components/AppContractsEditor';
+import { CATEGORY_COLORS } from '@/lib/constants';
 
 const COLORS = [
   'hsl(var(--primary))',
@@ -395,8 +396,11 @@ export default function Budget() {
                   itemStyle={{ color: 'hsl(var(--foreground))' }}
                 />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                  {categorySpend.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  {categorySpend.map((entry, i) => (
+                    <Cell
+                      key={i}
+                      fill={CATEGORY_COLORS[entry.name] || COLORS[i % COLORS.length]}
+                    />
                   ))}
                 </Bar>
               </BarChart>
@@ -463,7 +467,15 @@ export default function Budget() {
                 ) : filteredApps.map(app => (
                   <TableRow key={app.id} className="cursor-pointer hover:bg-accent/50" onClick={() => openAppEdit(app)}>
                     <TableCell className="font-medium">{app.name}</TableCell>
-                    <TableCell><Badge variant="secondary" className="text-xs">{app.category}</Badge></TableCell>
+                    <TableCell>
+                      <span className="inline-flex items-center gap-1.5 rounded-full border bg-muted/30 px-2 py-0.5 text-xs whitespace-nowrap">
+                        <span
+                          className="h-2 w-2 rounded-full shrink-0"
+                          style={{ backgroundColor: CATEGORY_COLORS[app.category] || 'hsl(210, 10%, 50%)' }}
+                        />
+                        {app.category}
+                      </span>
+                    </TableCell>
                     <TableCell>{app.cost_monthly ? fmt(app.cost_monthly) : '—'}</TableCell>
                     <TableCell>{app.cost_annual ? fmt(app.cost_annual) : '—'}</TableCell>
                     <TableCell className="capitalize">{app.billing_cycle || '—'}</TableCell>
