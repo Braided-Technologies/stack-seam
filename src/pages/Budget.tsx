@@ -511,9 +511,9 @@ export default function Budget() {
                 <TabsTrigger value="documents">Documents</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="details" className="flex-1 min-h-0 pt-2 mt-0">
-                <ScrollArea className="h-full">
-                  <div className="space-y-4 pr-2">
+              <TabsContent value="details" className="flex-1 min-h-0 pt-2 mt-0 flex flex-col">
+                <ScrollArea className="flex-1 min-h-0">
+                  <div className="space-y-4 pr-2 pb-2">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Monthly Cost ($)</Label>
@@ -562,9 +562,13 @@ export default function Budget() {
                         disabled={!isAdmin}
                       />
                     </div>
-                    {isAdmin && <Button className="w-full" onClick={handleSaveDetails}>Save Details</Button>}
                   </div>
                 </ScrollArea>
+                {isAdmin && (
+                  <div className="shrink-0 pt-3 border-t mt-3">
+                    <Button className="w-full" onClick={handleSaveDetails}>Save Details</Button>
+                  </div>
+                )}
               </TabsContent>
 
               <TabsContent value="contacts" className="pt-2">
