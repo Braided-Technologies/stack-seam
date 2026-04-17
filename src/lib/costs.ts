@@ -11,19 +11,32 @@ export function parseCostInput(raw: unknown): number {
   return Number(s);
 }
 
+// Format a raw numeric-ish value as a 2-decimal currency string. Empty input
+// returns empty (not '0.00') so blurring an untouched field doesn't insert
+// a spurious zero. Invalid values pass through untouched so the user can
+// correct them without losing their typing.
+export function formatCostValue(raw: unknown): string {
+  if (raw == null || raw === '') return '';
+  const n = parseCostInput(raw);
+  if (!Number.isFinite(n)) return String(raw);
+  return n.toFixed(2);
+}
+
 function deriveCostPair(
   monthlyKey: string,
   annualKey: string,
   field: string,
   raw: string,
-): Record<string, string | number> {
-  const patch: Record<string, string | number> = { [field]: raw };
+): Record<string, string> {
+  const patch: Record<string, string> = { [field]: raw };
   const n = parseCostInput(raw);
   if (raw !== '' && Number.isFinite(n) && n > 0) {
     const isMonthly = field === monthlyKey;
     const other = isMonthly ? annualKey : monthlyKey;
     const derived = isMonthly ? n * 12 : n / 12;
-    patch[other] = Math.round(derived * 100) / 100;
+    // Derived partner always formatted to 2 decimals so it displays as
+    // a clean currency string while the user types in the other field.
+    patch[other] = (Math.round(derived * 100) / 100).toFixed(2);
   }
   return patch;
 }
@@ -31,13 +44,13 @@ function deriveCostPair(
 export function applyCostRatio(
   field: 'cost_monthly' | 'cost_annual',
   raw: string,
-): Record<string, string | number> {
+): Record<string, string> {
   return deriveCostPair('cost_monthly', 'cost_annual', field, raw);
 }
 
 export function applyInternalCostRatio(
   field: 'internal_cost_monthly' | 'internal_cost_annual',
   raw: string,
-): Record<string, string | number> {
+): Record<string, string> {
   return deriveCostPair('internal_cost_monthly', 'internal_cost_annual', field, raw);
 }
