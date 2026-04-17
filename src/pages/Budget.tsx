@@ -122,6 +122,7 @@ export default function Budget() {
     return uaIdsWithContracts.size;
   }, [allContracts]);
   const [renewalWindow, setRenewalWindow] = useState<30 | 60 | 90>(90);
+  const [renewalFilterActive, setRenewalFilterActive] = useState(false);
   const upcomingRenewals = useMemo(() => {
     const now = new Date();
     const cutoff = new Date(now.getTime() + renewalWindow * 24 * 60 * 60 * 1000);
@@ -136,6 +137,25 @@ export default function Budget() {
       }
     }
     return count;
+  }, [userApps, renewalWindow]);
+  // Set of user_application_ids that have at least one contract renewing in
+  // the selected window — used to filter the apps list when the Upcoming
+  // Renewals card is clicked.
+  const upcomingRenewalAppIds = useMemo(() => {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() + renewalWindow * 24 * 60 * 60 * 1000);
+    const ids = new Set<string>();
+    for (const ua of userApps as any[]) {
+      for (const c of appContracts(ua)) {
+        if (!c.renewal_date) continue;
+        const d = new Date(c.renewal_date);
+        if (d >= now && d <= cutoff) {
+          ids.add(ua.id);
+          break;
+        }
+      }
+    }
+    return ids;
   }, [userApps, renewalWindow]);
 
   const [spendView, setSpendView] = useState<'monthly' | 'annual'>('monthly');
@@ -200,10 +220,16 @@ export default function Budget() {
   }, [userApps, sortKey, sortAsc]);
 
   const filteredApps = useMemo(() => {
-    if (!appSearch) return sortedApps;
-    const q = appSearch.toLowerCase();
-    return sortedApps.filter(a => a.name.toLowerCase().includes(q) || a.category.toLowerCase().includes(q));
-  }, [sortedApps, appSearch]);
+    let result = sortedApps;
+    if (renewalFilterActive) {
+      result = result.filter(a => upcomingRenewalAppIds.has(a.id));
+    }
+    if (appSearch) {
+      const q = appSearch.toLowerCase();
+      result = result.filter(a => a.name.toLowerCase().includes(q) || a.category.toLowerCase().includes(q));
+    }
+    return result;
+  }, [sortedApps, appSearch, renewalFilterActive, upcomingRenewalAppIds]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc(!sortAsc);
@@ -281,14 +307,24 @@ export default function Budget() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Apps with Documents</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{appsWithContracts}</p>
+            <p className="text-2xl font-bold">
+              {appsWithContracts}
+              <span className="text-muted-foreground font-normal">/{userApps.length}</span>
+            </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card
+          className={`cursor-pointer transition-colors ${renewalFilterActive ? 'border-primary bg-primary/5' : 'hover:border-foreground/20'}`}
+          onClick={() => setRenewalFilterActive(v => !v)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setRenewalFilterActive(v => !v); } }}
+          title={renewalFilterActive ? 'Click to clear filter' : 'Click to filter the list below'}
+        >
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium text-muted-foreground">Upcoming Renewals</CardTitle>
-              <div className="flex items-center gap-0.5 rounded-md border p-0.5">
+              <div className="flex items-center gap-0.5 rounded-md border p-0.5" onClick={e => e.stopPropagation()}>
                 {([30, 60, 90] as const).map(w => (
                   <Button
                     key={w}
@@ -305,6 +341,9 @@ export default function Budget() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{upcomingRenewals}</p>
+            {renewalFilterActive && (
+              <p className="text-[11px] text-muted-foreground mt-1">Filtering list · click to clear</p>
+            )}
           </CardContent>
         </Card>
       </div>
