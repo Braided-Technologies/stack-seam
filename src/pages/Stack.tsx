@@ -21,6 +21,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import ContactsSection from '@/components/ContactsSection';
 import ContractsSection from '@/components/ContractsSection';
 import { TermBillingFields } from '@/components/TermBillingFields';
+import { applyCostRatio } from '@/lib/costs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CategoryCombobox } from '@/components/ui/category-combobox';
 
@@ -724,11 +725,11 @@ export default function Stack() {
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                               <Label>Monthly Cost ($)</Label>
-                              <Input type="number" value={editingApp?.cost_monthly ?? userApp!.cost_monthly ?? ''} onChange={e => setEditingApp({ ...userApp, ...(editingApp || {}), appName: infoApp.name, cost_monthly: e.target.value })} disabled={!isAdmin} />
+                              <Input type="number" value={editingApp?.cost_monthly ?? userApp!.cost_monthly ?? ''} onChange={e => setEditingApp({ ...userApp, ...(editingApp || {}), appName: infoApp.name, ...applyCostRatio('cost_monthly', e.target.value) })} disabled={!isAdmin} />
                             </div>
                             <div className="space-y-2">
                               <Label>Annual Cost ($)</Label>
-                              <Input type="number" value={editingApp?.cost_annual ?? userApp!.cost_annual ?? ''} onChange={e => setEditingApp({ ...userApp, ...(editingApp || {}), appName: infoApp.name, cost_annual: e.target.value })} disabled={!isAdmin} />
+                              <Input type="number" value={editingApp?.cost_annual ?? userApp!.cost_annual ?? ''} onChange={e => setEditingApp({ ...userApp, ...(editingApp || {}), appName: infoApp.name, ...applyCostRatio('cost_annual', e.target.value) })} disabled={!isAdmin} />
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-4">
