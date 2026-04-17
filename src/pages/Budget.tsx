@@ -512,8 +512,8 @@ export default function Budget() {
               </TabsList>
 
               <TabsContent value="details" className="flex-1 min-h-0 pt-2 mt-0 flex flex-col">
-                <ScrollArea className="flex-1 min-h-0">
-                  <div className="space-y-4 pr-2 pb-2">
+                <div className="flex-1 min-h-0 overflow-y-auto pr-2">
+                  <div className="space-y-4 pb-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Monthly Cost ($)</Label>
@@ -556,14 +556,14 @@ export default function Budget() {
                     <div className="space-y-2">
                       <Label>Notes</Label>
                       <textarea
-                        className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                         value={editingApp.notes || ''}
                         onChange={e => setEditingApp({ ...editingApp, notes: e.target.value })}
                         disabled={!isAdmin}
                       />
                     </div>
                   </div>
-                </ScrollArea>
+                </div>
                 {isAdmin && (
                   <div className="shrink-0 pt-3 border-t mt-3">
                     <Button className="w-full" onClick={handleSaveDetails}>Save Details</Button>
