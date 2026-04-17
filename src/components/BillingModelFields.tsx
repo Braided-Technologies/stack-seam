@@ -20,6 +20,8 @@ interface BillingModelFieldsProps {
     internal_cost_monthly?: number | null;
     internal_cost_annual?: number | null;
   }) => void;
+  /** Tight layout for places where vertical real estate is scarce (e.g. Documents tab). */
+  compact?: boolean;
 }
 
 // How is this tool consumed? Internal-only, bundled into client services (we pay
@@ -35,6 +37,7 @@ export function BillingModelFields({
   internalCostAnnual,
   disabled,
   onChange,
+  compact,
 }: BillingModelFieldsProps) {
   const model = normalizeBillingModel(billingModel);
 
@@ -45,6 +48,57 @@ export function BillingModelFields({
       onChange({ billing_model: next });
     }
   };
+
+  if (compact) {
+    return (
+      <div className="space-y-2">
+        <RadioGroup
+          value={model}
+          onValueChange={v => setModel(v as BillingModel)}
+          disabled={disabled}
+          className="flex flex-wrap gap-x-4 gap-y-1"
+        >
+          <label className={`flex items-center gap-2 ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+            <RadioGroupItem value="internal" />
+            <span className="text-xs">Internal only</span>
+          </label>
+          <label className={`flex items-center gap-2 ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+            <RadioGroupItem value="bundled_passthrough" />
+            <span className="text-xs">Bundled passthrough</span>
+          </label>
+          <label className={`flex items-center gap-2 ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+            <RadioGroupItem value="direct_passthrough" />
+            <span className="text-xs">Direct passthrough</span>
+          </label>
+        </RadioGroup>
+
+        {model === 'bundled_passthrough' && (
+          <div className="flex items-center gap-3 pt-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">Internal / mo</span>
+              <Input
+                type="number"
+                value={internalCostMonthly ?? ''}
+                onChange={e => onChange(applyInternalCostRatio('internal_cost_monthly', e.target.value))}
+                disabled={disabled}
+                className="h-7 w-24 text-xs"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">Internal / yr</span>
+              <Input
+                type="number"
+                value={internalCostAnnual ?? ''}
+                onChange={e => onChange(applyInternalCostRatio('internal_cost_annual', e.target.value))}
+                disabled={disabled}
+                className="h-7 w-24 text-xs"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
