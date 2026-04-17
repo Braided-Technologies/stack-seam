@@ -251,7 +251,17 @@ export default function Budget() {
     URL.revokeObjectURL(url);
   };
 
-  const fmt = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 });
+  // Whole dollars render as '$1,750' (clean), non-integer amounts always
+  // render with 2 decimals ('$4.40', '$502.10') so partials don't look chopped.
+  const fmt = (n: number) => {
+    const hasCents = Math.abs(n % 1) > 0.0001;
+    return n.toLocaleString('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: hasCents ? 2 : 0,
+      maximumFractionDigits: 2,
+    });
+  };
 
   const openAppEdit = (app: typeof sortedApps[0]) => {
     setEditingApp({ ...app });
