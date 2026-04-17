@@ -35,8 +35,10 @@ export function TermBillingFields({ termMonths, billingCycle, startDate, renewal
   const years = choice === 'multi' ? multiYearFromMonths(termMonths) : 2;
 
   const setChoice = (next: TermChoice) => {
-    // Switching to Monthly clears start/renewal — neither concept applies to month-to-month.
-    if (next === 'monthly') onChange({ term_months: null, start_date: null, renewal_date: null });
+    // Term only controls term_months. Start/Renewal are always visible and always
+    // preserved — month-to-month contracts still benefit from a recorded start
+    // date, and some orgs set an informal renewal/review date even on MTM.
+    if (next === 'monthly') onChange({ term_months: null });
     else if (next === '1y') onChange({ term_months: 12 });
     else onChange({ term_months: years * 12 });
   };
@@ -115,7 +117,7 @@ export function TermBillingFields({ termMonths, billingCycle, startDate, renewal
           </select>
         </div>
       </div>
-      {choice !== 'monthly' && (
+      {(
         <div className={rowCls}>
           <div className={groupCls}>
             <Label className={compact ? 'text-xs font-medium' : undefined}>Start Date</Label>
