@@ -488,14 +488,12 @@ export default function Budget() {
                       isAdmin={isAdmin}
                       onPreviewChange={setDocPreviewActive}
                       onExtractedData={async (data) => {
-                        // Scan import creates a NEW contract with the extracted data.
-                        // (Previously it patched the single user_applications row; now that
-                        // multiple contracts are supported, each imported invoice becomes
-                        // its own contract. Users can edit/merge/delete in the Details tab.)
-                        const payload: any = {
-                          user_application_id: editingApp.id,
-                          label: data.vendor_name ? `Imported — ${data.vendor_name}` : null,
-                        };
+                        // Scan import either creates a new contract or updates an
+                        // existing one, based on the target selector in the scan modal.
+                        const targetId = data._target_contract_id;
+                        const payload: any = { user_application_id: editingApp.id };
+                        if (targetId && targetId !== 'new') payload.id = targetId;
+                        else if (data.vendor_name) payload.label = `Imported — ${data.vendor_name}`;
                         if (data.cost_monthly != null) payload.cost_monthly = Number(data.cost_monthly);
                         if (data.cost_annual != null) payload.cost_annual = Number(data.cost_annual);
                         if (data.renewal_date) payload.renewal_date = data.renewal_date;
@@ -506,7 +504,10 @@ export default function Budget() {
                         if (data.notes) payload.notes = data.notes;
                         try {
                           await upsertContract.mutateAsync(payload);
-                          toast({ title: 'Imported as new contract', description: 'Review it in the Details tab to adjust cost type or merge.' });
+                          toast({
+                            title: targetId && targetId !== 'new' ? 'Contract updated' : 'Imported as new contract',
+                            description: 'Review it in the Details tab to adjust cost type or edit further.',
+                          });
                         } catch (e: any) {
                           toast({ title: 'Save failed', description: e.message, variant: 'destructive' });
                         }
