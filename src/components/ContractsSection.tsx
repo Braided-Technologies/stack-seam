@@ -304,7 +304,7 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
       {scanResult && (
         <div className={`rounded-lg border bg-muted/30 flex flex-col ${previewUrl ? 'w-1/2' : 'w-full'}`} style={{ maxHeight: '60vh' }}>
           <ScrollArea className="flex-1 min-h-0">
-            <div className="p-3 text-sm space-y-3">
+            <div className="p-3 pb-4 text-sm space-y-3">
               <p className="font-medium text-xs uppercase tracking-wider text-muted-foreground">Extracted Data — Review & edit before importing</p>
 
               <div className="space-y-2">
