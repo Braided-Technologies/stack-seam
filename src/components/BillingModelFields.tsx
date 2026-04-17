@@ -77,7 +77,7 @@ export function BillingModelFields({
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground whitespace-nowrap">Internal / mo</span>
               <Input
-                type="number"
+                type="text" inputMode="decimal"
                 value={internalCostMonthly ?? ''}
                 onChange={e => onChange(applyInternalCostRatio('internal_cost_monthly', e.target.value))}
                 disabled={disabled}
@@ -87,7 +87,7 @@ export function BillingModelFields({
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground whitespace-nowrap">Internal / yr</span>
               <Input
-                type="number"
+                type="text" inputMode="decimal"
                 value={internalCostAnnual ?? ''}
                 onChange={e => onChange(applyInternalCostRatio('internal_cost_annual', e.target.value))}
                 disabled={disabled}
@@ -139,7 +139,7 @@ export function BillingModelFields({
           <div className="space-y-2">
             <Label>Internal Monthly ($)</Label>
             <Input
-              type="number"
+              type="text" inputMode="decimal"
               value={internalCostMonthly ?? ''}
               onChange={e => onChange(applyInternalCostRatio('internal_cost_monthly', e.target.value))}
               disabled={disabled}
@@ -148,7 +148,7 @@ export function BillingModelFields({
           <div className="space-y-2">
             <Label>Internal Annual ($)</Label>
             <Input
-              type="number"
+              type="text" inputMode="decimal"
               value={internalCostAnnual ?? ''}
               onChange={e => onChange(applyInternalCostRatio('internal_cost_annual', e.target.value))}
               disabled={disabled}
