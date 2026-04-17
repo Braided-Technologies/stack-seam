@@ -19,17 +19,24 @@ interface TermBillingFieldsProps {
   termMonths: number | null;
   billingCycle: string | null;
   startDate: string | null;
+  renewalDate: string | null;
   disabled?: boolean;
-  onChange: (patch: { term_months?: number | null; billing_cycle?: string | null; start_date?: string | null }) => void;
+  onChange: (patch: {
+    term_months?: number | null;
+    billing_cycle?: string | null;
+    start_date?: string | null;
+    renewal_date?: string | null;
+  }) => void;
   compact?: boolean;
 }
 
-export function TermBillingFields({ termMonths, billingCycle, startDate, disabled, onChange, compact }: TermBillingFieldsProps) {
+export function TermBillingFields({ termMonths, billingCycle, startDate, renewalDate, disabled, onChange, compact }: TermBillingFieldsProps) {
   const choice = termMonthsToChoice(termMonths);
   const years = choice === 'multi' ? multiYearFromMonths(termMonths) : 2;
 
   const setChoice = (next: TermChoice) => {
-    if (next === 'monthly') onChange({ term_months: null, start_date: null });
+    // Switching to Monthly clears start/renewal — neither concept applies to month-to-month.
+    if (next === 'monthly') onChange({ term_months: null, start_date: null, renewal_date: null });
     else if (next === '1y') onChange({ term_months: 12 });
     else onChange({ term_months: years * 12 });
   };
@@ -117,7 +124,16 @@ export function TermBillingFields({ termMonths, billingCycle, startDate, disable
               className={inputCls}
             />
           </div>
-          <div />
+          <div className={groupCls}>
+            <Label className={compact ? 'text-xs font-medium' : undefined}>Renewal Date</Label>
+            <Input
+              type="date"
+              value={renewalDate || ''}
+              onChange={e => onChange({ renewal_date: e.target.value || null })}
+              disabled={disabled}
+              className={inputCls}
+            />
+          </div>
         </div>
       )}
     </div>
