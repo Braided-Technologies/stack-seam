@@ -6,7 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { TermBillingFields } from '@/components/TermBillingFields';
 import { applyCostRatio } from '@/lib/costs';
-import { Upload, FileText, Trash2, Download, ScanSearch, Loader2, Check, Eye, EyeOff } from 'lucide-react';
+import { Upload, FileText, Trash2, Download, ScanSearch, Loader2, Check, Eye, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { formatNumber } from '@/lib/formatters';
 import {
@@ -78,6 +78,22 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
       onPreviewChange?.(true);
     }
   };
+
+  // Cycle through uploaded files in the preview pane without closing + reopening.
+  const openPreviewByIndex = async (index: number) => {
+    if (index < 0 || index >= files.length) return;
+    const f = files[index];
+    const { data } = await supabase.storage.from('contracts').createSignedUrl(f.file_path, 300);
+    if (data?.signedUrl) {
+      setPreviewUrl(data.signedUrl);
+      setPreviewFile({ path: f.file_path, name: f.file_name });
+      onPreviewChange?.(true);
+    }
+  };
+
+  const currentPreviewIndex = previewFile ? files.findIndex(f => f.file_path === previewFile.path) : -1;
+  const hasPrevPreview = currentPreviewIndex > 0;
+  const hasNextPreview = currentPreviewIndex >= 0 && currentPreviewIndex < files.length - 1;
 
   const isImage = (fileName: string) => /\.(jpg|jpeg|png|webp|heic|gif)$/i.test(fileName);
   const isPdf = (fileName: string) => /\.pdf$/i.test(fileName);
@@ -283,9 +299,36 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
         {/* Preview panel — right side when scan results visible, standalone otherwise */}
         {previewUrl && previewFile && (
           <div className={`rounded-lg border overflow-hidden flex flex-col ${scanResult ? 'w-1/2 shrink-0' : 'w-full'}`}>
-            <div className="flex items-center justify-between px-3 py-1.5 bg-muted/50 border-b shrink-0">
-              <span className="text-xs font-medium truncate">{previewFile.name}</span>
-              <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setPreviewUrl(null); setPreviewFile(null); onPreviewChange?.(false); }}>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 border-b shrink-0">
+              {files.length > 1 && (
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    disabled={!hasPrevPreview}
+                    onClick={() => openPreviewByIndex(currentPreviewIndex - 1)}
+                    title="Previous document"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                  </Button>
+                  <span className="text-[10px] text-muted-foreground tabular-nums px-1">
+                    {currentPreviewIndex + 1} / {files.length}
+                  </span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    disabled={!hasNextPreview}
+                    onClick={() => openPreviewByIndex(currentPreviewIndex + 1)}
+                    title="Next document"
+                  >
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+              <span className="text-xs font-medium truncate flex-1 min-w-0">{previewFile.name}</span>
+              <Button size="sm" variant="ghost" className="h-6 text-xs shrink-0" onClick={() => { setPreviewUrl(null); setPreviewFile(null); onPreviewChange?.(false); }}>
                 Close
               </Button>
             </div>
