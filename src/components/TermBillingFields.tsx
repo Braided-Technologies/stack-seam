@@ -108,6 +108,7 @@ export function TermBillingFields({ termMonths, billingCycle, startDate, renewal
           >
             <option value="">Select...</option>
             <option value="monthly">Monthly</option>
+            <option value="quarterly">Quarterly</option>
             <option value="annual">Annual</option>
             <option value="multi-year">Multi-Year</option>
             <option value="other">Other</option>
