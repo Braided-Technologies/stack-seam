@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { formatCompactCurrency } from '@/lib/formatters';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
-import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useUpdateUserApplication, useIntegrations, useDiscoverIntegrations, useDeepScanIntegrations, useStartDiscoveryJob, useDiscoveryJob, useActiveDiscoveryJob, useReportIntegration } from '@/hooks/useStackData';
+import { useCategories, useApplications, useUserApplications, useAddUserApplication, useRemoveUserApplication, useIntegrations, useDiscoverIntegrations, useDeepScanIntegrations, useStartDiscoveryJob, useDiscoveryJob, useActiveDiscoveryJob, useReportIntegration } from '@/hooks/useStackData';
 import SearchToolDialog from '@/components/SearchToolDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,9 +20,7 @@ import { Plus, Check, X, ChevronDown, ChevronUp, Settings, Search, Filter, Downl
 import { useAuth } from '@/contexts/AuthContext';
 import ContactsSection from '@/components/ContactsSection';
 import ContractsSection from '@/components/ContractsSection';
-import { TermBillingFields } from '@/components/TermBillingFields';
-import { BillingModelFields } from '@/components/BillingModelFields';
-import { applyCostRatio } from '@/lib/costs';
+import { AppContractsEditor } from '@/components/AppContractsEditor';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CategoryCombobox } from '@/components/ui/category-combobox';
 
@@ -36,7 +34,6 @@ export default function Stack() {
   const { data: allIntegrations = [], refetch: refetchIntegrations } = useIntegrations();
   const addApp = useAddUserApplication();
   const removeApp = useRemoveUserApplication();
-  const updateApp = useUpdateUserApplication();
   const discoverIntegrations = useDiscoverIntegrations();
   const deepScan = useDeepScanIntegrations();
   const startJob = useStartDiscoveryJob();
@@ -57,7 +54,6 @@ export default function Stack() {
   const navigate = useNavigate();
 
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
-  const [editingApp, setEditingApp] = useState<any>(null);
   const [infoApp, setInfoApp] = useState<any>(null);
   const [search, setSearch] = useState('');
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
@@ -88,11 +84,19 @@ export default function Stack() {
   const userAppMap = new Map(userApps.map(ua => [ua.application_id, ua]));
   const userAppIds = useMemo(() => new Set(userApps.map(ua => ua.application_id)), [userApps]);
 
-  // Summary stats
+  // Summary stats — sum across each user_application's contracts
   const summary = useMemo(() => {
     const totalApps = userApps.length;
-    const totalMonthly = userApps.reduce((sum, ua) => sum + (Number(ua.cost_monthly) || 0), 0);
-    const totalAnnual = userApps.reduce((sum, ua) => sum + (Number(ua.cost_annual) || 0), 0);
+    let totalMonthly = 0;
+    let totalAnnual = 0;
+    for (const ua of userApps as any[]) {
+      for (const c of (ua.user_application_contracts || [])) {
+        const m = Number(c.cost_monthly) || 0;
+        const a = Number(c.cost_annual) || 0;
+        totalMonthly += m > 0 ? m : a > 0 ? a / 12 : 0;
+        totalAnnual += a > 0 ? a : m > 0 ? m * 12 : 0;
+      }
+    }
     const catsUsed = new Set(userApps.map(ua => (ua as any).applications?.categories?.name).filter(Boolean)).size;
     return { totalApps, totalMonthly, totalAnnual, catsUsed };
   }, [userApps]);
@@ -182,47 +186,34 @@ export default function Stack() {
     }
   };
 
-  const handleSaveDetails = async () => {
-    if (!editingApp) return;
-    try {
-      await updateApp.mutateAsync({
-        id: editingApp.id,
-        cost_monthly: editingApp.cost_monthly ? Number(editingApp.cost_monthly) : null,
-        cost_annual: editingApp.cost_annual ? Number(editingApp.cost_annual) : null,
-        renewal_date: editingApp.renewal_date || null,
-        start_date: editingApp.start_date || null,
-        term_months: editingApp.term_months ? Number(editingApp.term_months) : null,
-        license_count: editingApp.license_count ? Number(editingApp.license_count) : null,
-        billing_cycle: editingApp.billing_cycle || null,
-        notes: editingApp.notes || null,
-        billing_model: editingApp.billing_model || 'internal',
-        internal_cost_monthly: editingApp.internal_cost_monthly != null && editingApp.internal_cost_monthly !== '' ? Number(editingApp.internal_cost_monthly) : null,
-        internal_cost_annual: editingApp.internal_cost_annual != null && editingApp.internal_cost_annual !== '' ? Number(editingApp.internal_cost_annual) : null,
-      });
-      toast({ title: 'Details saved' });
-      setInfoApp(null);
-      setEditingApp(null);
-    } catch (e: any) {
-      toast({ title: 'Error', description: e.message, variant: 'destructive' });
-    }
-  };
-
   const handleExportCSV = () => {
-    const rows = [['Application', 'Category', 'Monthly Cost', 'Annual Cost', 'Billing Cycle', 'Renewal Date', 'Term (Months)', 'License Count', 'Notes']];
-    for (const ua of userApps) {
+    const rows = [['Application', 'Category', 'Contract Label', 'Monthly Cost', 'Annual Cost', 'Billing Cycle', 'Renewal Date', 'Start Date', 'Term (Months)', 'Cost Type', 'Internal Monthly', 'Internal Annual', 'License Count', 'Notes']];
+    for (const ua of userApps as any[]) {
       const app = (ua as any).applications;
       const catName = app?.categories?.name || '';
-      rows.push([
-        app?.name || '',
-        catName,
-        ua.cost_monthly?.toString() || '',
-        ua.cost_annual?.toString() || '',
-        ua.billing_cycle || '',
-        ua.renewal_date || '',
-        ua.term_months?.toString() || '',
-        ua.license_count?.toString() || '',
-        (ua.notes || '').replace(/"/g, '""'),
-      ]);
+      const contracts = ua.user_application_contracts || [];
+      if (contracts.length === 0) {
+        rows.push([app?.name || '', catName, '', '', '', '', '', '', '', '', '', '', '', '']);
+        continue;
+      }
+      for (const c of contracts) {
+        rows.push([
+          app?.name || '',
+          catName,
+          c.label || '',
+          c.cost_monthly?.toString() || '',
+          c.cost_annual?.toString() || '',
+          c.billing_cycle || '',
+          c.renewal_date || '',
+          c.start_date || '',
+          c.term_months?.toString() || '',
+          c.billing_model || 'internal',
+          c.internal_cost_monthly?.toString() || '',
+          c.internal_cost_annual?.toString() || '',
+          c.license_count?.toString() || '',
+          (c.notes || '').replace(/"/g, '""'),
+        ]);
+      }
     }
     const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -724,49 +715,8 @@ export default function Stack() {
                 {isInStack && (
                   <TabsContent value="settings" className="pt-2 overflow-y-auto max-h-[60vh]">
                       <div className="space-y-6 px-2 py-2 pr-3">
-                        {/* Details */}
-                        <div className="space-y-4">
-                          <p className="text-sm font-medium">Details</p>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <Label>Monthly Cost ($)</Label>
-                              <Input type="number" value={editingApp?.cost_monthly ?? userApp!.cost_monthly ?? ''} onChange={e => setEditingApp({ ...userApp, ...(editingApp || {}), appName: infoApp.name, ...applyCostRatio('cost_monthly', e.target.value) })} disabled={!isAdmin} />
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Annual Cost ($)</Label>
-                              <Input type="number" value={editingApp?.cost_annual ?? userApp!.cost_annual ?? ''} onChange={e => setEditingApp({ ...userApp, ...(editingApp || {}), appName: infoApp.name, ...applyCostRatio('cost_annual', e.target.value) })} disabled={!isAdmin} />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>License Count</Label>
-                            <Input type="number" value={editingApp?.license_count ?? userApp!.license_count ?? ''} onChange={e => setEditingApp({ ...userApp, ...(editingApp || {}), appName: infoApp.name, license_count: e.target.value })} disabled={!isAdmin} />
-                          </div>
-                          <TermBillingFields
-                            termMonths={(editingApp?.term_months ?? userApp!.term_months) ? Number(editingApp?.term_months ?? userApp!.term_months) : null}
-                            billingCycle={(editingApp?.billing_cycle ?? userApp!.billing_cycle) || null}
-                            startDate={(editingApp?.start_date ?? userApp!.start_date) || null}
-                            renewalDate={(editingApp?.renewal_date ?? userApp!.renewal_date) || null}
-                            disabled={!isAdmin}
-                            onChange={patch => setEditingApp({ ...userApp, appName: infoApp.name, ...(editingApp || {}), ...patch })}
-                          />
-                          <BillingModelFields
-                            billingModel={(editingApp?.billing_model ?? (userApp as any)!.billing_model) || 'internal'}
-                            internalCostMonthly={(editingApp?.internal_cost_monthly ?? (userApp as any)!.internal_cost_monthly) ?? null}
-                            internalCostAnnual={(editingApp?.internal_cost_annual ?? (userApp as any)!.internal_cost_annual) ?? null}
-                            disabled={!isAdmin}
-                            onChange={patch => setEditingApp({ ...userApp, appName: infoApp.name, ...(editingApp || {}), ...patch })}
-                          />
-                          <div className="space-y-2">
-                            <Label>Notes</Label>
-                            <textarea
-                              className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                              value={editingApp?.notes ?? userApp!.notes ?? ''}
-                              onChange={e => setEditingApp({ ...userApp, ...(editingApp || {}), appName: infoApp.name, notes: e.target.value })}
-                              disabled={!isAdmin}
-                            />
-                          </div>
-                          {isAdmin && <Button className="w-full" onClick={handleSaveDetails}>Save Details</Button>}
-                        </div>
+                        {/* Contracts for this app — cost, term, renewal, cost type all live per-contract */}
+                        <AppContractsEditor userApplicationId={userApp!.id} disabled={!isAdmin} />
 
                         {/* Contacts */}
                         <ContactsSection userApplicationId={userApp!.id} isAdmin={isAdmin} />
