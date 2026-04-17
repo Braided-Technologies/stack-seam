@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { TermBillingFields } from '@/components/TermBillingFields';
-import { applyCostRatio, parseCostInput } from '@/lib/costs';
+import { applyCostRatio, parseCostInput, formatCostValue } from '@/lib/costs';
 import { Upload, FileText, Trash2, Download, ScanSearch, Loader2, Check, Eye, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { formatNumber } from '@/lib/formatters';
@@ -407,6 +407,14 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
                               setEditableFields(prev => ({ ...prev, ...applyCostRatio(key, e.target.value) }));
                             } else {
                               updateField(key, e.target.value);
+                            }
+                          }}
+                          onBlur={e => {
+                            if (key === 'cost_monthly' || key === 'cost_annual') {
+                              const formatted = formatCostValue(e.target.value);
+                              if (formatted !== e.target.value) {
+                                setEditableFields(prev => ({ ...prev, ...applyCostRatio(key, formatted) }));
+                              }
                             }
                           }}
                           className="h-8 text-xs flex-1"
