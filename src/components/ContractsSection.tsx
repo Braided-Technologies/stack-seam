@@ -309,7 +309,8 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
 
               <div className="space-y-2">
                 {SIMPLE_FIELDS.map(({ key, label, type }) => {
-                  if (editableFields[key] == null) return null;
+                  // Always render core fields — even when the AI didn't extract them —
+                  // so the user can fill in values the scan missed on complex invoices.
                   const isNotes = key === 'notes';
                   return (
                     <div key={key} className="flex items-start gap-2">
@@ -331,7 +332,7 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
                               updateField(key, e.target.value);
                             }
                           }}
-                          className="h-7 text-xs flex-1"
+                          className="h-8 text-xs flex-1"
                         />
                       )}
                     </div>
