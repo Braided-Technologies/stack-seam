@@ -835,6 +835,74 @@ export type Database = {
         }
         Relationships: []
       }
+      user_application_contracts: {
+        Row: {
+          billing_cycle: string | null
+          billing_model: string
+          cost_annual: number | null
+          cost_monthly: number | null
+          created_at: string
+          display_order: number
+          id: string
+          internal_cost_annual: number | null
+          internal_cost_monthly: number | null
+          label: string | null
+          license_count: number | null
+          notes: string | null
+          renewal_date: string | null
+          start_date: string | null
+          term_months: number | null
+          updated_at: string
+          user_application_id: string
+        }
+        Insert: {
+          billing_cycle?: string | null
+          billing_model?: string
+          cost_annual?: number | null
+          cost_monthly?: number | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          internal_cost_annual?: number | null
+          internal_cost_monthly?: number | null
+          label?: string | null
+          license_count?: number | null
+          notes?: string | null
+          renewal_date?: string | null
+          start_date?: string | null
+          term_months?: number | null
+          updated_at?: string
+          user_application_id: string
+        }
+        Update: {
+          billing_cycle?: string | null
+          billing_model?: string
+          cost_annual?: number | null
+          cost_monthly?: number | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          internal_cost_annual?: number | null
+          internal_cost_monthly?: number | null
+          label?: string | null
+          license_count?: number | null
+          notes?: string | null
+          renewal_date?: string | null
+          start_date?: string | null
+          term_months?: number | null
+          updated_at?: string
+          user_application_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_application_contracts_user_application_id_fkey"
+            columns: ["user_application_id"]
+            isOneToOne: false
+            referencedRelation: "user_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_applications: {
         Row: {
           application_id: string
