@@ -1,7 +1,7 @@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { applyInternalCostRatio } from '@/lib/costs';
+import { applyInternalCostRatio, formatCostValue } from '@/lib/costs';
 
 export type BillingModel = 'internal' | 'bundled_passthrough' | 'direct_passthrough';
 
@@ -80,6 +80,10 @@ export function BillingModelFields({
                 type="text" inputMode="decimal"
                 value={internalCostMonthly ?? ''}
                 onChange={e => onChange(applyInternalCostRatio('internal_cost_monthly', e.target.value))}
+                onBlur={e => {
+                  const f = formatCostValue(e.target.value);
+                  if (f !== e.target.value) onChange(applyInternalCostRatio('internal_cost_monthly', f));
+                }}
                 disabled={disabled}
                 className="h-7 w-24 text-xs"
               />
@@ -90,6 +94,10 @@ export function BillingModelFields({
                 type="text" inputMode="decimal"
                 value={internalCostAnnual ?? ''}
                 onChange={e => onChange(applyInternalCostRatio('internal_cost_annual', e.target.value))}
+                onBlur={e => {
+                  const f = formatCostValue(e.target.value);
+                  if (f !== e.target.value) onChange(applyInternalCostRatio('internal_cost_annual', f));
+                }}
                 disabled={disabled}
                 className="h-7 w-24 text-xs"
               />
@@ -145,6 +153,10 @@ export function BillingModelFields({
               type="text" inputMode="decimal"
               value={internalCostMonthly ?? ''}
               onChange={e => onChange(applyInternalCostRatio('internal_cost_monthly', e.target.value))}
+              onBlur={e => {
+                const f = formatCostValue(e.target.value);
+                if (f !== e.target.value) onChange(applyInternalCostRatio('internal_cost_monthly', f));
+              }}
               disabled={disabled}
             />
           </div>
@@ -154,6 +166,10 @@ export function BillingModelFields({
               type="text" inputMode="decimal"
               value={internalCostAnnual ?? ''}
               onChange={e => onChange(applyInternalCostRatio('internal_cost_annual', e.target.value))}
+              onBlur={e => {
+                const f = formatCostValue(e.target.value);
+                if (f !== e.target.value) onChange(applyInternalCostRatio('internal_cost_annual', f));
+              }}
               disabled={disabled}
             />
           </div>
