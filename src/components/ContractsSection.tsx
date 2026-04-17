@@ -174,6 +174,12 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
         if (sumMonthly > 0 && !editable.cost_monthly) editable.cost_monthly = sumMonthly;
         if (sumAnnual > 0 && !editable.cost_annual) editable.cost_annual = sumAnnual;
       }
+      // Cross-fill the sibling cost via the 12x ratio so both fields are populated
+      // in the review panel — user doesn't have to click into one to derive the other.
+      const m = Number(editable.cost_monthly) || 0;
+      const a = Number(editable.cost_annual) || 0;
+      if (m > 0 && !(a > 0)) editable.cost_annual = Math.round(m * 12 * 100) / 100;
+      else if (a > 0 && !(m > 0)) editable.cost_monthly = Math.round((a / 12) * 100) / 100;
       setEditableFields(editable);
       setEditableLineItems(lineItems);
       toast({ title: 'Document scanned', description: 'Review and edit extracted data below, then import.' });
