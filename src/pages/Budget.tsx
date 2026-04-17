@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useUserApplications, useUpdateUserApplication } from '@/hooks/useStackData';
+import { useUserApplications, useUpsertUserApplicationContract } from '@/hooks/useStackData';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
@@ -18,9 +18,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import ContactsSection from '@/components/ContactsSection';
 import ContractsSection from '@/components/ContractsSection';
-import { TermBillingFields } from '@/components/TermBillingFields';
-import { BillingModelFields } from '@/components/BillingModelFields';
-import { applyCostRatio } from '@/lib/costs';
+import { AppContractsEditor } from '@/components/AppContractsEditor';
 
 const COLORS = [
   'hsl(var(--primary))',
@@ -38,7 +36,7 @@ export default function Budget() {
   const initialTab = searchParams.get('tab') || 'details';
   const { orgId, userRole } = useAuth();
   const { data: userApps = [] } = useUserApplications();
-  const updateApp = useUpdateUserApplication();
+  const upsertContract = useUpsertUserApplicationContract();
   const { toast } = useToast();
   const isAdmin = userRole === 'admin' || userRole === 'platform_admin';
   const [sortKey, setSortKey] = useState<SortKey>('name');
@@ -64,61 +62,61 @@ export default function Budget() {
     },
   });
 
-  // Compute effective totals: monthly includes annual/12, annual includes monthly*12
+  // Per-contract rollup helpers. Each user_application now has 0..N contracts;
+  // the app-level totals are sums across its contracts. A missing monthly cost
+  // is derived from annual/12 (and vice versa).
+  const contractMonthly = (c: any) => {
+    const m = Number(c?.cost_monthly) || 0;
+    const a = Number(c?.cost_annual) || 0;
+    if (m > 0) return m;
+    if (a > 0) return a / 12;
+    return 0;
+  };
+  const contractAnnual = (c: any) => {
+    const m = Number(c?.cost_monthly) || 0;
+    const a = Number(c?.cost_annual) || 0;
+    if (a > 0) return a;
+    if (m > 0) return m * 12;
+    return 0;
+  };
+  // Internal overhead per contract: full cost if internal; the internal_cost_*
+  // portion if bundled_passthrough; zero for direct_passthrough.
+  const contractInternalMonthly = (c: any) => {
+    const model = c?.billing_model || 'internal';
+    if (model === 'direct_passthrough') return 0;
+    if (model === 'bundled_passthrough') {
+      const im = Number(c?.internal_cost_monthly) || 0;
+      const ia = Number(c?.internal_cost_annual) || 0;
+      if (im > 0) return im;
+      if (ia > 0) return ia / 12;
+      return 0;
+    }
+    return contractMonthly(c);
+  };
+  const contractInternalAnnual = (c: any) => {
+    const model = c?.billing_model || 'internal';
+    if (model === 'direct_passthrough') return 0;
+    if (model === 'bundled_passthrough') {
+      const im = Number(c?.internal_cost_monthly) || 0;
+      const ia = Number(c?.internal_cost_annual) || 0;
+      if (ia > 0) return ia;
+      if (im > 0) return im * 12;
+      return 0;
+    }
+    return contractAnnual(c);
+  };
+  const appContracts = (ua: any): any[] => ua?.user_application_contracts || [];
+  const sumAcrossContracts = (ua: any, fn: (c: any) => number) =>
+    appContracts(ua).reduce((s, c) => s + fn(c), 0);
+
   const totalMonthly = useMemo(() =>
-    userApps.reduce((sum, ua) => {
-      const m = Number(ua.cost_monthly) || 0;
-      const a = Number(ua.cost_annual) || 0;
-      if (m > 0) return sum + m;
-      if (a > 0) return sum + a / 12;
-      return sum;
-    }, 0), [userApps]);
+    userApps.reduce((sum, ua: any) => sum + sumAcrossContracts(ua, contractMonthly), 0), [userApps]);
   const totalAnnual = useMemo(() =>
-    userApps.reduce((sum, ua) => {
-      const m = Number(ua.cost_monthly) || 0;
-      const a = Number(ua.cost_annual) || 0;
-      if (a > 0) return sum + a;
-      if (m > 0) return sum + m * 12;
-      return sum;
-    }, 0), [userApps]);
-  // Internal overhead = actual cost to run Braided, netting out passthrough/resold portions.
-  // - billing_model=internal → full cost is overhead
-  // - bundled_passthrough → only the internal_cost_* portion
-  // - direct_passthrough → zero (client pays vendor directly)
+    userApps.reduce((sum, ua: any) => sum + sumAcrossContracts(ua, contractAnnual), 0), [userApps]);
   const internalMonthly = useMemo(() =>
-    userApps.reduce((sum, ua: any) => {
-      const model = ua.billing_model || 'internal';
-      if (model === 'direct_passthrough') return sum;
-      if (model === 'bundled_passthrough') {
-        const im = Number(ua.internal_cost_monthly) || 0;
-        const ia = Number(ua.internal_cost_annual) || 0;
-        if (im > 0) return sum + im;
-        if (ia > 0) return sum + ia / 12;
-        return sum;
-      }
-      const m = Number(ua.cost_monthly) || 0;
-      const a = Number(ua.cost_annual) || 0;
-      if (m > 0) return sum + m;
-      if (a > 0) return sum + a / 12;
-      return sum;
-    }, 0), [userApps]);
+    userApps.reduce((sum, ua: any) => sum + sumAcrossContracts(ua, contractInternalMonthly), 0), [userApps]);
   const internalAnnual = useMemo(() =>
-    userApps.reduce((sum, ua: any) => {
-      const model = ua.billing_model || 'internal';
-      if (model === 'direct_passthrough') return sum;
-      if (model === 'bundled_passthrough') {
-        const im = Number(ua.internal_cost_monthly) || 0;
-        const ia = Number(ua.internal_cost_annual) || 0;
-        if (ia > 0) return sum + ia;
-        if (im > 0) return sum + im * 12;
-        return sum;
-      }
-      const m = Number(ua.cost_monthly) || 0;
-      const a = Number(ua.cost_annual) || 0;
-      if (a > 0) return sum + a;
-      if (m > 0) return sum + m * 12;
-      return sum;
-    }, 0), [userApps]);
+    userApps.reduce((sum, ua: any) => sum + sumAcrossContracts(ua, contractInternalAnnual), 0), [userApps]);
   const appsWithContracts = useMemo(() => {
     const uaIdsWithContracts = new Set(allContracts.map(c => c.user_application_id));
     return uaIdsWithContracts.size;
@@ -127,27 +125,26 @@ export default function Budget() {
   const upcomingRenewals = useMemo(() => {
     const now = new Date();
     const cutoff = new Date(now.getTime() + renewalWindow * 24 * 60 * 60 * 1000);
-    return userApps.filter(ua => {
-      if (!ua.renewal_date) return false;
-      const d = new Date(ua.renewal_date);
-      return d >= now && d <= cutoff;
-    }).length;
+    // Count each contract with an upcoming renewal separately — a vendor with
+    // two contracts and two distinct renewals is two things to remember.
+    let count = 0;
+    for (const ua of userApps as any[]) {
+      for (const c of appContracts(ua)) {
+        if (!c.renewal_date) continue;
+        const d = new Date(c.renewal_date);
+        if (d >= now && d <= cutoff) count++;
+      }
+    }
+    return count;
   }, [userApps, renewalWindow]);
 
   const [spendView, setSpendView] = useState<'monthly' | 'annual'>('monthly');
 
   const categorySpend = useMemo(() => {
     const map = new Map<string, number>();
-    for (const ua of userApps) {
+    for (const ua of userApps as any[]) {
       const cat = (ua.applications as any)?.categories?.name || 'Uncategorized';
-      const m = Number(ua.cost_monthly) || 0;
-      const a = Number(ua.cost_annual) || 0;
-      let cost: number;
-      if (spendView === 'monthly') {
-        cost = m > 0 ? m : a > 0 ? a / 12 : 0;
-      } else {
-        cost = a > 0 ? a : m > 0 ? m * 12 : 0;
-      }
+      const cost = sumAcrossContracts(ua, spendView === 'monthly' ? contractMonthly : contractAnnual);
       map.set(cat, (map.get(cat) || 0) + cost);
     }
     return Array.from(map.entries())
@@ -167,24 +164,26 @@ export default function Budget() {
   }, [allContracts]);
 
   const sortedApps = useMemo(() => {
-    const items = userApps.map((ua: any) => ({
-      id: ua.id,
-      name: (ua.applications as any)?.name || 'Unknown',
-      category: (ua.applications as any)?.categories?.name || '—',
-      cost_monthly: Number(ua.cost_monthly) || 0,
-      cost_annual: Number(ua.cost_annual) || 0,
-      renewal_date: ua.renewal_date,
-      start_date: ua.start_date,
-      billing_cycle: ua.billing_cycle,
-      term_months: ua.term_months,
-      license_count: ua.license_count,
-      notes: ua.notes,
-      billing_model: ua.billing_model || 'internal',
-      internal_cost_monthly: ua.internal_cost_monthly ?? null,
-      internal_cost_annual: ua.internal_cost_annual ?? null,
-      hasContract: !!(contractByUaId[ua.id]?.length),
-      contracts: contractByUaId[ua.id] || [],
-    }));
+    const items = userApps.map((ua: any) => {
+      const contracts = appContracts(ua);
+      // Earliest upcoming renewal across this app's contracts — that's the one
+      // most worth surfacing in the table.
+      const upcomingDates = contracts
+        .map(c => c.renewal_date)
+        .filter(Boolean)
+        .sort();
+      return {
+        id: ua.id,
+        name: (ua.applications as any)?.name || 'Unknown',
+        category: (ua.applications as any)?.categories?.name || '—',
+        cost_monthly: sumAcrossContracts(ua, contractMonthly),
+        cost_annual: sumAcrossContracts(ua, contractAnnual),
+        renewal_date: upcomingDates[0] || null,
+        contract_count: contracts.length,
+        hasContract: !!(contractByUaId[ua.id]?.length),
+        contracts: contractByUaId[ua.id] || [],
+      };
+    });
     items.sort((a, b) => {
       let cmp = 0;
       if (sortKey === 'name') cmp = a.name.localeCompare(b.name);
@@ -209,48 +208,6 @@ export default function Budget() {
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc(!sortAsc);
     else { setSortKey(key); setSortAsc(true); }
-  };
-
-  const handleSaveDetails = async () => {
-    if (!editingApp) return;
-    try {
-      await updateApp.mutateAsync({
-        id: editingApp.id,
-        cost_monthly: editingApp.cost_monthly ? Number(editingApp.cost_monthly) : null,
-        cost_annual: editingApp.cost_annual ? Number(editingApp.cost_annual) : null,
-        renewal_date: editingApp.renewal_date || null,
-        start_date: editingApp.start_date || null,
-        term_months: editingApp.term_months ? Number(editingApp.term_months) : null,
-        license_count: editingApp.license_count ? Number(editingApp.license_count) : null,
-        billing_cycle: editingApp.billing_cycle || null,
-        notes: editingApp.notes || null,
-        billing_model: editingApp.billing_model || 'internal',
-        internal_cost_monthly: editingApp.internal_cost_monthly != null && editingApp.internal_cost_monthly !== '' ? Number(editingApp.internal_cost_monthly) : null,
-        internal_cost_annual: editingApp.internal_cost_annual != null && editingApp.internal_cost_annual !== '' ? Number(editingApp.internal_cost_annual) : null,
-      });
-      toast({ title: 'Details saved' });
-      setEditingApp(null);
-    } catch (e: any) {
-      toast({ title: 'Error', description: e.message, variant: 'destructive' });
-    }
-  };
-
-  // Saves ONLY the Cost Type fields — scoped so users can classify from the
-  // Documents tab without clobbering in-progress Details edits and without
-  // having to switch tabs to find a Save button.
-  const handleSaveCostType = async () => {
-    if (!editingApp) return;
-    try {
-      await updateApp.mutateAsync({
-        id: editingApp.id,
-        billing_model: editingApp.billing_model || 'internal',
-        internal_cost_monthly: editingApp.internal_cost_monthly != null && editingApp.internal_cost_monthly !== '' ? Number(editingApp.internal_cost_monthly) : null,
-        internal_cost_annual: editingApp.internal_cost_annual != null && editingApp.internal_cost_annual !== '' ? Number(editingApp.internal_cost_annual) : null,
-      });
-      toast({ title: 'Cost type saved' });
-    } catch (e: any) {
-      toast({ title: 'Error', description: e.message, variant: 'destructive' });
-    }
   };
 
   const handleDownloadContract = async (filePath: string, fileName: string) => {
@@ -514,61 +471,9 @@ export default function Budget() {
               <TabsContent value="details" className="flex-1 min-h-0 pt-2 mt-0 flex flex-col">
                 <div className="flex-1 min-h-0 overflow-y-auto pr-2">
                   <div className="space-y-4 pb-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Monthly Cost ($)</Label>
-                        <Input
-                          type="number"
-                          value={editingApp.cost_monthly ?? ''}
-                          onChange={e => setEditingApp({ ...editingApp, ...applyCostRatio('cost_monthly', e.target.value) })}
-                          disabled={!isAdmin}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Annual Cost ($)</Label>
-                        <Input
-                          type="number"
-                          value={editingApp.cost_annual ?? ''}
-                          onChange={e => setEditingApp({ ...editingApp, ...applyCostRatio('cost_annual', e.target.value) })}
-                          disabled={!isAdmin}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>License Count</Label>
-                      <Input type="number" value={editingApp.license_count || ''} onChange={e => setEditingApp({ ...editingApp, license_count: e.target.value })} disabled={!isAdmin} />
-                    </div>
-                    <TermBillingFields
-                      termMonths={editingApp.term_months ? Number(editingApp.term_months) : null}
-                      billingCycle={editingApp.billing_cycle || null}
-                      startDate={editingApp.start_date || null}
-                      renewalDate={editingApp.renewal_date || null}
-                      disabled={!isAdmin}
-                      onChange={patch => setEditingApp({ ...editingApp, ...patch })}
-                    />
-                    <BillingModelFields
-                      billingModel={editingApp.billing_model || 'internal'}
-                      internalCostMonthly={editingApp.internal_cost_monthly ?? null}
-                      internalCostAnnual={editingApp.internal_cost_annual ?? null}
-                      disabled={!isAdmin}
-                      onChange={patch => setEditingApp({ ...editingApp, ...patch })}
-                    />
-                    <div className="space-y-2">
-                      <Label>Notes</Label>
-                      <textarea
-                        className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        value={editingApp.notes || ''}
-                        onChange={e => setEditingApp({ ...editingApp, notes: e.target.value })}
-                        disabled={!isAdmin}
-                      />
-                    </div>
+                    <AppContractsEditor userApplicationId={editingApp.id} disabled={!isAdmin} />
                   </div>
                 </div>
-                {isAdmin && (
-                  <div className="shrink-0 pt-3 border-t mt-3">
-                    <Button className="w-full" onClick={handleSaveDetails}>Save Details</Button>
-                  </div>
-                )}
               </TabsContent>
 
               <TabsContent value="contacts" className="pt-2">
@@ -578,46 +483,30 @@ export default function Budget() {
               <TabsContent value="documents" className="flex-1 min-h-0 pt-2 mt-0 flex flex-col">
                 <div className="flex-1 min-h-0 overflow-y-auto pr-2">
                   <div className="space-y-3 pb-4">
-                    {/* Compact Cost Type row — reachable while previewing line items,
-                        without crowding out the preview + extracted-data layout below. */}
-                    <div className="flex items-start gap-3 rounded-md border bg-muted/30 px-3 py-2">
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Cost Type</p>
-                        <BillingModelFields
-                          billingModel={editingApp.billing_model || 'internal'}
-                          internalCostMonthly={editingApp.internal_cost_monthly ?? null}
-                          internalCostAnnual={editingApp.internal_cost_annual ?? null}
-                          disabled={!isAdmin}
-                          onChange={patch => setEditingApp({ ...editingApp, ...patch })}
-                          compact
-                        />
-                      </div>
-                      {isAdmin && (
-                        <Button size="sm" variant="outline" className="shrink-0 mt-5" onClick={handleSaveCostType}>Save</Button>
-                      )}
-                    </div>
                     <ContractsSection
                       userApplicationId={editingApp.id}
                       isAdmin={isAdmin}
                       onPreviewChange={setDocPreviewActive}
                       onExtractedData={async (data) => {
-                        // Persist imported fields directly — user shouldn't have to switch back
-                        // to Details tab and click Save. We send only the fields that were
-                        // actually imported so any in-progress Details edits aren't clobbered.
-                        const patch: Record<string, any> = {};
-                        if (data.cost_monthly != null) patch.cost_monthly = Number(data.cost_monthly);
-                        if (data.cost_annual != null) patch.cost_annual = Number(data.cost_annual);
-                        if (data.renewal_date) patch.renewal_date = data.renewal_date;
-                        if (data.start_date) patch.start_date = data.start_date;
-                        if (data.term_months != null) patch.term_months = Number(data.term_months);
-                        if (data.billing_cycle) patch.billing_cycle = data.billing_cycle;
-                        if (data.license_count != null) patch.license_count = Number(data.license_count);
-                        if (data.notes) patch.notes = data.notes;
-
-                        setEditingApp((prev: any) => ({ ...prev, ...patch }));
+                        // Scan import creates a NEW contract with the extracted data.
+                        // (Previously it patched the single user_applications row; now that
+                        // multiple contracts are supported, each imported invoice becomes
+                        // its own contract. Users can edit/merge/delete in the Details tab.)
+                        const payload: any = {
+                          user_application_id: editingApp.id,
+                          label: data.vendor_name ? `Imported — ${data.vendor_name}` : null,
+                        };
+                        if (data.cost_monthly != null) payload.cost_monthly = Number(data.cost_monthly);
+                        if (data.cost_annual != null) payload.cost_annual = Number(data.cost_annual);
+                        if (data.renewal_date) payload.renewal_date = data.renewal_date;
+                        if (data.start_date) payload.start_date = data.start_date;
+                        if (data.term_months != null) payload.term_months = Number(data.term_months);
+                        if (data.billing_cycle) payload.billing_cycle = data.billing_cycle;
+                        if (data.license_count != null) payload.license_count = Number(data.license_count);
+                        if (data.notes) payload.notes = data.notes;
                         try {
-                          await updateApp.mutateAsync({ id: editingApp.id, ...patch });
-                          toast({ title: 'Imported & saved', description: 'Extracted data applied to this app.' });
+                          await upsertContract.mutateAsync(payload);
+                          toast({ title: 'Imported as new contract', description: 'Review it in the Details tab to adjust cost type or merge.' });
                         } catch (e: any) {
                           toast({ title: 'Save failed', description: e.message, variant: 'destructive' });
                         }
