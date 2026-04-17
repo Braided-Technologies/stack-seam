@@ -177,10 +177,16 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
       if (value == null || value === '') continue;
       data[key] = numericKeys.has(key) ? Number(value) : value;
     }
+    // Enforce 12x ratio on import: if only one of monthly/annual is set, fill the other.
+    // (User shouldn't have to trigger it by manually typing after importing.)
+    const m = Number(data.cost_monthly) || 0;
+    const a = Number(data.cost_annual) || 0;
+    if (m > 0 && !(a > 0)) data.cost_annual = Math.round(m * 12 * 100) / 100;
+    else if (a > 0 && !(m > 0)) data.cost_monthly = Math.round((a / 12) * 100) / 100;
+
     if (editableLineItems.length > 0) data.line_items = editableLineItems;
 
     onExtractedData?.(data);
-    toast({ title: 'Data imported', description: 'Extracted fields have been applied.' });
     setScanResult(null);
   };
 
