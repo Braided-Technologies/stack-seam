@@ -21,6 +21,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import ContactsSection from '@/components/ContactsSection';
 import ContractsSection from '@/components/ContractsSection';
 import { TermBillingFields } from '@/components/TermBillingFields';
+import { BillingModelFields } from '@/components/BillingModelFields';
 import { applyCostRatio } from '@/lib/costs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CategoryCombobox } from '@/components/ui/category-combobox';
@@ -189,10 +190,14 @@ export default function Stack() {
         cost_monthly: editingApp.cost_monthly ? Number(editingApp.cost_monthly) : null,
         cost_annual: editingApp.cost_annual ? Number(editingApp.cost_annual) : null,
         renewal_date: editingApp.renewal_date || null,
+        start_date: editingApp.start_date || null,
         term_months: editingApp.term_months ? Number(editingApp.term_months) : null,
         license_count: editingApp.license_count ? Number(editingApp.license_count) : null,
         billing_cycle: editingApp.billing_cycle || null,
         notes: editingApp.notes || null,
+        billing_model: editingApp.billing_model || 'internal',
+        internal_cost_monthly: editingApp.internal_cost_monthly != null && editingApp.internal_cost_monthly !== '' ? Number(editingApp.internal_cost_monthly) : null,
+        internal_cost_annual: editingApp.internal_cost_annual != null && editingApp.internal_cost_annual !== '' ? Number(editingApp.internal_cost_annual) : null,
       });
       toast({ title: 'Details saved' });
       setInfoApp(null);
@@ -741,6 +746,13 @@ export default function Stack() {
                             billingCycle={(editingApp?.billing_cycle ?? userApp!.billing_cycle) || null}
                             startDate={(editingApp?.start_date ?? userApp!.start_date) || null}
                             renewalDate={(editingApp?.renewal_date ?? userApp!.renewal_date) || null}
+                            disabled={!isAdmin}
+                            onChange={patch => setEditingApp({ ...userApp, appName: infoApp.name, ...(editingApp || {}), ...patch })}
+                          />
+                          <BillingModelFields
+                            billingModel={(editingApp?.billing_model ?? (userApp as any)!.billing_model) || 'internal'}
+                            internalCostMonthly={(editingApp?.internal_cost_monthly ?? (userApp as any)!.internal_cost_monthly) ?? null}
+                            internalCostAnnual={(editingApp?.internal_cost_annual ?? (userApp as any)!.internal_cost_annual) ?? null}
                             disabled={!isAdmin}
                             onChange={patch => setEditingApp({ ...userApp, appName: infoApp.name, ...(editingApp || {}), ...patch })}
                           />
