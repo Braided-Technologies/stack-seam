@@ -459,20 +459,15 @@ export default function Budget() {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Renewal Date</Label>
-                        <Input type="date" value={editingApp.renewal_date || ''} onChange={e => setEditingApp({ ...editingApp, renewal_date: e.target.value })} disabled={!isAdmin} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>License Count</Label>
-                        <Input type="number" value={editingApp.license_count || ''} onChange={e => setEditingApp({ ...editingApp, license_count: e.target.value })} disabled={!isAdmin} />
-                      </div>
+                    <div className="space-y-2">
+                      <Label>License Count</Label>
+                      <Input type="number" value={editingApp.license_count || ''} onChange={e => setEditingApp({ ...editingApp, license_count: e.target.value })} disabled={!isAdmin} />
                     </div>
                     <TermBillingFields
                       termMonths={editingApp.term_months ? Number(editingApp.term_months) : null}
                       billingCycle={editingApp.billing_cycle || null}
                       startDate={editingApp.start_date || null}
+                      renewalDate={editingApp.renewal_date || null}
                       disabled={!isAdmin}
                       onChange={patch => setEditingApp({ ...editingApp, ...patch })}
                     />
