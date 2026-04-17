@@ -575,52 +575,56 @@ export default function Budget() {
                 <ContactsSection userApplicationId={editingApp.id} isAdmin={isAdmin} />
               </TabsContent>
 
-              <TabsContent value="documents" className="pt-2 space-y-3">
-                {/* Compact Cost Type row — reachable while previewing line items,
-                    without crowding out the preview + extracted-data layout below. */}
-                <div className="flex items-start gap-3 rounded-md border bg-muted/30 px-3 py-2">
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Cost Type</p>
-                    <BillingModelFields
-                      billingModel={editingApp.billing_model || 'internal'}
-                      internalCostMonthly={editingApp.internal_cost_monthly ?? null}
-                      internalCostAnnual={editingApp.internal_cost_annual ?? null}
-                      disabled={!isAdmin}
-                      onChange={patch => setEditingApp({ ...editingApp, ...patch })}
-                      compact
+              <TabsContent value="documents" className="flex-1 min-h-0 pt-2 mt-0 flex flex-col">
+                <div className="flex-1 min-h-0 overflow-y-auto pr-2">
+                  <div className="space-y-3 pb-4">
+                    {/* Compact Cost Type row — reachable while previewing line items,
+                        without crowding out the preview + extracted-data layout below. */}
+                    <div className="flex items-start gap-3 rounded-md border bg-muted/30 px-3 py-2">
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Cost Type</p>
+                        <BillingModelFields
+                          billingModel={editingApp.billing_model || 'internal'}
+                          internalCostMonthly={editingApp.internal_cost_monthly ?? null}
+                          internalCostAnnual={editingApp.internal_cost_annual ?? null}
+                          disabled={!isAdmin}
+                          onChange={patch => setEditingApp({ ...editingApp, ...patch })}
+                          compact
+                        />
+                      </div>
+                      {isAdmin && (
+                        <Button size="sm" variant="outline" className="shrink-0 mt-5" onClick={handleSaveCostType}>Save</Button>
+                      )}
+                    </div>
+                    <ContractsSection
+                      userApplicationId={editingApp.id}
+                      isAdmin={isAdmin}
+                      onPreviewChange={setDocPreviewActive}
+                      onExtractedData={async (data) => {
+                        // Persist imported fields directly — user shouldn't have to switch back
+                        // to Details tab and click Save. We send only the fields that were
+                        // actually imported so any in-progress Details edits aren't clobbered.
+                        const patch: Record<string, any> = {};
+                        if (data.cost_monthly != null) patch.cost_monthly = Number(data.cost_monthly);
+                        if (data.cost_annual != null) patch.cost_annual = Number(data.cost_annual);
+                        if (data.renewal_date) patch.renewal_date = data.renewal_date;
+                        if (data.start_date) patch.start_date = data.start_date;
+                        if (data.term_months != null) patch.term_months = Number(data.term_months);
+                        if (data.billing_cycle) patch.billing_cycle = data.billing_cycle;
+                        if (data.license_count != null) patch.license_count = Number(data.license_count);
+                        if (data.notes) patch.notes = data.notes;
+
+                        setEditingApp((prev: any) => ({ ...prev, ...patch }));
+                        try {
+                          await updateApp.mutateAsync({ id: editingApp.id, ...patch });
+                          toast({ title: 'Imported & saved', description: 'Extracted data applied to this app.' });
+                        } catch (e: any) {
+                          toast({ title: 'Save failed', description: e.message, variant: 'destructive' });
+                        }
+                      }}
                     />
                   </div>
-                  {isAdmin && (
-                    <Button size="sm" variant="outline" className="shrink-0 mt-5" onClick={handleSaveCostType}>Save</Button>
-                  )}
                 </div>
-                <ContractsSection
-                  userApplicationId={editingApp.id}
-                  isAdmin={isAdmin}
-                  onPreviewChange={setDocPreviewActive}
-                  onExtractedData={async (data) => {
-                    // Persist imported fields directly — user shouldn't have to switch back
-                    // to Details tab and click Save. We send only the fields that were
-                    // actually imported so any in-progress Details edits aren't clobbered.
-                    const patch: Record<string, any> = {};
-                    if (data.cost_monthly != null) patch.cost_monthly = Number(data.cost_monthly);
-                    if (data.cost_annual != null) patch.cost_annual = Number(data.cost_annual);
-                    if (data.renewal_date) patch.renewal_date = data.renewal_date;
-                    if (data.start_date) patch.start_date = data.start_date;
-                    if (data.term_months != null) patch.term_months = Number(data.term_months);
-                    if (data.billing_cycle) patch.billing_cycle = data.billing_cycle;
-                    if (data.license_count != null) patch.license_count = Number(data.license_count);
-                    if (data.notes) patch.notes = data.notes;
-
-                    setEditingApp((prev: any) => ({ ...prev, ...patch }));
-                    try {
-                      await updateApp.mutateAsync({ id: editingApp.id, ...patch });
-                      toast({ title: 'Imported & saved', description: 'Extracted data applied to this app.' });
-                    } catch (e: any) {
-                      toast({ title: 'Save failed', description: e.message, variant: 'destructive' });
-                    }
-                  }}
-                />
               </TabsContent>
             </Tabs>
           )}
