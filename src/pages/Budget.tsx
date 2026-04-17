@@ -504,15 +504,15 @@ export default function Budget() {
             <DialogDescription>Edit details, contacts, and contracts</DialogDescription>
           </DialogHeader>
           {editingApp && (
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 min-h-0 flex flex-col">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="details">Details</TabsTrigger>
                 <TabsTrigger value="contacts">Contacts</TabsTrigger>
                 <TabsTrigger value="documents">Documents</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="details" className="space-y-4 pt-2">
-                <ScrollArea className="max-h-[50vh]">
+              <TabsContent value="details" className="flex-1 min-h-0 pt-2 mt-0">
+                <ScrollArea className="h-full">
                   <div className="space-y-4 pr-2">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
