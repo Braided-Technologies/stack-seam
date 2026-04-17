@@ -38,10 +38,80 @@ export function useUserApplications() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('user_applications')
-        .select('*, applications(*, categories(name))')
+        .select('*, applications(*, categories(name)), user_application_contracts(*)')
         .eq('organization_id', orgId!);
       if (error) throw error;
+      // Sort contracts deterministically (display_order, then created_at)
+      for (const ua of (data || []) as any[]) {
+        if (Array.isArray(ua.user_application_contracts)) {
+          ua.user_application_contracts.sort((a: any, b: any) => {
+            if (a.display_order !== b.display_order) return a.display_order - b.display_order;
+            return (a.created_at || '').localeCompare(b.created_at || '');
+          });
+        }
+      }
       return data;
+    },
+  });
+}
+
+export function useUserApplicationContracts(userApplicationId?: string) {
+  return useQuery({
+    queryKey: ['user_application_contracts', userApplicationId],
+    enabled: !!userApplicationId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('user_application_contracts')
+        .select('*')
+        .eq('user_application_id', userApplicationId!)
+        .order('display_order', { ascending: true })
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useUpsertUserApplicationContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (row: { id?: string; user_application_id: string; [key: string]: any }) => {
+      if (row.id) {
+        const { id, ...updates } = row;
+        const { data, error } = await supabase
+          .from('user_application_contracts')
+          .update(updates)
+          .eq('id', id)
+          .select()
+          .single();
+        if (error) throw error;
+        return data;
+      }
+      const { data, error } = await supabase
+        .from('user_application_contracts')
+        .insert(row)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['user_application_contracts', vars.user_application_id] });
+      qc.invalidateQueries({ queryKey: ['user_applications'] });
+    },
+  });
+}
+
+export function useDeleteUserApplicationContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string; user_application_id: string }) => {
+      const { error } = await supabase.from('user_application_contracts').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ['user_application_contracts', vars.user_application_id] });
+      qc.invalidateQueries({ queryKey: ['user_applications'] });
     },
   });
 }
