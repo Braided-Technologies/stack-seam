@@ -839,10 +839,13 @@ export type Database = {
         Row: {
           application_id: string
           billing_cycle: string | null
+          billing_model: string
           cost_annual: number | null
           cost_monthly: number | null
           created_at: string
           id: string
+          internal_cost_annual: number | null
+          internal_cost_monthly: number | null
           license_count: number | null
           notes: string | null
           organization_id: string
@@ -854,10 +857,13 @@ export type Database = {
         Insert: {
           application_id: string
           billing_cycle?: string | null
+          billing_model?: string
           cost_annual?: number | null
           cost_monthly?: number | null
           created_at?: string
           id?: string
+          internal_cost_annual?: number | null
+          internal_cost_monthly?: number | null
           license_count?: number | null
           notes?: string | null
           organization_id: string
@@ -869,10 +875,13 @@ export type Database = {
         Update: {
           application_id?: string
           billing_cycle?: string | null
+          billing_model?: string
           cost_annual?: number | null
           cost_monthly?: number | null
           created_at?: string
           id?: string
+          internal_cost_annual?: number | null
+          internal_cost_monthly?: number | null
           license_count?: number | null
           notes?: string | null
           organization_id?: string
