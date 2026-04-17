@@ -48,13 +48,15 @@ export function TermBillingFields({ termMonths, billingCycle, startDate, renewal
   };
 
   const labelCls = compact ? 'text-xs' : 'text-sm';
-  const inputCls = compact ? 'h-7 text-xs' : '';
+  // Date inputs need more vertical space than other compact inputs because the
+  // native "mm / dd / yyyy" placeholder + calendar icon look cramped at h-7.
+  const inputCls = compact ? 'h-8 text-xs' : '';
   const selectCls = compact
     ? 'flex h-8 w-full rounded-md border border-input bg-background px-2 text-xs'
     : 'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm';
-  const rowCls = compact ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-2 gap-4';
+  const rowCls = compact ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-2 gap-4';
   const groupCls = compact ? 'space-y-1' : 'space-y-2';
-  const containerCls = compact ? 'space-y-2' : 'space-y-4';
+  const containerCls = compact ? 'space-y-3' : 'space-y-4';
 
   return (
     <div className={containerCls}>
