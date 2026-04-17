@@ -235,6 +235,24 @@ export default function Budget() {
     }
   };
 
+  // Saves ONLY the Cost Type fields — scoped so users can classify from the
+  // Documents tab without clobbering in-progress Details edits and without
+  // having to switch tabs to find a Save button.
+  const handleSaveCostType = async () => {
+    if (!editingApp) return;
+    try {
+      await updateApp.mutateAsync({
+        id: editingApp.id,
+        billing_model: editingApp.billing_model || 'internal',
+        internal_cost_monthly: editingApp.internal_cost_monthly != null && editingApp.internal_cost_monthly !== '' ? Number(editingApp.internal_cost_monthly) : null,
+        internal_cost_annual: editingApp.internal_cost_annual != null && editingApp.internal_cost_annual !== '' ? Number(editingApp.internal_cost_annual) : null,
+      });
+      toast({ title: 'Cost type saved' });
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    }
+  };
+
   const handleDownloadContract = async (filePath: string, fileName: string) => {
     const { data, error } = await supabase.storage.from('contracts').download(filePath);
     if (error) {
@@ -553,7 +571,23 @@ export default function Budget() {
                 <ContactsSection userApplicationId={editingApp.id} isAdmin={isAdmin} />
               </TabsContent>
 
-              <TabsContent value="documents" className="pt-2">
+              <TabsContent value="documents" className="pt-2 space-y-4">
+                {/* Cost Type lives here too so it's reachable while previewing line items */}
+                <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Cost Type</p>
+                    {isAdmin && (
+                      <Button size="sm" variant="outline" onClick={handleSaveCostType}>Save Cost Type</Button>
+                    )}
+                  </div>
+                  <BillingModelFields
+                    billingModel={editingApp.billing_model || 'internal'}
+                    internalCostMonthly={editingApp.internal_cost_monthly ?? null}
+                    internalCostAnnual={editingApp.internal_cost_annual ?? null}
+                    disabled={!isAdmin}
+                    onChange={patch => setEditingApp({ ...editingApp, ...patch })}
+                  />
+                </div>
                 <ContractsSection
                   userApplicationId={editingApp.id}
                   isAdmin={isAdmin}
