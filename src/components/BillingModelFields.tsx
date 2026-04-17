@@ -114,21 +114,24 @@ export function BillingModelFields({
             <RadioGroupItem value="internal" className="mt-0.5" />
             <span className="text-sm leading-tight">
               <span className="font-medium">Internal only</span>
-              <span className="block text-xs text-muted-foreground">We use this tool. Full cost is our overhead.</span>
+              <span className="block text-xs text-muted-foreground">We use this tool. Full cost counts as overhead.</span>
+              <span className="block text-[11px] text-muted-foreground italic mt-0.5">e.g. Apollo — you pay for it, you use it, no client billing.</span>
             </span>
           </label>
           <label className={`flex items-start gap-2 ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
             <RadioGroupItem value="bundled_passthrough" className="mt-0.5" />
             <span className="text-sm leading-tight">
               <span className="font-medium">Bundled with client services</span>
-              <span className="block text-xs text-muted-foreground">We pay the vendor; part of the cost is recovered via bundled client billing.</span>
+              <span className="block text-xs text-muted-foreground">We pay the vendor; part of the cost is recouped inside a bundled service fee. Set the portion that's really our overhead.</span>
+              <span className="block text-[11px] text-muted-foreground italic mt-0.5">e.g. Drata — one tenant for us, others for clients inside a service package.</span>
             </span>
           </label>
           <label className={`flex items-start gap-2 ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
             <RadioGroupItem value="direct_passthrough" className="mt-0.5" />
             <span className="text-sm leading-tight">
               <span className="font-medium">Direct passthrough</span>
-              <span className="block text-xs text-muted-foreground">Client is billed directly; no internal overhead.</span>
+              <span className="block text-xs text-muted-foreground">Client bears the cost 1:1 (billed directly, or invoiced at cost/markup). Zero internal overhead.</span>
+              <span className="block text-[11px] text-muted-foreground italic mt-0.5">e.g. Keeper or M365 — resold to the client, markup is profit not burn.</span>
             </span>
           </label>
         </RadioGroup>
