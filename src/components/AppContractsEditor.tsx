@@ -21,7 +21,7 @@ import {
   useUpsertUserApplicationContract,
   useDeleteUserApplicationContract,
 } from '@/hooks/useStackData';
-import { applyCostRatio } from '@/lib/costs';
+import { applyCostRatio, parseCostInput } from '@/lib/costs';
 
 interface AppContractsEditorProps {
   userApplicationId: string;
@@ -107,15 +107,15 @@ export function AppContractsEditor({ userApplicationId, disabled }: AppContracts
     const payload: any = {
       user_application_id: userApplicationId,
       label: draft.label || null,
-      cost_monthly: draft.cost_monthly !== '' && draft.cost_monthly != null ? Number(draft.cost_monthly) : null,
-      cost_annual: draft.cost_annual !== '' && draft.cost_annual != null ? Number(draft.cost_annual) : null,
+      cost_monthly: draft.cost_monthly !== '' && draft.cost_monthly != null && Number.isFinite(parseCostInput(draft.cost_monthly)) ? parseCostInput(draft.cost_monthly) : null,
+      cost_annual: draft.cost_annual !== '' && draft.cost_annual != null && Number.isFinite(parseCostInput(draft.cost_annual)) ? parseCostInput(draft.cost_annual) : null,
       billing_cycle: draft.billing_cycle || null,
       term_months: draft.term_months ? Number(draft.term_months) : null,
       start_date: draft.start_date || null,
       renewal_date: draft.renewal_date || null,
       billing_model: draft.billing_model || 'internal',
-      internal_cost_monthly: draft.internal_cost_monthly !== '' && draft.internal_cost_monthly != null ? Number(draft.internal_cost_monthly) : null,
-      internal_cost_annual: draft.internal_cost_annual !== '' && draft.internal_cost_annual != null ? Number(draft.internal_cost_annual) : null,
+      internal_cost_monthly: draft.internal_cost_monthly !== '' && draft.internal_cost_monthly != null && Number.isFinite(parseCostInput(draft.internal_cost_monthly)) ? parseCostInput(draft.internal_cost_monthly) : null,
+      internal_cost_annual: draft.internal_cost_annual !== '' && draft.internal_cost_annual != null && Number.isFinite(parseCostInput(draft.internal_cost_annual)) ? parseCostInput(draft.internal_cost_annual) : null,
       license_count: draft.license_count ? Number(draft.license_count) : null,
       notes: draft.notes || null,
     };
@@ -234,7 +234,8 @@ export function AppContractsEditor({ userApplicationId, disabled }: AppContracts
                   <div className="space-y-2">
                     <Label>Monthly Cost ($)</Label>
                     <Input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={draft.cost_monthly ?? ''}
                       onChange={e => updateDraft(key, applyCostRatio('cost_monthly', e.target.value))}
                       disabled={disabled}
@@ -243,7 +244,8 @@ export function AppContractsEditor({ userApplicationId, disabled }: AppContracts
                   <div className="space-y-2">
                     <Label>Annual Cost ($)</Label>
                     <Input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={draft.cost_annual ?? ''}
                       onChange={e => updateDraft(key, applyCostRatio('cost_annual', e.target.value))}
                       disabled={disabled}
