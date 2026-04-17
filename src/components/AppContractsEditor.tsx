@@ -13,7 +13,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Trash2, Save, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Save, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
 import { TermBillingFields } from '@/components/TermBillingFields';
 import { BillingModelFields } from '@/components/BillingModelFields';
 import {
@@ -42,6 +42,9 @@ export function AppContractsEditor({ userApplicationId, disabled }: AppContracts
   // Local drafts keyed by contract id (or temp key for new ones)
   const [drafts, setDrafts] = useState<Record<string, ContractDraft>>({});
   const [deleting, setDeleting] = useState<string | null>(null);
+  // Which contract cards are expanded. Single-contract case stays expanded;
+  // multi-contract list collapses saved rows so the user sees them all at once.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   // Hydrate drafts from server data when contracts change (new contract added, or first load)
   useEffect(() => {
@@ -59,7 +62,25 @@ export function AppContractsEditor({ userApplicationId, disabled }: AppContracts
       }
       return next;
     });
+    // Set initial expansion: single contract = expanded; multi = all collapsed.
+    setExpanded(prev => {
+      const savedIds = (contracts as any[]).map(c => c.id);
+      if (savedIds.length <= 1 && !Array.from(prev).some(k => k.startsWith('new:'))) {
+        return new Set(savedIds);
+      }
+      // Keep whatever the user already toggled; don't reset
+      return prev;
+    });
   }, [contracts]);
+
+  const toggleExpanded = (key: string) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const updateDraft = (key: string, patch: Record<string, any>) => {
     setDrafts(prev => ({ ...prev, [key]: { ...prev[key], ...patch, __dirty: true } }));
@@ -76,6 +97,8 @@ export function AppContractsEditor({ userApplicationId, disabled }: AppContracts
         __dirty: true,
       },
     }));
+    // Newly added contracts start expanded — user came here to fill one out.
+    setExpanded(prev => new Set(prev).add(tempId));
   };
 
   const saveContract = async (key: string) => {
@@ -151,100 +174,133 @@ export function AppContractsEditor({ userApplicationId, disabled }: AppContracts
         </p>
       )}
 
-      {draftEntries.map(([key, draft], i) => (
-        <div key={key} className="rounded-lg border bg-card p-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <div className="flex-1 min-w-0">
-              <Label className="text-xs text-muted-foreground">Contract label</Label>
-              <Input
-                value={draft.label ?? ''}
-                onChange={e => updateDraft(key, { label: e.target.value })}
-                placeholder={draftEntries.length > 1 ? `e.g. Internal tenant, MSSP - Acme` : 'Optional label'}
-                disabled={disabled}
-                className="mt-1"
-              />
-            </div>
-            {!disabled && (
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8 text-destructive shrink-0 mt-5"
-                onClick={() => setDeleting(key)}
-                title="Delete contract"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+      {draftEntries.map(([key, draft]) => {
+        const isOpen = expanded.has(key);
+        const summaryCost = Number(draft.cost_monthly) || 0;
+        const summaryAnnual = Number(draft.cost_annual) || 0;
+        const summaryDerivedMonthly = summaryCost > 0 ? summaryCost : summaryAnnual > 0 ? summaryAnnual / 12 : 0;
+        const fmtUsd = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+        const isNew = key.startsWith('new:');
+        const summaryLabel = draft.label?.trim() || (isNew ? 'New contract' : 'Unlabeled contract');
+        const summaryBits: string[] = [];
+        if (summaryDerivedMonthly > 0) summaryBits.push(`${fmtUsd(summaryDerivedMonthly)}/mo`);
+        if (draft.renewal_date) summaryBits.push(`renews ${draft.renewal_date}`);
+        if (draft.billing_model && draft.billing_model !== 'internal') {
+          summaryBits.push(draft.billing_model === 'bundled_passthrough' ? 'bundled' : 'passthrough');
+        }
+
+        return (
+          <div key={key} className="rounded-lg border bg-card">
+            <button
+              type="button"
+              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/30 transition-colors"
+              onClick={() => toggleExpanded(key)}
+            >
+              {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+              <span className="flex-1 min-w-0 flex flex-wrap items-baseline gap-x-2">
+                <span className="font-medium text-sm truncate">{summaryLabel}</span>
+                {summaryBits.length > 0 && (
+                  <span className="text-xs text-muted-foreground">{summaryBits.join(' · ')}</span>
+                )}
+                {draft.__dirty && <span className="text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-500">unsaved</span>}
+              </span>
+              {!disabled && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className="h-7 w-7 inline-flex items-center justify-center rounded-md text-destructive hover:bg-destructive/10"
+                  onClick={e => { e.stopPropagation(); setDeleting(key); }}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); setDeleting(key); } }}
+                  title="Delete contract"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </span>
+              )}
+            </button>
+
+            {isOpen && (
+              <div className="border-t p-4 space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Contract label</Label>
+                  <Input
+                    value={draft.label ?? ''}
+                    onChange={e => updateDraft(key, { label: e.target.value })}
+                    placeholder={draftEntries.length > 1 ? 'e.g. Internal tenant, MSSP - Acme' : 'Optional label'}
+                    disabled={disabled}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Monthly Cost ($)</Label>
+                    <Input
+                      type="number"
+                      value={draft.cost_monthly ?? ''}
+                      onChange={e => updateDraft(key, applyCostRatio('cost_monthly', e.target.value))}
+                      disabled={disabled}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Annual Cost ($)</Label>
+                    <Input
+                      type="number"
+                      value={draft.cost_annual ?? ''}
+                      onChange={e => updateDraft(key, applyCostRatio('cost_annual', e.target.value))}
+                      disabled={disabled}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>License Count</Label>
+                  <Input
+                    type="number"
+                    value={draft.license_count ?? ''}
+                    onChange={e => updateDraft(key, { license_count: e.target.value })}
+                    disabled={disabled}
+                  />
+                </div>
+
+                <TermBillingFields
+                  termMonths={draft.term_months ? Number(draft.term_months) : null}
+                  billingCycle={draft.billing_cycle || null}
+                  startDate={draft.start_date || null}
+                  renewalDate={draft.renewal_date || null}
+                  disabled={disabled}
+                  onChange={patch => updateDraft(key, patch)}
+                />
+
+                <BillingModelFields
+                  billingModel={draft.billing_model || 'internal'}
+                  internalCostMonthly={draft.internal_cost_monthly ?? null}
+                  internalCostAnnual={draft.internal_cost_annual ?? null}
+                  disabled={disabled}
+                  onChange={patch => updateDraft(key, patch)}
+                />
+
+                <div className="space-y-2">
+                  <Label>Notes</Label>
+                  <textarea
+                    className="min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={draft.notes || ''}
+                    onChange={e => updateDraft(key, { notes: e.target.value })}
+                    disabled={disabled}
+                  />
+                </div>
+
+                {!disabled && (
+                  <div className="flex justify-end">
+                    <Button size="sm" onClick={() => saveContract(key)} disabled={upsert.isPending}>
+                      {upsert.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
+                      Save Contract
+                    </Button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Monthly Cost ($)</Label>
-              <Input
-                type="number"
-                value={draft.cost_monthly ?? ''}
-                onChange={e => updateDraft(key, applyCostRatio('cost_monthly', e.target.value))}
-                disabled={disabled}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Annual Cost ($)</Label>
-              <Input
-                type="number"
-                value={draft.cost_annual ?? ''}
-                onChange={e => updateDraft(key, applyCostRatio('cost_annual', e.target.value))}
-                disabled={disabled}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>License Count</Label>
-            <Input
-              type="number"
-              value={draft.license_count ?? ''}
-              onChange={e => updateDraft(key, { license_count: e.target.value })}
-              disabled={disabled}
-            />
-          </div>
-
-          <TermBillingFields
-            termMonths={draft.term_months ? Number(draft.term_months) : null}
-            billingCycle={draft.billing_cycle || null}
-            startDate={draft.start_date || null}
-            renewalDate={draft.renewal_date || null}
-            disabled={disabled}
-            onChange={patch => updateDraft(key, patch)}
-          />
-
-          <BillingModelFields
-            billingModel={draft.billing_model || 'internal'}
-            internalCostMonthly={draft.internal_cost_monthly ?? null}
-            internalCostAnnual={draft.internal_cost_annual ?? null}
-            disabled={disabled}
-            onChange={patch => updateDraft(key, patch)}
-          />
-
-          <div className="space-y-2">
-            <Label>Notes</Label>
-            <textarea
-              className="min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={draft.notes || ''}
-              onChange={e => updateDraft(key, { notes: e.target.value })}
-              disabled={disabled}
-            />
-          </div>
-
-          {!disabled && (
-            <div className="flex justify-end">
-              <Button size="sm" onClick={() => saveContract(key)} disabled={upsert.isPending}>
-                {upsert.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
-                Save Contract
-              </Button>
-            </div>
-          )}
-        </div>
-      ))}
+        );
+      })}
 
       {!disabled && (
         <Button variant="outline" className="w-full gap-2" onClick={addContract}>
