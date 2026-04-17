@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { TermBillingFields } from '@/components/TermBillingFields';
-import { applyCostRatio } from '@/lib/costs';
+import { applyCostRatio, parseCostInput } from '@/lib/costs';
 import { Upload, FileText, Trash2, Download, ScanSearch, Loader2, Check, Eye, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { formatNumber } from '@/lib/formatters';
@@ -199,13 +199,22 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
   const handleImport = () => {
     if (!scanResult) return;
     const data: any = {};
-    const numericKeys = new Set(['cost_monthly', 'cost_annual', 'term_months', 'license_count']);
+    const costKeys = new Set(['cost_monthly', 'cost_annual']);
+    const intKeys = new Set(['term_months', 'license_count']);
     for (const [key, value] of Object.entries(editableFields)) {
       if (value == null || value === '') continue;
-      data[key] = numericKeys.has(key) ? Number(value) : value;
+      if (costKeys.has(key)) {
+        // parseCostInput strips commas/spaces/$ so formatted values still persist.
+        const n = parseCostInput(value);
+        if (Number.isFinite(n)) data[key] = n;
+      } else if (intKeys.has(key)) {
+        const n = Number(String(value).replace(/[\s,]/g, ''));
+        if (Number.isFinite(n)) data[key] = Math.round(n);
+      } else {
+        data[key] = value;
+      }
     }
     // Enforce 12x ratio on import: if only one of monthly/annual is set, fill the other.
-    // (User shouldn't have to trigger it by manually typing after importing.)
     const m = Number(data.cost_monthly) || 0;
     const a = Number(data.cost_annual) || 0;
     if (m > 0 && !(a > 0)) data.cost_annual = Math.round(m * 12 * 100) / 100;
@@ -384,7 +393,14 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
                         />
                       ) : (
                         <Input
-                          type={type}
+                          // Cost fields are text+inputMode=decimal rather than type=number.
+                          // number inputs silently drop onChange when the browser deems the
+                          // entered string mid-edit invalid (e.g. partial "1,4"), which was
+                          // causing manually-typed costs to never land in state — so they
+                          // didn't auto-derive the partner and didn't import. Text keeps
+                          // e.target.value honest; applyCostRatio strips commas/spaces.
+                          type={(key === 'cost_monthly' || key === 'cost_annual') ? 'text' : type}
+                          inputMode={(key === 'cost_monthly' || key === 'cost_annual') ? 'decimal' : undefined}
                           value={editableFields[key] ?? ''}
                           onChange={e => {
                             if (key === 'cost_monthly' || key === 'cost_annual') {
