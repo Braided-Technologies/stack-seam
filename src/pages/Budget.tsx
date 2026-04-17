@@ -48,16 +48,18 @@ export default function Budget() {
   const [activeTab, setActiveTab] = useState<string>(initialTab || 'details');
 
 
+  // Pull contract_files (uploaded invoice/contract PDFs) for the whole org via
+  // the user_applications join — filtering by orgId directly instead of by an
+  // in-memory userApps.id array means this query doesn't depend on userApps
+  // having loaded first (which used to leave allContracts stuck at []).
   const { data: allContracts = [] } = useQuery({
     queryKey: ['all_contract_files', orgId],
     enabled: !!orgId,
     queryFn: async () => {
-      const uaIds = userApps.map(ua => ua.id);
-      if (uaIds.length === 0) return [];
       const { data, error } = await supabase
         .from('contract_files')
-        .select('*, user_applications(application_id, applications(name))')
-        .in('user_application_id', uaIds);
+        .select('*, user_applications!inner(application_id, organization_id, applications(name))')
+        .eq('user_applications.organization_id', orgId!);
       if (error) throw error;
       return data;
     },
