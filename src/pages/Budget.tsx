@@ -571,22 +571,24 @@ export default function Budget() {
                 <ContactsSection userApplicationId={editingApp.id} isAdmin={isAdmin} />
               </TabsContent>
 
-              <TabsContent value="documents" className="pt-2 space-y-4">
-                {/* Cost Type lives here too so it's reachable while previewing line items */}
-                <div className="rounded-md border bg-muted/30 p-3 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Cost Type</p>
-                    {isAdmin && (
-                      <Button size="sm" variant="outline" onClick={handleSaveCostType}>Save Cost Type</Button>
-                    )}
+              <TabsContent value="documents" className="pt-2 space-y-3">
+                {/* Compact Cost Type row — reachable while previewing line items,
+                    without crowding out the preview + extracted-data layout below. */}
+                <div className="flex items-start gap-3 rounded-md border bg-muted/30 px-3 py-2">
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Cost Type</p>
+                    <BillingModelFields
+                      billingModel={editingApp.billing_model || 'internal'}
+                      internalCostMonthly={editingApp.internal_cost_monthly ?? null}
+                      internalCostAnnual={editingApp.internal_cost_annual ?? null}
+                      disabled={!isAdmin}
+                      onChange={patch => setEditingApp({ ...editingApp, ...patch })}
+                      compact
+                    />
                   </div>
-                  <BillingModelFields
-                    billingModel={editingApp.billing_model || 'internal'}
-                    internalCostMonthly={editingApp.internal_cost_monthly ?? null}
-                    internalCostAnnual={editingApp.internal_cost_annual ?? null}
-                    disabled={!isAdmin}
-                    onChange={patch => setEditingApp({ ...editingApp, ...patch })}
-                  />
+                  {isAdmin && (
+                    <Button size="sm" variant="outline" className="shrink-0 mt-5" onClick={handleSaveCostType}>Save</Button>
+                  )}
                 </div>
                 <ContractsSection
                   userApplicationId={editingApp.id}
