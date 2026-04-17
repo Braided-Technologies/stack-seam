@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { useContractFiles, useUploadContract, useDeleteContractFile } from '@/hooks/useStackData';
+import { useContractFiles, useUploadContract, useDeleteContractFile, useUserApplicationContracts } from '@/hooks/useStackData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -52,6 +52,7 @@ interface ExtractedData {
 
 export default function ContractsSection({ userApplicationId, isAdmin, onExtractedData, onPreviewChange }: ContractsSectionProps) {
   const { data: files = [] } = useContractFiles(userApplicationId);
+  const { data: existingContracts = [] } = useUserApplicationContracts(userApplicationId);
   const uploadContract = useUploadContract();
   const deleteFile = useDeleteContractFile();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -63,6 +64,10 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
   const [editableLineItems, setEditableLineItems] = useState<LineItem[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewFile, setPreviewFile] = useState<{ path: string; name: string } | null>(null);
+  // Import target: 'new' creates a new contract row on Import; a UUID targets
+  // an existing contract to update. Reset to 'new' after each import so the
+  // next scan defaults to creating a fresh contract.
+  const [importTarget, setImportTarget] = useState<string>('new');
 
   const togglePreview = async (filePath: string, fileName: string) => {
     if (previewFile?.path === filePath) {
@@ -202,8 +207,15 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
 
     if (editableLineItems.length > 0) data.line_items = editableLineItems;
 
+    // '_target_contract_id' tells the parent whether to create a new contract ('new')
+    // or update an existing one (contract UUID). The parent's onExtractedData
+    // handler branches on this. Kept as an underscore-prefixed key so it's
+    // clearly meta rather than an extracted field.
+    data._target_contract_id = importTarget || 'new';
+
     onExtractedData?.(data);
     setScanResult(null);
+    setImportTarget('new');
   };
 
   const updateField = (key: string, value: any) => {
@@ -420,14 +432,33 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
               )}
             </div>
           </ScrollArea>
-          <div className="flex gap-2 p-3 border-t bg-muted/30 shrink-0">
-            <Button size="sm" className="gap-1" onClick={handleImport}>
-              <Check className="h-3.5 w-3.5" />
-              Import
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setScanResult(null)}>
-              Dismiss
-            </Button>
+          <div className="p-3 border-t bg-muted/30 shrink-0 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap">Import to:</span>
+              <select
+                className="flex h-7 flex-1 min-w-0 rounded-md border border-input bg-background px-2 text-xs"
+                value={importTarget}
+                onChange={e => setImportTarget(e.target.value)}
+              >
+                <option value="new">
+                  {existingContracts.length > 0 ? '+ Create new contract' : '+ Create first contract'}
+                </option>
+                {existingContracts.map(c => (
+                  <option key={c.id} value={c.id}>
+                    Update: {c.label?.trim() || 'Unlabeled contract'}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" className="gap-1" onClick={handleImport}>
+                <Check className="h-3.5 w-3.5" />
+                Import
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setScanResult(null)}>
+                Dismiss
+              </Button>
+            </div>
           </div>
         </div>
       )}
