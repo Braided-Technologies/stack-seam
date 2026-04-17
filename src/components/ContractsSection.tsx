@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { TermBillingFields } from '@/components/TermBillingFields';
+import { applyCostRatio } from '@/lib/costs';
 import { Upload, FileText, Trash2, Download, ScanSearch, Loader2, Check, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { formatNumber } from '@/lib/formatters';
@@ -318,7 +319,13 @@ export default function ContractsSection({ userApplicationId, isAdmin, onExtract
                         <Input
                           type={type}
                           value={editableFields[key] ?? ''}
-                          onChange={e => updateField(key, e.target.value)}
+                          onChange={e => {
+                            if (key === 'cost_monthly' || key === 'cost_annual') {
+                              setEditableFields(prev => ({ ...prev, ...applyCostRatio(key, e.target.value) }));
+                            } else {
+                              updateField(key, e.target.value);
+                            }
+                          }}
                           className="h-7 text-xs flex-1"
                         />
                       )}
